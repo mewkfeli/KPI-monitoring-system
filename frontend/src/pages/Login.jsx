@@ -81,6 +81,7 @@ const Login = () => {
               prefix={<UserOutlined />}
               placeholder="Имя пользователя"
               size="large"
+              onChange={() => setError("")} // сбрасываем ошибку при вводе
             />
           </Form.Item>
 
@@ -92,6 +93,7 @@ const Login = () => {
               prefix={<LockOutlined />}
               placeholder="Пароль"
               size="large"
+              onChange={() => setError("")} // сбрасываем ошибку при вводе
             />
           </Form.Item>
 

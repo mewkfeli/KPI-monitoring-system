@@ -6,25 +6,38 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
   const login = async (username, password) => {
-    try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+  try {
+    const res = await fetch("http://localhost:5000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
 
-      if (!res.ok) {
-        const err = await res.json();
-        return { success: false, error: err.message };
+    const data = await res.json();
+    console.log("Ответ сервера при логине:", data);
+
+    if (!res.ok) {
+      // сервер может вернуть объект {error: "..."} или массив/сообщение
+      let errorMessage = "Ошибка входа";
+
+      if (data.error) {
+        errorMessage = data.error; // <-- здесь конкретное сообщение
+      } else if (data.message) {
+        errorMessage = data.message;
+      } else if (data.errors && data.errors.length) {
+        errorMessage = data.errors.map(e => e.msg).join("; ");
       }
 
-      const data = await res.json();
-      setUser(data);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: errorMessage };
     }
-  };
+
+    setUser(data);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message || "Ошибка входа" };
+  }
+};
+
 
   const logout = () => setUser(null);
 
