@@ -12,16 +12,21 @@ export const AuthProvider = ({ children }) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
-
+     if (res.ok) {
+      const userData = await res.json();
+      console.log("Данные пользователя при логине:", userData);
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+      return { success: true, data: userData };
+    }
     const data = await res.json();
     console.log("Ответ сервера при логине:", data);
 
     if (!res.ok) {
-      // сервер может вернуть объект {error: "..."} или массив/сообщение
       let errorMessage = "Ошибка входа";
 
       if (data.error) {
-        errorMessage = data.error; // <-- здесь конкретное сообщение
+        errorMessage = data.error;
       } else if (data.message) {
         errorMessage = data.message;
       } else if (data.errors && data.errors.length) {

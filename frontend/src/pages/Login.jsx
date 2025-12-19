@@ -81,7 +81,7 @@ const Login = () => {
               prefix={<UserOutlined />}
               placeholder="Имя пользователя"
               size="large"
-              onChange={() => setError("")} // сбрасываем ошибку при вводе
+              onChange={() => setError("")}
             />
           </Form.Item>
 
