@@ -1,6 +1,7 @@
 import React from "react";
 import { Layout, Menu, Button, Avatar, Typography } from "antd";
 import { useAuth } from "../contexts/useAuth";
+import { Link } from "react-router-dom";
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -20,7 +21,14 @@ const Dashboard = () => {
           </div>
           <div style={{ color: "#666", fontSize: "12px" }}>{user?.role}</div>
         </div>
-        <Menu theme="light" mode="inline" items={[]} />
+        <Menu theme="light" mode="inline">
+          <Menu.Item key="dashboard">
+            <Link to="/dashboard">Личный кабинет</Link>
+          </Menu.Item>
+          <Menu.Item key="daily-metrics">
+            <Link to="/daily-metrics">Ввод данных за день</Link>
+          </Menu.Item>
+        </Menu>{" "}
       </Sider>
       <Layout>
         <Header
