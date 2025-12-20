@@ -32,6 +32,7 @@ import {
   TrophyOutlined,
   StarOutlined,
   HistoryOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
@@ -126,7 +127,7 @@ const Dashboard = () => {
       label: <Link to="/daily-metrics">Ввод данных за день</Link>,
     },
   ];
-
+  
   if (loading) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
