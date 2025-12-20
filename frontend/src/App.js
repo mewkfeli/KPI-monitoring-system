@@ -1,61 +1,70 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/useAuth";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
-import DailyMetricsForm from "./pages/DailyMetricsForm";
-import EmployeeDashboard from "./pages/EmployeeDashboard";
-import Profile from "./pages/Profile";
-
-// Защищенный маршрут
-const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return <div>Загрузка...</div>;
-  }
-  
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-  
-  return children;
-};
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/useAuth';
+import ProtectedRoute from './components/ProtectedRoute';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import DailyMetricsForm from './pages/DailyMetricsForm';
+import Profile from './pages/Profile';
+import EmployeeDashboard from './pages/EmployeeDashboard';
+import GroupLeaderDashboard from './pages/GroupLeaderDashboard';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           
-          {/* Защищенные маршруты */}
+          {/* Для обычных сотрудников */}
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['Сотрудник']}>
               <Dashboard />
             </ProtectedRoute>
           } />
           
           <Route path="/daily-metrics" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['Сотрудник']}>
               <DailyMetricsForm />
             </ProtectedRoute>
           } />
           
-          <Route path="/employee-dashboard" element={
-            <ProtectedRoute>
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          } />
-          
+          {/* Для всех авторизованных */}
           <Route path="/profile" element={
             <ProtectedRoute>
               <Profile />
             </ProtectedRoute>
           } />
+          
+          <Route path="/employee-dashboard" element={
+            <ProtectedRoute allowedRoles={['Сотрудник']}>
+              <EmployeeDashboard />
+            </ProtectedRoute>
+          } />
+
+          {/* Для руководителей группы */}
+          <Route path="/group-leader" element={
+            <ProtectedRoute allowedRoles={['Руководитель группы', 'Руководитель отдела']}>
+              <GroupLeaderDashboard />
+            </ProtectedRoute>
+          } />
+          
+          {/* Перенаправление в зависимости от роли */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              {(user) => {
+                if (user.role === 'Руководитель группы' || user.role === 'Руководитель отдела') {
+                  return <Navigate to="/group-leader" replace />;
+                } else {
+                  return <Navigate to="/dashboard" replace />;
+                }
+              }}
+            </ProtectedRoute>
+          } />
+          
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
     </AuthProvider>

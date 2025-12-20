@@ -17,7 +17,6 @@ import {
   Spin,
   message,
   Empty,
-  Timeline,
 } from "antd";
 import {
   DashboardOutlined,
@@ -27,8 +26,6 @@ import {
   CalendarOutlined,
   TeamOutlined,
   IdcardOutlined,
-  MailOutlined,
-  PhoneOutlined,
   SafetyCertificateOutlined,
   TrophyOutlined,
   HistoryOutlined,
@@ -49,24 +46,49 @@ const Profile = () => {
   const [statsData, setStatsData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Создаем массив элементов для меню
-  const menuItems = [
-    {
-      key: "profile",
-      icon: <UserOutlined />,
-      label: <Link to="/profile">Личный профиль</Link>,
-    },
-    {
-      key: "dashboard",
-      icon: <DashboardOutlined />,
-      label: <Link to="/dashboard">Показатели</Link>,
-    },
-    {
-      key: "daily-metrics",
-      icon: <FormOutlined />,
-      label: <Link to="/daily-metrics">Ввод данных за день</Link>,
-    },
-  ];
+  // Создаем массив элементов для меню в зависимости от роли
+  const getMenuItems = () => {
+    const isLeader =
+      user?.role === "Руководитель группы" ||
+      user?.role === "Руководитель отдела";
+
+    if (isLeader) {
+      // Меню для руководителя группы
+      return [
+        {
+          key: "profile",
+          icon: <UserOutlined />,
+          label: <Link to="/profile">Личный профиль</Link>,
+        },
+        {
+          key: "group-leader",
+          icon: <TeamOutlined />,
+          label: <Link to="/group-leader">Дашборд группы</Link>,
+        },
+      ];
+    } else {
+      // Меню для обычного сотрудника
+      return [
+        {
+          key: "profile",
+          icon: <UserOutlined />,
+          label: <Link to="/profile">Личный профиль</Link>,
+        },
+        {
+          key: "dashboard",
+          icon: <DashboardOutlined />,
+          label: <Link to="/dashboard">Показатели</Link>,
+        },
+        {
+          key: "daily-metrics",
+          icon: <FormOutlined />,
+          label: <Link to="/daily-metrics">Ввод данных за день</Link>,
+        },
+      ];
+    }
+  };
+
+  const menuItems = getMenuItems();
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -179,7 +201,7 @@ const Profile = () => {
         <Layout>
           <Header style={{ background: "#fff", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
-              Показатели сотрудника
+              Личный профиль
             </Title>
           </Header>
           <Content

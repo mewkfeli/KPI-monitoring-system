@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import authRoutes from "./auth.routes.js";
 import metricsRoutes from "./metrics.routes.js";
+import groupRoutes from "./group.routes.js";
 
 const app = express();
 app.use(cors());
@@ -9,6 +10,8 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/metrics", metricsRoutes);
+app.use("/api/group", groupRoutes); 
+
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();

@@ -25,6 +25,7 @@ import {
   LogoutOutlined,
   UserOutlined,
   CalendarOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
