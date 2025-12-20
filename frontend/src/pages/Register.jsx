@@ -11,7 +11,7 @@ import {
   Col,
   Steps,
   Alert,
-  Spin,
+  message,
 } from "antd";
 import {
   UserOutlined,
@@ -35,70 +35,99 @@ const RegisterContainer = styled.div`
   align-items: center;
   justify-content: center;
   padding: 20px;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
 `;
 
 const StyledCard = styled(Card)`
   width: 100%;
-  max-width: 600px;
+  max-width: 500px;
+  max-height: 90vh;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
   border-radius: 12px;
+  overflow: hidden;
+  margin: auto;
 
   .ant-card-body {
-    padding: 40px;
+    padding: 20px;
+    max-height: calc(90vh - 40px);
+    overflow-y: auto;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 `;
 
 const LogoContainer = styled.div`
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 16px;
 
   .logo-icon {
-    font-size: 48px;
+    font-size: 32px;
     color: #1890ff;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
 `;
 
 const StyledTitle = styled(Title)`
   text-align: center !important;
-  margin-bottom: 5px !important;
+  margin-bottom: 4px !important;
   color: #1890ff !important;
+  font-size: 20px !important;
 `;
 
 const Subtitle = styled(Text)`
   display: block;
   text-align: center;
   color: #666;
-  margin-bottom: 30px;
+  margin-bottom: 16px;
+  font-size: 12px;
 `;
 
 const StyledForm = styled(Form)`
   .ant-form-item {
-    margin-bottom: 20px;
+    margin-bottom: 14px;
   }
 
   .ant-input-affix-wrapper {
-    padding: 10px 15px;
-    border-radius: 6px;
+    padding: 8px 10px;
+    border-radius: 5px;
+    font-size: 13px;
   }
 
   .ant-select-selector {
-    padding: 10px 15px !important;
-    border-radius: 6px !important;
+    padding: 8px 10px !important;
+    border-radius: 5px !important;
+    height: 36px !important;
+    font-size: 13px !important;
   }
 
   .ant-btn {
-    height: 45px;
-    border-radius: 6px;
+    height: 36px;
+    border-radius: 5px;
     font-weight: 500;
+    font-size: 13px;
   }
 `;
 
 const FormSteps = styled(Steps)`
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 
   .ant-steps-item-title {
     font-weight: 500;
+    font-size: 11px;
+  }
+
+  .ant-steps-item-description {
+    font-size: 9px;
   }
 `;
 
@@ -106,6 +135,7 @@ const RegisterButton = styled(Button)`
   width: 100%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
+  height: 36px;
 
   &:hover {
     background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
@@ -113,13 +143,13 @@ const RegisterButton = styled(Button)`
 `;
 
 const BackButton = styled(Button)`
-  margin-right: 10px;
+  margin-right: 6px;
 `;
 
 const steps = [
-  { title: "Основные данные", description: "Персональная информация" },
-  { title: "Учетные данные", description: "Логин и пароль" },
-  { title: "Подтверждение", description: "Проверка данных" },
+  { title: "Основные", description: "Персональная информация" },
+  { title: "Учетные", description: "Логин и пароль" },
+  { title: "Подтверждение", description: "Проверка" },
 ];
 
 const stepFields = [
@@ -143,14 +173,36 @@ const Register = () => {
 
   useEffect(() => {
     fetchGroups();
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    };
   }, []);
 
   const fetchGroups = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/groups");
+      const response = await axios.get("http://localhost:5000/api/auth/groups");
       setGroups(response.data);
     } catch (error) {
       console.error("Ошибка при загрузке групп:", error);
+      message.error("Не удалось загрузить список групп");
+
+      setGroups([
+        {
+          group_id: 1,
+          group_name: "Группа поддержки",
+          department_name: "Техподдержка",
+        },
+        {
+          group_id: 2,
+          group_name: "Продажи",
+          department_name: "Коммерческий отдел",
+        },
+      ]);
     } finally {
       setGroupsLoading(false);
     }
@@ -160,7 +212,9 @@ const Register = () => {
     try {
       await form.validateFields(stepFields[current]);
       setCurrent(current + 1);
-    } catch { console.log("Ошибка валидации на шаге", current); }
+    } catch (error) {
+      console.log("Ошибка валидации на шаге", current);
+    }
   };
 
   const prev = () => setCurrent(current - 1);
@@ -173,28 +227,26 @@ const Register = () => {
     const userData = {
       username: values.username,
       password: values.password,
-      lastName: values.lastName,
-      firstName: values.firstName,
-      middleName: values.middleName || null,
+      last_name: values.lastName,
+      first_name: values.firstName,
+      middle_name: values.middleName || null,
       group_id: parseInt(values.group_id),
-      role: "Сотрудник",
-      hire_date: new Date().toISOString(),
     };
-
-
-    console.log("Отправляем на сервер:", userData);
 
     try {
       const result = await register(userData);
-      if (result.success) navigate("/dashboard");
-      else alert(result.message);
+      if (result.success) {
+        navigate("/dashboard");
+      } else {
+        message.error(result.message || "Ошибка регистрации");
+      }
     } catch (error) {
-      alert(error.message || "Ошибка регистрации");
+      console.error("Ошибка регистрации:", error);
+      message.error(error.message || "Ошибка регистрации");
     } finally {
       setLoading(false);
     }
   };
-
 
   return (
     <RegisterContainer>
@@ -207,7 +259,7 @@ const Register = () => {
           <Subtitle>Создайте новый аккаунт в системе</Subtitle>
         </LogoContainer>
 
-        <FormSteps current={current} items={steps} />
+        <FormSteps current={current} items={steps} size="small" />
 
         <StyledForm
           form={form}
@@ -218,18 +270,23 @@ const Register = () => {
         >
           {/* Шаг 0 */}
           <div style={{ display: current === 0 ? "block" : "none" }}>
-            <Row gutter={16}>
+            <Row gutter={6}>
               <Col span={24}>
                 <Form.Item
-                  label="Фамилия"
+                  label={
+                    <Text strong style={{ fontSize: "12px" }}>
+                      Фамилия
+                    </Text>
+                  }
                   name="lastName"
                   rules={[
                     { required: true, message: "Введите фамилию" },
                     { min: 2, message: "Минимум 2 символа" },
+                    { max: 30, message: "Максимум 30 символов" },
                   ]}
                 >
                   <Input
-                    size="large"
+                    size="middle"
                     placeholder="Иванов"
                     prefix={<UserOutlined />}
                   />
@@ -237,37 +294,51 @@ const Register = () => {
               </Col>
             </Row>
 
-            <Row gutter={16}>
+            <Row gutter={6}>
               <Col span={12}>
                 <Form.Item
-                  label="Имя"
+                  label={
+                    <Text strong style={{ fontSize: "12px" }}>
+                      Имя
+                    </Text>
+                  }
                   name="firstName"
                   rules={[
                     { required: true, message: "Введите имя" },
                     { min: 2, message: "Минимум 2 символа" },
+                    { max: 30, message: "Максимум 30 символов" },
                   ]}
                 >
-                  <Input size="large" placeholder="Иван" />
+                  <Input size="middle" placeholder="Иван" />
                 </Form.Item>
               </Col>
 
               <Col span={12}>
-                <Form.Item label="Отчество" name="middleName">
-                  <Input size="large" placeholder="Иванович" />
+                <Form.Item
+                  label={<Text style={{ fontSize: "12px" }}>Отчество</Text>}
+                  name="middleName"
+                >
+                  <Input size="middle" placeholder="Иванович" />
                 </Form.Item>
               </Col>
             </Row>
 
             <Form.Item
-              label="Рабочая группа"
+              label={
+                <Text strong style={{ fontSize: "12px" }}>
+                  Рабочая группа
+                </Text>
+              }
               name="group_id"
               rules={[{ required: true, message: "Выберите группу" }]}
             >
               <Select
-                size="large"
+                size="middle"
                 placeholder="Выберите группу"
                 loading={groupsLoading}
                 suffixIcon={<TeamOutlined />}
+                dropdownStyle={{ fontSize: "12px" }}
+                listHeight={180}
               >
                 {groups.map((group) => (
                   <Option key={group.group_id} value={group.group_id}>
@@ -281,7 +352,11 @@ const Register = () => {
           {/* Шаг 1 */}
           <div style={{ display: current === 1 ? "block" : "none" }}>
             <Form.Item
-              label="Имя пользователя"
+              label={
+                <Text strong style={{ fontSize: "12px" }}>
+                  Имя пользователя
+                </Text>
+              }
               name="username"
               rules={[
                 { required: true, message: "Введите имя пользователя" },
@@ -295,26 +370,31 @@ const Register = () => {
               hasFeedback
             >
               <Input
-                size="large"
+                size="middle"
                 placeholder="ivanov"
                 prefix={<UserOutlined />}
               />
             </Form.Item>
 
-            <Row gutter={16}>
+            <Row gutter={6}>
               <Col span={12}>
                 <Form.Item
-                  label="Пароль"
+                  label={
+                    <Text strong style={{ fontSize: "12px" }}>
+                      Пароль
+                    </Text>
+                  }
                   name="password"
                   rules={[
                     { required: true, message: "Введите пароль" },
                     { min: 6, message: "Минимум 6 символов" },
+                    { max: 30, message: "Максимум 30 символов" },
                   ]}
                   hasFeedback
                 >
                   <Input.Password
-                    size="large"
-                    placeholder="******"
+                    size="middle"
+                    placeholder="Пароль"
                     prefix={<LockOutlined />}
                   />
                 </Form.Item>
@@ -322,7 +402,11 @@ const Register = () => {
 
               <Col span={12}>
                 <Form.Item
-                  label="Подтверждение"
+                  label={
+                    <Text strong style={{ fontSize: "12px" }}>
+                      Подтверждение
+                    </Text>
+                  }
                   name="confirmPassword"
                   dependencies={["password"]}
                   rules={[
@@ -338,8 +422,8 @@ const Register = () => {
                   hasFeedback
                 >
                   <Input.Password
-                    size="large"
-                    placeholder="******"
+                    size="middle"
+                    placeholder="Повторите пароль"
                     prefix={<LockOutlined />}
                   />
                 </Form.Item>
@@ -351,43 +435,64 @@ const Register = () => {
           <div
             style={{
               display: current === 2 ? "block" : "none",
-              padding: "20px",
+              padding: "12px",
               background: "#fafafa",
-              borderRadius: "8px",
+              borderRadius: "6px",
+              border: "1px solid #e8e8e8",
+              marginBottom: "8px",
             }}
           >
-            <Title level={4} style={{ marginBottom: "20px", color: "#1890ff" }}>
-              <CheckCircleOutlined /> Проверьте введенные данные
+            <Title
+              level={4}
+              style={{
+                marginBottom: "12px",
+                color: "#1890ff",
+                fontSize: "15px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <CheckCircleOutlined style={{ fontSize: "14px" }} />
+              Проверьте данные
             </Title>
 
-            <Row gutter={16} style={{ marginBottom: "16px" }}>
+            <Row gutter={6} style={{ marginBottom: "8px" }}>
               <Col span={8}>
-                <Text strong>ФИО:</Text>
+                <Text strong style={{ fontSize: "12px" }}>
+                  ФИО:
+                </Text>
               </Col>
               <Col span={16}>
-                <Text>
+                <Text style={{ fontSize: "12px" }}>
                   {form.getFieldValue("lastName")}{" "}
                   {form.getFieldValue("firstName")}{" "}
-                  {form.getFieldValue("middleName")}
+                  {form.getFieldValue("middleName") || ""}
                 </Text>
               </Col>
             </Row>
 
-            <Row gutter={16} style={{ marginBottom: "16px" }}>
+            <Row gutter={6} style={{ marginBottom: "8px" }}>
               <Col span={8}>
-                <Text strong>Имя пользователя:</Text>
+                <Text strong style={{ fontSize: "12px" }}>
+                  Логин:
+                </Text>
               </Col>
               <Col span={16}>
-                <Text>{form.getFieldValue("username")}</Text>
+                <Text style={{ fontSize: "12px" }}>
+                  {form.getFieldValue("username")}
+                </Text>
               </Col>
             </Row>
 
-            <Row gutter={16} style={{ marginBottom: "16px" }}>
+            <Row gutter={6} style={{ marginBottom: "8px" }}>
               <Col span={8}>
-                <Text strong>Группа:</Text>
+                <Text strong style={{ fontSize: "12px" }}>
+                  Группа:
+                </Text>
               </Col>
               <Col span={16}>
-                <Text>
+                <Text style={{ fontSize: "12px" }}>
                   {groups.find(
                     (g) => g.group_id == form.getFieldValue("group_id")
                   )?.group_name || "Не выбрана"}
@@ -397,17 +502,23 @@ const Register = () => {
 
             <Alert
               message="Внимание"
-              description="После регистрации вы не сможете изменить имя пользователя. Убедитесь, что все данные введены корректно."
+              description="После регистрации вы не сможете изменить имя пользователя."
               type="info"
               showIcon
-              style={{ marginTop: "20px" }}
+              style={{
+                marginTop: "12px",
+                borderRadius: "4px",
+                fontSize: "11px",
+                padding: "8px 12px",
+              }}
+              size="small"
             />
           </div>
 
-          <div style={{ marginTop: "40px", textAlign: "center" }}>
+          <div style={{ marginTop: "16px", textAlign: "center" }}>
             {current > 0 && (
               <BackButton
-                size="large"
+                size="middle"
                 onClick={prev}
                 icon={<ArrowLeftOutlined />}
               >
@@ -418,16 +529,17 @@ const Register = () => {
             {current < steps.length - 1 ? (
               <Button
                 type="primary"
-                size="large"
+                size="middle"
                 onClick={next}
                 loading={groupsLoading && current === 0}
+                style={{ minWidth: "90px" }}
               >
                 Далее
               </Button>
             ) : (
               <RegisterButton
                 type="primary"
-                size="large"
+                size="middle"
                 htmlType="submit"
                 loading={loading}
                 icon={<CheckCircleOutlined />}
@@ -437,9 +549,11 @@ const Register = () => {
             )}
           </div>
 
-          <div style={{ textAlign: "center", marginTop: "20px" }}>
-            <Text>Уже есть аккаунт? </Text>
-            <Link to="/login">Войти в систему</Link>
+          <div style={{ textAlign: "center", marginTop: "12px" }}>
+            <Text style={{ fontSize: "11px" }}>Уже есть аккаунт? </Text>
+            <Link to="/login" style={{ fontSize: "11px", fontWeight: 500 }}>
+              Войти в систему
+            </Link>
           </div>
         </StyledForm>
       </StyledCard>

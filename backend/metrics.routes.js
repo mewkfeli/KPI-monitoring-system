@@ -68,18 +68,32 @@ router.post("/daily-metrics", async (req, res) => {
 // Получение данных за сегодня
 router.get("/daily-metrics/today", async (req, res) => {
   const { employee_id } = req.query;
-  const today = new Date().toISOString().split("T")[0];
+  
+  if (!employee_id) {
+    return res.status(400).json({ message: "Отсутствует employee_id" });
+  }
+
+  // Используем точную дату в формате YYYY-MM-DD
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0]; // "2025-12-19"
+
+  console.log(`Поиск данных для employee_id: ${employee_id} на дату: ${todayStr}`);
 
   try {
     const [rows] = await db.query(
-      `SELECT * FROM daily_metrics WHERE employee_id = ? AND report_date = ?`,
-      [employee_id, today]
+      `SELECT * FROM daily_metrics 
+       WHERE employee_id = ? AND report_date = ?`,
+      [employee_id, todayStr]
     );
 
+    console.log(`Найдено записей: ${rows.length}`);
     res.json(rows);
   } catch (error) {
     console.error("Ошибка при получении данных за сегодня:", error);
-    res.status(500).json({ message: "Ошибка сервера" });
+    res.status(500).json({ 
+      message: "Ошибка сервера",
+      error: error.message 
+    });
   }
 });
 

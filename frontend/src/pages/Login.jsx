@@ -1,99 +1,91 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { Form, Input, Button, Card, Typography, Alert } from "antd";
+import { useNavigate } from "react-router-dom";
+import { Form, Input, Button, Card, Typography, message } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [form] = Form.useForm();
 
   const onFinish = async (values) => {
     setLoading(true);
-    setError("");
 
-    const result = await login(values.username, values.password);
-    setLoading(false);
+    try {
+      const result = await login(values.username, values.password);
 
-    if (result.success) {
-      navigate("/");
-    } else {
-      setError(result.error);
+      if (result.success) {
+        message.success("Вход выполнен успешно!");
+
+        // Даем время для обновления состояния
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 100);
+      } else {
+        message.error(result.error || "Ошибка входа");
+      }
+    } catch (error) {
+      message.error("Ошибка при входе в систему");
+      console.error("Login error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const containerStyle = {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "20px",
-  };
-
-  const cardStyle = {
-    width: "100%",
-    maxWidth: "420px",
-    boxShadow: "0 10px 40px rgba(0, 0, 0, 0.1)",
-    borderRadius: "12px",
-  };
-
   return (
-    <div style={containerStyle}>
-      <Card style={cardStyle}>
-        <Title
-          level={2}
-          style={{
-            textAlign: "center",
-            marginBottom: "30px",
-            color: "#1890ff",
-          }}
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        padding: "20px",
+      }}
+    >
+      <Card
+        style={{
+          width: "100%",
+          maxWidth: "400px",
+          boxShadow: "0 10px 40px rgba(0, 0, 0, 0.1)",
+          borderRadius: "12px",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: "30px" }}>
+          <Title level={2} style={{ color: "#1890ff", marginBottom: "10px" }}>
+            Вход в систему
+          </Title>
+          <Text type="secondary">Введите ваши учетные данные</Text>
+        </div>
+
+        <Form
+          name="login"
+          onFinish={onFinish}
+          layout="vertical"
+          autoComplete="off"
         >
-          Вход в систему
-        </Title>
-
-        {error && (
-          <Alert
-            message="Ошибка входа"
-            description={error}
-            type="error"
-            showIcon
-            style={{ marginBottom: 24 }}
-          />
-        )}
-
-        <Form form={form} name="login" onFinish={onFinish} layout="vertical">
           <Form.Item
             name="username"
-            rules={[
-              {
-                required: true,
-                message: "Пожалуйста, введите имя пользователя",
-              },
-            ]}
+            rules={[{ required: true, message: "Введите имя пользователя" }]}
           >
             <Input
-              prefix={<UserOutlined />}
-              placeholder="Имя пользователя"
               size="large"
-              onChange={() => setError("")}
+              placeholder="Имя пользователя"
+              prefix={<UserOutlined />}
             />
           </Form.Item>
 
           <Form.Item
             name="password"
-            rules={[{ required: true, message: "Пожалуйста, введите пароль" }]}
+            rules={[{ required: true, message: "Введите пароль" }]}
           >
             <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="Пароль"
               size="large"
-              onChange={() => setError("")} // сбрасываем ошибку при вводе
+              placeholder="Пароль"
+              prefix={<LockOutlined />}
             />
           </Form.Item>
 
@@ -109,8 +101,9 @@ const Login = () => {
             </Button>
           </Form.Item>
 
-          <div style={{ textAlign: "center" }}>
-            <Link to="/register">Зарегистрироваться</Link>
+          <div style={{ textAlign: "center", marginTop: "20px" }}>
+            <Text>Нет аккаунта? </Text>
+            <a href="/register">Зарегистрироваться</a>
           </div>
         </Form>
       </Card>

@@ -1,77 +1,112 @@
-import { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { message } from 'antd';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    
+    // Используем setTimeout чтобы избежать синхронного setState в эффекте
+    const timer = setTimeout(() => {
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch (error) {
+          console.error("Ошибка парсинга сохраненного пользователя:", error);
+          localStorage.removeItem('user');
+        }
+      }
+      setLoading(false);
+    }, 0); // setTimeout с 0 задержкой
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const login = async (username, password) => {
-  try {
-    const res = await fetch("http://localhost:5000/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-     if (res.ok) {
-      const userData = await res.json();
-      console.log("Данные пользователя при логине:", userData);
-      setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
-      return { success: true, data: userData };
-    }
-    const data = await res.json();
-    console.log("Ответ сервера при логине:", data);
-
-    if (!res.ok) {
-      let errorMessage = "Ошибка входа";
-
-      if (data.error) {
-        errorMessage = data.error;
-      } else if (data.message) {
-        errorMessage = data.message;
-      } else if (data.errors && data.errors.length) {
-        errorMessage = data.errors.map(e => e.msg).join("; ");
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      
+      if (res.ok) {
+        const userData = await res.json();
+        console.log("Данные пользователя при логине:", userData);
+        
+        // Обновляем состояние асинхронно
+        setTimeout(() => {
+          setUser(userData);
+        }, 0);
+        
+        localStorage.setItem('user', JSON.stringify(userData));
+        message.success('Вход выполнен успешно!');
+        return { success: true, data: userData };
+      } else {
+        const errorData = await res.json();
+        message.error(errorData.message || 'Ошибка входа');
+        return { success: false, error: errorData.message };
       }
-
-      return { success: false, error: errorMessage };
+    } catch (error) {
+      message.error('Ошибка соединения с сервером');
+      return { success: false, error: 'Ошибка соединения' };
     }
+  };
 
-    setUser(data);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message || "Ошибка входа" };
-  }
-};
-
-
-  const logout = () => setUser(null);
+  const logout = () => {
+    // Используем setTimeout для асинхронного обновления
+    setTimeout(() => {
+      setUser(null);
+    }, 0);
+    
+    localStorage.removeItem('user');
+    message.info('Вы вышли из системы');
+  };
 
   const register = async (userData) => {
-  try {
-    console.log("Отправляем на сервер:", userData);
+    try {
+      console.log("Отправляем на сервер:", userData);
 
-    const res = await fetch("http://localhost:5000/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(userData),
-    });
+      const res = await fetch("http://localhost:5000/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData),
+      });
 
-    if (!res.ok) {
-      const errorData = await res.json();
-      console.error("Ошибка регистрации с сервера:", errorData);
-      return { success: false, message: errorData.message || "Ошибка регистрации" };
+      if (res.ok) {
+        const result = await res.json();
+        console.log("Регистрация успешна:", result);
+        message.success('Регистрация успешна!');
+        return { success: true, data: result };
+      } else {
+        const errorData = await res.json();
+        console.error("Ошибка регистрации с сервера:", errorData);
+        message.error(errorData.message || "Ошибка регистрации");
+        return { success: false, error: errorData.message };
+      }
+    } catch (error) {
+      console.error("Ошибка регистрации:", error);
+      message.error('Ошибка соединения с сервером');
+      return { success: false, error: 'Ошибка соединения' };
     }
+  };
 
-    return { success: true };
-  } catch (error) {
-    console.error("Ошибка регистрации:", error);
-    return { success: false, message: error.message || "Ошибка регистрации" };
-  }
-};
+  const value = {
+    user,
+    loading,
+    login,
+    register,
+    logout,
+    isAuthenticated: !!user,
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register }}>
-      {children}
+    <AuthContext.Provider value={value}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
