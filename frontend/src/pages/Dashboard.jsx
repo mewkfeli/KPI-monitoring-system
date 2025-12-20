@@ -137,14 +137,12 @@ const Dashboard = () => {
               size={80}
               style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
             >
-              {user?.first_name?.[0] || user?.username?.[0]?.toUpperCase() || (
-                <UserOutlined />
-              )}
+              {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
             </Avatar>
             <div
               style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
             >
-              {user?.first_name || user?.username}
+              {user?.username}
             </div>
             <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
               {user?.role}
@@ -201,7 +199,7 @@ const Dashboard = () => {
           <div
             style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
           >
-            {user?.first_name || user?.username}
+            {user?.username}
           </div>
           <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
             {user?.role}

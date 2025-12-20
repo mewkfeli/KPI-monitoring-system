@@ -183,13 +183,23 @@ const Profile = () => {
       <Layout style={{ minHeight: "100vh" }}>
         <Sider theme="light" width={250}>
           <div style={{ padding: "16px", textAlign: "center" }}>
-            <Avatar size={64} style={{ backgroundColor: "#1890ff" }}>
+            <Avatar
+              size={80}
+              style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
+            >
               {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
             </Avatar>
-            <div style={{ marginTop: "12px", fontWeight: "500" }}>
-              {user?.first_name || user?.username || "Сотрудник"}
+            <div
+              style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
+            >
+              {user?.username}
             </div>
-            <div style={{ color: "#666", fontSize: "12px" }}>{user?.role}</div>
+            <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
+              {user?.role}
+            </div>
+            <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
+              ID: {user?.employee_id}
+            </div>
           </div>
           <Menu
             theme="light"
@@ -238,8 +248,7 @@ const Profile = () => {
           <div
             style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
           >
-            {profileData?.last_name} {profileData?.first_name}{" "}
-            {profileData?.middle_name}
+            {profileData?.username}
           </div>
           <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
             <Tag color={getRoleColor(profileData?.role || user?.role)}>
