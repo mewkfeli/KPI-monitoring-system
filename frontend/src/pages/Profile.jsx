@@ -36,6 +36,7 @@ import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
+import NotificationBell from "../components/NotificationBell";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -46,6 +47,20 @@ const Profile = () => {
   const [statsData, setStatsData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Определяем цвет для роли
+  const getRoleColor = (role) => {
+    switch (role) {
+      case "Руководитель отдела":
+        return "purple";
+      case "Руководитель группы":
+        return "blue";
+      case "Сотрудник":
+        return "green";
+      default:
+        return "default";
+    }
+  };
+
   // Создаем массив элементов для меню в зависимости от роли
   const getMenuItems = () => {
     const isLeader =
@@ -53,7 +68,7 @@ const Profile = () => {
       user?.role === "Руководитель отдела";
 
     if (isLeader) {
-      // Меню для руководителя группы
+      // Меню для руководителя группы/отдела
       return [
         {
           key: "profile",
@@ -64,6 +79,11 @@ const Profile = () => {
           key: "group-leader",
           icon: <TeamOutlined />,
           label: <Link to="/group-leader">Дашборд группы</Link>,
+        },
+        {
+          key: "leaderboard",
+          icon: <TrophyOutlined />,
+          label: <Link to="/leaderboard">Рейтинг сотрудников</Link>,
         },
       ];
     } else {
@@ -99,14 +119,12 @@ const Profile = () => {
 
       setLoading(true);
       try {
-        // Получаем расширенные данные профиля
         const profileResponse = await fetch(
-          `http://localhost:5000/api/auth/profile?employee_id=${user.employee_id}`
+          `http://localhost:5000/api/auth/profile?employee_id=${user.employee_id}`,
         );
 
-        // Получаем статистику сотрудника
         const statsResponse = await fetch(
-          `http://localhost:5000/api/auth/employee-stats?employee_id=${user.employee_id}`
+          `http://localhost:5000/api/auth/employee-stats?employee_id=${user.employee_id}`,
         );
 
         if (profileResponse.ok) {
@@ -145,20 +163,6 @@ const Profile = () => {
     }
   };
 
-  // Определяем цвет для роли
-  const getRoleColor = (role) => {
-    switch (role) {
-      case "Руководитель отдела":
-        return "purple";
-      case "Руководитель группы":
-        return "blue";
-      case "Сотрудник":
-        return "green";
-      default:
-        return "default";
-    }
-  };
-
   // Рассчитываем стаж работы
   const calculateExperience = (hireDate) => {
     if (!hireDate) return "Не указано";
@@ -187,7 +191,7 @@ const Profile = () => {
               size={80}
               style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
             >
-              {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
+              {user?.first_name?.[0]?.toUpperCase() || <UserOutlined />}
             </Avatar>
             <div
               style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
@@ -195,7 +199,7 @@ const Profile = () => {
               {user?.username}
             </div>
             <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-              {user?.role}
+              <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
             </div>
             <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
               ID: {user?.employee_id}
@@ -281,9 +285,12 @@ const Profile = () => {
           <Title level={4} style={{ margin: 0 }}>
             Личный профиль
           </Title>
-          <Button onClick={logout} icon={<LogoutOutlined />}>
-            Выйти
-          </Button>
+          <Space>
+            <NotificationBell userId={user?.employee_id} />
+            <Button onClick={logout} icon={<LogoutOutlined />}>
+              Выйти
+            </Button>
+          </Space>
         </Header>
 
         <Content
@@ -375,63 +382,9 @@ const Profile = () => {
             </Col>
           </Row>
 
-          {/* Статистика и показатели */}
+          {/* Только блок достижений (статистика работы удалена) */}
           <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-            <Col span={12}>
-              <Card
-                title={
-                  <Space>
-                    <BarChartOutlined />
-                    <span>Статистика работы</span>
-                  </Space>
-                }
-              >
-                {statsData ? (
-                  <Row gutter={[16, 16]}>
-                    <Col span={12}>
-                      <Statistic
-                        title="Всего рабочих дней"
-                        value={statsData.total_days || 0}
-                        prefix={<CalendarOutlined />}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Всего запросов"
-                        value={statsData.total_requests || 0}
-                        prefix={<HistoryOutlined />}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Средний CSAT"
-                        value={statsData.avg_csat || 0}
-                        suffix="%"
-                        prefix={<StarOutlined />}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Среднее качество"
-                        value={statsData.avg_quality || 0}
-                        suffix="%"
-                        prefix={<TrophyOutlined />}
-                      />
-                    </Col>
-                    <Col span={24}>
-                      <Divider />
-                      <Text type="secondary" style={{ fontSize: "12px" }}>
-                        Данные за все время работы в системе
-                      </Text>
-                    </Col>
-                  </Row>
-                ) : (
-                  <Empty description="Статистика не доступна" />
-                )}
-              </Card>
-            </Col>
-
-            <Col span={12}>
+            <Col span={24}>
               <Card
                 title={
                   <Space>

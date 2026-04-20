@@ -29,28 +29,31 @@ const { Option } = Select;
 const { Step } = Steps;
 
 const RegisterContainer = styled.div`
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("/images/login-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
-  overflow: hidden;
-  width: 100vw;
-  height: 100vh;
-  position: fixed;
-  top: 0;
-  left: 0;
+  margin: 0;
 `;
 
 const StyledCard = styled(Card)`
   width: 100%;
   max-width: 500px;
   max-height: 90vh;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   border-radius: 12px;
   overflow: hidden;
   margin: auto;
+  border: none;
 
   .ant-card-body {
     padding: 20px;
@@ -235,14 +238,18 @@ const Register = () => {
 
     try {
       const result = await register(userData);
+
       if (result.success) {
         navigate("/dashboard");
       } else {
         message.error(result.message || "Ошибка регистрации");
       }
     } catch (error) {
-      console.error("Ошибка регистрации:", error);
-      message.error(error.message || "Ошибка регистрации");
+      if (error.response?.status === 409) {
+        message.error("Имя пользователя уже занято");
+      } else {
+        message.error("Ошибка регистрации");
+      }
     } finally {
       setLoading(false);
     }
@@ -494,7 +501,7 @@ const Register = () => {
               <Col span={16}>
                 <Text style={{ fontSize: "12px" }}>
                   {groups.find(
-                    (g) => g.group_id == form.getFieldValue("group_id")
+                    (g) => g.group_id == form.getFieldValue("group_id"),
                   )?.group_name || "Не выбрана"}
                 </Text>
               </Col>
