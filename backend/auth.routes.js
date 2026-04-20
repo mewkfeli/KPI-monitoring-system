@@ -1,6 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import { db } from "./db.js";
+import { NotificationService } from "./notification.service.js";
 
 const router = express.Router();
 
@@ -32,19 +33,32 @@ router.post("/login", async (req, res) => {
     group_id: user.group_id,
   });
 });
+
 router.post("/register", async (req, res) => {
   const { username, password, first_name, last_name, group_id } = req.body;
 
-  const hash = await bcrypt.hash(password, 10);
+  try {
+    const hash = await bcrypt.hash(password, 10);
 
-  await db.query(
-    `INSERT INTO employees 
-     (username, password_hash, first_name, last_name, group_id)
-     VALUES (?, ?, ?, ?, ?)`,
-    [username, hash, first_name, last_name, group_id]
-  );
+    await db.query(
+      `INSERT INTO employees 
+       (username, password_hash, first_name, last_name, group_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [username, hash, first_name, last_name, group_id]
+    );
 
-  res.json({ message: "Пользователь создан" });
+    res.json({ success: true, message: "Пользователь создан" });
+
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        success: false,
+        message: "Имя пользователя уже существует"
+      });
+    }
+    console.error("Ошибка регистрации:", error);
+    res.status(500).json({ success: false, message: "Ошибка сервера" });
+  }
 });
 
 // Добавление данных за день
@@ -66,7 +80,7 @@ router.post("/daily-metrics", async (req, res) => {
     // Проверяем, есть ли уже запись на эту дату для этого сотрудника
     const [existing] = await db.query(
       `SELECT * FROM daily_metrics 
-       WHERE employee_id = ? AND report_date = ?`,
+       WHERE employee_id = ? AND DATE(report_date) = DATE(?)`,
       [employee_id, report_date]
     );
 
@@ -76,8 +90,8 @@ router.post("/daily-metrics", async (req, res) => {
       });
     }
 
-    // Вставляем новую запись с default значениями для новых полей
-    await db.query(
+    // Вставляем новую запись
+    const [result] = await db.query(
       `INSERT INTO daily_metrics (
         employee_id, report_date, processed_requests, work_minutes, 
         positive_feedbacks, total_feedbacks, first_contact_resolved, 
@@ -98,6 +112,31 @@ router.post("/daily-metrics", async (req, res) => {
       ]
     );
 
+    // === УВЕДОМЛЕНИЕ ДЛЯ РУКОВОДИТЕЛЕЙ ===
+    const employeeInfo = await NotificationService.getEmployeeInfo(employee_id);
+    const employeeName = employeeInfo 
+      ? `${employeeInfo.first_name} ${employeeInfo.last_name}`
+      : `Сотрудник ID:${employee_id}`;
+    
+    const formattedDate = new Date(report_date).toLocaleDateString('ru-RU');
+    
+    // Получаем руководителей группы
+    const leaders = await NotificationService.getGroupLeaders(employee_id);
+    
+    // Создаем уведомление для каждого руководителя
+    for (const leaderId of leaders) {
+      await NotificationService.createNotification(
+        leaderId,
+        "📊 Новые данные для проверки",
+        `${employeeName} добавил(а) рабочие показатели за ${formattedDate}. Ожидает проверки.`,
+        "info",
+        "daily_metrics",
+        result.insertId
+      );
+    }
+
+    console.log(`✅ Данные добавлены. Уведомления отправлены ${leaders.length} руководителям`);
+
     res.status(201).json({ message: "Данные успешно добавлены" });
   } catch (error) {
     console.error("Ошибка при добавлении данных:", error);
@@ -115,17 +154,16 @@ router.get("/daily-metrics/today", async (req, res) => {
     return res.status(400).json({ message: "Отсутствует employee_id" });
   }
 
-  // Используем локальную дату, а не UTC
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayStr = today.toISOString().split('T')[0]; // "2025-12-20"
+  // Получаем сегодняшнюю дату в формате YYYY-MM-DD (локальная)
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
 
   console.log(`Поиск данных для employee_id: ${employee_id} на дату: ${todayStr}`);
-  console.log(`Текущее время сервера: ${now}`);
-  console.log(`Локальная дата: ${todayStr}`);
 
   try {
-    // Используем DATE() для сравнения только дат
     const [rows] = await db.query(
       `SELECT * FROM daily_metrics 
        WHERE employee_id = ? AND DATE(report_date) = ?`,
@@ -142,26 +180,6 @@ router.get("/daily-metrics/today", async (req, res) => {
     });
   }
 });
-// Получение информации о сотруднике
-router.get("/employee-info", async (req, res) => {
-  const { employee_id } = req.query;
-
-  try {
-    const [rows] = await db.query(
-      "SELECT employee_id, username, first_name, last_name, role, group_id FROM employees WHERE employee_id = ?",
-      [employee_id]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "Сотрудник не найден" });
-    }
-
-    res.json(rows[0]);
-  } catch (error) {
-    console.error("Ошибка при получении информации о сотруднике:", error);
-    res.status(500).json({ message: "Ошибка сервера" });
-  }
-});
 
 router.get("/daily-metrics/week", async (req, res) => {
   const { employee_id } = req.query;
@@ -174,7 +192,7 @@ router.get("/daily-metrics/week", async (req, res) => {
   const weekAgo = new Date(today);
   weekAgo.setDate(today.getDate() - 7);
 
-  // Форматируем даты как строки YYYY-MM-DD
+  // Форматируем даты в YYYY-MM-DD
   const todayStr = today.toISOString().split('T')[0];
   const weekAgoStr = weekAgo.toISOString().split('T')[0];
 
@@ -193,6 +211,27 @@ router.get("/daily-metrics/week", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Ошибка при получении данных за неделю:", error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+});
+
+// Получение информации о сотруднике
+router.get("/employee-info", async (req, res) => {
+  const { employee_id } = req.query;
+
+  try {
+    const [rows] = await db.query(
+      "SELECT employee_id, username, first_name, last_name, role, group_id FROM employees WHERE employee_id = ?",
+      [employee_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Сотрудник не найден" });
+    }
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error("Ошибка при получении информации о сотруднике:", error);
     res.status(500).json({ message: "Ошибка сервера" });
   }
 });
@@ -242,7 +281,6 @@ router.get("/groups", async (req, res) => {
         
         return res.json(newGroups);
       }
-  
     }
     
     res.json(rows);
@@ -469,4 +507,81 @@ router.get("/recent-activity", async (req, res) => {
     res.json([]);
   }
 });
+
+// Получить уведомления пользователя
+router.get("/notifications", async (req, res) => {
+  const { user_id, limit = 20 } = req.query;
+  
+  if (!user_id) {
+    return res.status(400).json({ message: "Отсутствует user_id" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT * FROM notifications 
+       WHERE user_id = ? 
+       ORDER BY created_at DESC 
+       LIMIT ?`,
+      [user_id, parseInt(limit)]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Ошибка получения уведомлений:", error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+});
+
+// Отметить одно уведомление как прочитанное
+router.put("/notifications/:id/read", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await db.query(
+      `UPDATE notifications SET is_read = 1 WHERE notification_id = ?`,
+      [id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Ошибка обновления уведомления:", error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+});
+
+// Отметить все уведомления как прочитанные
+router.put("/notifications/read-all", async (req, res) => {
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({ message: "Отсутствует user_id" });
+  }
+
+  try {
+    await db.query(
+      `UPDATE notifications SET is_read = 1 WHERE user_id = ?`,
+      [user_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Ошибка обновления уведомлений:", error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+});
+
+// Получить количество непрочитанных уведомлений
+router.get("/notifications/unread-count", async (req, res) => {
+  const { user_id } = req.query;
+  
+  if (!user_id) {
+    return res.status(400).json({ message: "Отсутствует user_id" });
+  }
+
+  try {
+    const count = await NotificationService.getUnreadCount(parseInt(user_id));
+    res.json({ unreadCount: count });
+  } catch (error) {
+    console.error("Ошибка получения количества уведомлений:", error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+});
+
 export default router;

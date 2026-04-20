@@ -1,4 +1,23 @@
 import React, { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { DownloadOutlined } from "@ant-design/icons";
+import UserAvatar from "../components/UserAvatar";
+import NotificationBell from "../components/NotificationBell";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+} from "recharts";
 import {
   Layout,
   Menu,
@@ -22,7 +41,6 @@ import {
   Empty,
   Select,
   Divider,
-  Tooltip,
   Badge,
   Descriptions,
 } from "antd";
@@ -66,13 +84,85 @@ const GroupLeaderDashboard = () => {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewStatus, setReviewStatus] = useState("Одобрено");
   const [reviewLoading, setReviewLoading] = useState(false);
-
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
+  const [profileData, setProfileData] = useState(null);
+
+  // Функция экспорта в Excel
+  const exportGroupToExcel = () => {
+    if (!groupData?.todayKpi || groupData.todayKpi.length === 0) {
+      message.warning("Нет данных для экспорта");
+      return;
+    }
+
+    const exportData = groupData.todayKpi.map((kpi) => {
+      const employee = groupData.employees?.find(
+        (e) => e.employee_id === kpi.employee_id,
+      );
+      return {
+        Сотрудник: employee
+          ? `${employee.last_name} ${employee.first_name}`
+          : "Неизвестно",
+        "Обработано запросов": kpi.processed_requests,
+        "Время работы (часы)": (kpi.work_minutes / 60).toFixed(1),
+        "CSAT %":
+          kpi.csat_percentage ||
+          (kpi.total_feedbacks > 0
+            ? ((kpi.positive_feedbacks / kpi.total_feedbacks) * 100).toFixed(1)
+            : 0),
+        "FCR %":
+          kpi.fcr_percentage ||
+          (kpi.total_requests > 0
+            ? ((kpi.first_contact_resolved / kpi.total_requests) * 100).toFixed(
+                1,
+              )
+            : 0),
+        "Производительность (обраб/час)":
+          kpi.productivity ||
+          (kpi.work_minutes > 0
+            ? (kpi.processed_requests / (kpi.work_minutes / 60)).toFixed(1)
+            : 0),
+        Статус: kpi.verification_status,
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      `Группа_${groupData.groupInfo?.group_name || "Отчет"}`,
+    );
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+    const dataBlob = new Blob([excelBuffer], {
+      type: "application/octet-stream",
+    });
+    saveAs(
+      dataBlob,
+      `Группа_${groupData.groupInfo?.group_name || "report"}_${dayjs().format("YYYY-MM-DD")}.xlsx`,
+    );
+    message.success("Отчет по группе скачан");
+  };
 
   useEffect(() => {
     fetchGroupData();
   }, [user?.employee_id]);
+
+  const getRoleColor = (role) => {
+    switch (role) {
+      case "Руководитель отдела":
+        return "purple";
+      case "Руководитель группы":
+        return "blue";
+      case "Сотрудник":
+        return "green";
+      default:
+        return "default";
+    }
+  };
 
   const fetchGroupData = async () => {
     if (!user?.employee_id) {
@@ -82,15 +172,25 @@ const GroupLeaderDashboard = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/group/my-group?employee_id=${user.employee_id}`
-      );
+      const [groupResponse, profileResponse] = await Promise.all([
+        fetch(
+          `http://localhost:5000/api/group/my-group?employee_id=${user.employee_id}`,
+        ),
+        fetch(
+          `http://localhost:5000/api/auth/profile?employee_id=${user.employee_id}`,
+        ),
+      ]);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (groupResponse.ok) {
+        const data = await groupResponse.json();
         setGroupData(data);
       } else {
         message.error("Ошибка загрузки данных группы");
+      }
+
+      if (profileResponse.ok) {
+        const profile = await profileResponse.json();
+        setProfileData(profile);
       }
     } catch (error) {
       console.error("Ошибка загрузки данных:", error);
@@ -100,26 +200,26 @@ const GroupLeaderDashboard = () => {
     }
   };
 
- const handleReview = (record) => {
-   console.log("Выбранная запись для проверки:", record);
-   console.log("ID записи:", record.record_id);
-   console.log("ID пользователя:", user.employee_id);
+  const handleReview = (record) => {
+    console.log("Выбранная запись для проверки:", record);
+    console.log("ID записи:", record.record_id);
+    console.log("ID пользователя:", user.employee_id);
 
-   if (!record.record_id) {
-     message.error("У записи нет ID");
-     return;
-   }
+    if (!record.record_id) {
+      message.error("У записи нет ID");
+      return;
+    }
 
-   if (!user?.employee_id) {
-     message.error("Не найден ID пользователя");
-     return;
-   }
+    if (!user?.employee_id) {
+      message.error("Не найден ID пользователя");
+      return;
+    }
 
-   setSelectedRecord(record);
-   setReviewComment("");
-   setReviewStatus("Одобрено");
-   setReviewModalVisible(true);
- };
+    setSelectedRecord(record);
+    setReviewComment("");
+    setReviewStatus("Одобрено");
+    setReviewModalVisible(true);
+  };
 
   const submitReview = async () => {
     if (!selectedRecord) return;
@@ -147,7 +247,7 @@ const GroupLeaderDashboard = () => {
             reviewer_comment: reviewComment,
             reviewer_id: user.employee_id,
           }),
-        }
+        },
       );
 
       const responseData = await response.json();
@@ -156,7 +256,7 @@ const GroupLeaderDashboard = () => {
       if (response.ok) {
         message.success("Статус проверки обновлен");
         setReviewModalVisible(false);
-        fetchGroupData(); // Обновляем данные
+        fetchGroupData();
       } else {
         message.error(responseData.error || "Ошибка обновления статуса");
         console.error("Ошибка сервера:", responseData);
@@ -172,25 +272,24 @@ const GroupLeaderDashboard = () => {
   // Функция для просмотра деталей сотрудника
   const showEmployeeDetails = (record) => {
     const employee = groupData?.employees?.find(
-      (e) => e.employee_id === record.employee_id
+      (e) => e.employee_id === record.employee_id,
     );
     setSelectedEmployeeDetails({
       employee: employee || {},
       metrics: record,
-      // Рассчитываем дополнительные показатели
       calculatedMetrics: {
         csat:
           record.csat_percentage ||
           (record.total_feedbacks > 0
             ? Math.round(
-                (record.positive_feedbacks / record.total_feedbacks) * 100
+                (record.positive_feedbacks / record.total_feedbacks) * 100,
               )
             : 0),
         fcr:
           record.fcr_percentage ||
           (record.total_requests > 0
             ? Math.round(
-                (record.first_contact_resolved / record.total_requests) * 100
+                (record.first_contact_resolved / record.total_requests) * 100,
               )
             : 0),
         avgHandlingTime:
@@ -201,14 +300,14 @@ const GroupLeaderDashboard = () => {
           record.productivity ||
           (record.work_minutes > 0
             ? Math.round(
-                (record.processed_requests / (record.work_minutes / 60)) * 100
+                (record.processed_requests / (record.work_minutes / 60)) * 100,
               ) / 100
             : 0),
         qualityScore:
           record.avg_quality ||
           (record.checked_requests > 0
             ? Math.round(
-                (record.quality_score / record.checked_requests) * 100
+                (record.quality_score / record.checked_requests) * 100,
               ) / 100
             : 0),
       },
@@ -227,6 +326,11 @@ const GroupLeaderDashboard = () => {
       key: "group-dashboard",
       icon: <TeamOutlined />,
       label: <Link to="/group-leader">Дашборд группы</Link>,
+    },
+    {
+      key: "leaderboard",
+      icon: <TrophyOutlined />,
+      label: <Link to="/leaderboard">Рейтинг сотрудников</Link>,
     },
   ];
 
@@ -290,7 +394,7 @@ const GroupLeaderDashboard = () => {
       key: "employee_name",
       render: (text, record) => {
         const employee = groupData?.employees?.find(
-          (e) => e.employee_id === record.employee_id
+          (e) => e.employee_id === record.employee_id,
         );
         return employee ? (
           <Space>
@@ -318,7 +422,7 @@ const GroupLeaderDashboard = () => {
           value ||
           (record.total_feedbacks > 0
             ? Math.round(
-                (record.positive_feedbacks / record.total_feedbacks) * 100
+                (record.positive_feedbacks / record.total_feedbacks) * 100,
               )
             : 0);
         return (
@@ -331,8 +435,8 @@ const GroupLeaderDashboard = () => {
                 actualValue >= 85
                   ? "success"
                   : actualValue >= 70
-                  ? "normal"
-                  : "exception"
+                    ? "normal"
+                    : "exception"
               }
               style={{ margin: "4px 0" }}
             />
@@ -350,7 +454,7 @@ const GroupLeaderDashboard = () => {
           value ||
           (record.total_requests > 0
             ? Math.round(
-                (record.first_contact_resolved / record.total_requests) * 100
+                (record.first_contact_resolved / record.total_requests) * 100,
               )
             : 0);
         return (
@@ -363,8 +467,8 @@ const GroupLeaderDashboard = () => {
                 actualValue >= 75
                   ? "success"
                   : actualValue >= 60
-                  ? "normal"
-                  : "exception"
+                    ? "normal"
+                    : "exception"
               }
               style={{ margin: "4px 0" }}
             />
@@ -382,7 +486,7 @@ const GroupLeaderDashboard = () => {
           value ||
           (record.checked_requests > 0
             ? Math.round(
-                (record.quality_score / record.checked_requests) * 100
+                (record.quality_score / record.checked_requests) * 100,
               ) / 100
             : 0);
         return (
@@ -395,8 +499,8 @@ const GroupLeaderDashboard = () => {
                 actualValue >= 4.5
                   ? "success"
                   : actualValue >= 4.0
-                  ? "normal"
-                  : "exception"
+                    ? "normal"
+                    : "exception"
               }
               style={{ margin: "4px 0" }}
             />
@@ -414,7 +518,7 @@ const GroupLeaderDashboard = () => {
           value ||
           (record.work_minutes > 0
             ? Math.round(
-                (record.processed_requests / (record.work_minutes / 60)) * 100
+                (record.processed_requests / (record.work_minutes / 60)) * 100,
               ) / 100
             : 0);
         return (
@@ -460,17 +564,18 @@ const GroupLeaderDashboard = () => {
               onClick={() => showEmployeeDetails(record)}
             />
           </Tooltip>
-          {record.verification_status === "Ожидание" && (
-            <Tooltip title="Модерация">
-              <Button
-                type="primary"
-                size="small"
-                onClick={() => handleReview(record)}
-              >
-                Проверить
-              </Button>
-            </Tooltip>
-          )}
+          {record.verification_status === "Ожидание" &&
+            user?.role === "Руководитель группы" && (
+              <Tooltip title="Модерация">
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => handleReview(record)}
+                >
+                  Проверить
+                </Button>
+              </Tooltip>
+            )}
         </Space>
       ),
     },
@@ -484,7 +589,7 @@ const GroupLeaderDashboard = () => {
       key: "employee_name",
       render: (text, record) => {
         const employee = groupData?.employees?.find(
-          (e) => e.employee_id === record.employee_id
+          (e) => e.employee_id === record.employee_id,
         );
         return employee ? (
           <Space>
@@ -516,7 +621,7 @@ const GroupLeaderDashboard = () => {
         const value =
           record.total_feedbacks > 0
             ? Math.round(
-                (record.positive_feedbacks / record.total_feedbacks) * 100
+                (record.positive_feedbacks / record.total_feedbacks) * 100,
               )
             : 0;
         return <Text strong>{value}%</Text>;
@@ -530,7 +635,7 @@ const GroupLeaderDashboard = () => {
         const value =
           record.total_requests > 0
             ? Math.round(
-                (record.first_contact_resolved / record.total_requests) * 100
+                (record.first_contact_resolved / record.total_requests) * 100,
               )
             : 0;
         return <Text strong>{value}%</Text>;
@@ -540,15 +645,16 @@ const GroupLeaderDashboard = () => {
       title: "Действия",
       key: "actions",
       align: "center",
-      render: (_, record) => (
-        <Button
-          type="primary"
-          size="small"
-          onClick={() => handleReview(record)}
-        >
-          Проверить
-        </Button>
-      ),
+      render: (_, record) =>
+        user?.role === "Руководитель группы" && (
+          <Button
+            type="primary"
+            size="small"
+            onClick={() => handleReview(record)}
+          >
+            Проверить
+          </Button>
+        ),
     },
   ];
 
@@ -561,16 +667,22 @@ const GroupLeaderDashboard = () => {
               size={80}
               style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
             >
-              {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
+              {profileData?.first_name?.[0] ||
+                user?.first_name?.[0] ||
+                user?.username?.[0]?.toUpperCase() || <UserOutlined />}
             </Avatar>
             <div
               style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
             >
-              {user?.username || "Пользователь"}{" "}
-              {/* Изменено с first_name на username */}
+              {user?.username}
             </div>
             <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-              {user?.role}
+              <Tag
+                color={getRoleColor(user?.role)}
+                style={{ fontSize: "12px" }}
+              >
+                {user?.role}
+              </Tag>
             </div>
             <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
               ID: {user?.employee_id}
@@ -584,10 +696,42 @@ const GroupLeaderDashboard = () => {
           />
         </Sider>
         <Layout>
-          <Header style={{ background: "#fff", padding: "0 24px" }}>
-            <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
-              Дашборд группы
+          <Header
+            style={{
+              background: "#fff",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "0 24px",
+              boxShadow: "0 1px 4px rgba(0,21,41,.08)",
+            }}
+          >
+            <Title level={4} style={{ margin: 0 }}>
+              {groupData?.groupInfo ? (
+                <Space>
+                  <TeamOutlined />
+                  <span>Группа: {groupData.groupInfo.group_name}</span>
+                  <Tag color="blue">{groupData.groupInfo.direction_name}</Tag>
+                  <Tag color="geekblue">
+                    {groupData.groupInfo.department_name}
+                  </Tag>
+                </Space>
+              ) : (
+                "Дашборд группы"
+              )}
             </Title>
+            <Space>
+              <Button onClick={fetchGroupData} icon={<BarChartOutlined />}>
+                Обновить
+              </Button>
+              <Button onClick={exportGroupToExcel} icon={<DownloadOutlined />}>
+                Экспорт в Excel
+              </Button>
+              <NotificationBell userId={user?.employee_id} />
+              <Button onClick={logout} icon={<LogoutOutlined />}>
+                Выйти
+              </Button>
+            </Space>
           </Header>
           <Content
             style={{ margin: "24px", padding: "24px", background: "#fff" }}
@@ -619,9 +763,9 @@ const GroupLeaderDashboard = () => {
             size={80}
             style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
           >
-            {user?.username?.[0]?.toUpperCase() || (
-              <UserOutlined />
-            )}
+            {profileData?.first_name?.[0] ||
+              user?.first_name?.[0] ||
+              user?.username?.[0]?.toUpperCase() || <UserOutlined />}
           </Avatar>
           <div
             style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
@@ -629,7 +773,9 @@ const GroupLeaderDashboard = () => {
             {user?.username}
           </div>
           <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-            {user?.role}
+            <Tag color={getRoleColor(user?.role)} style={{ fontSize: "12px" }}>
+              {user?.role}
+            </Tag>
           </div>
           <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
             ID: {user?.employee_id}
@@ -672,6 +818,10 @@ const GroupLeaderDashboard = () => {
             <Button onClick={fetchGroupData} icon={<BarChartOutlined />}>
               Обновить
             </Button>
+            <Button onClick={exportGroupToExcel} icon={<DownloadOutlined />}>
+              Экспорт в Excel
+            </Button>
+            <NotificationBell userId={user?.employee_id} />
             <Button onClick={logout} icon={<LogoutOutlined />}>
               Выйти
             </Button>
@@ -734,16 +884,13 @@ const GroupLeaderDashboard = () => {
                       return 0;
                     }
 
-                    // Фильтруем только валидные дни и преобразуем к числам
                     const validDays = groupData.weeklyCsat
                       .filter((day) => {
-                        // Преобразуем к числу
                         const csatValue = parseFloat(day.avg_csat);
                         return !isNaN(csatValue) && csatValue !== null;
                       })
                       .map((day) => ({
                         ...day,
-                        // Преобразуем avg_csat к числу
                         avg_csat: parseFloat(day.avg_csat),
                       }));
 
@@ -751,18 +898,11 @@ const GroupLeaderDashboard = () => {
                       return 0;
                     }
 
-                    // Теперь правильно считаем сумму
                     const sum = validDays.reduce(
                       (total, day) => total + day.avg_csat,
-                      0
+                      0,
                     );
                     const avg = sum / validDays.length;
-
-                    console.log("Сумма чисел:", sum, "Среднее:", avg);
-                    console.log(
-                      "Преобразованные значения:",
-                      validDays.map((d) => d.avg_csat)
-                    );
 
                     return avg.toFixed(2);
                   })()}
@@ -791,8 +931,8 @@ const GroupLeaderDashboard = () => {
                       return avg >= 85
                         ? "#3f8600"
                         : avg >= 70
-                        ? "#faad14"
-                        : "#cf1322";
+                          ? "#faad14"
+                          : "#cf1322";
                     })(),
                   }}
                 />
@@ -801,27 +941,28 @@ const GroupLeaderDashboard = () => {
           </Row>
 
           {/* Ожидающие проверки */}
-          {groupData?.pendingReviews && groupData.pendingReviews.length > 0 && (
-            <Card
-              title={
-                <Space>
-                  <ClockCircleOutlined />
-                  <span>Ожидают проверки</span>
-                  <Badge count={groupData.pendingReviews.length} showZero />
-                </Space>
-              }
-              style={{ marginTop: 24 }}
-            >
-              <Table
-                columns={pendingReviewColumns}
-                dataSource={groupData.pendingReviews}
-                rowKey="record_id"
-                pagination={false}
-                size="small"
-              />
-            </Card>
-          )}
-
+          {user?.role === "Руководитель группы" &&
+            groupData?.pendingReviews &&
+            groupData.pendingReviews.length > 0 && (
+              <Card
+                title={
+                  <Space>
+                    <ClockCircleOutlined />
+                    <span>Ожидают проверки</span>
+                    <Badge count={groupData.pendingReviews.length} showZero />
+                  </Space>
+                }
+                style={{ marginTop: 24 }}
+              >
+                <Table
+                  columns={pendingReviewColumns}
+                  dataSource={groupData.pendingReviews}
+                  rowKey="record_id"
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+            )}
           {/* Сегодняшние KPI */}
           <Card
             title={
@@ -862,7 +1003,45 @@ const GroupLeaderDashboard = () => {
               const csatValue = parseFloat(day.avg_csat);
               return !isNaN(csatValue) && csatValue !== null;
             }).length > 0 ? (
-              <div style={{ padding: "20px 0" }}>
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart
+                    data={groupData.weeklyCsat
+                      .filter((day) => {
+                        const csatValue = parseFloat(day.avg_csat);
+                        return !isNaN(csatValue) && csatValue !== null;
+                      })
+                      .map((day) => ({
+                        date: dayjs(day.date).format("DD.MM"),
+                        csat: parseFloat(day.avg_csat),
+                        employees: day.employee_count,
+                      }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis
+                      domain={[0, 100]}
+                      label={{
+                        value: "CSAT (%)",
+                        angle: -90,
+                        position: "insideLeft",
+                      }}
+                    />
+                    <Tooltip />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="csat"
+                      stroke="#8884d8"
+                      name="Средний CSAT"
+                      strokeWidth={3}
+                      dot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+
+                <Divider />
+
                 <Row gutter={[16, 16]}>
                   {groupData.weeklyCsat
                     .filter((day) => {
@@ -886,8 +1065,8 @@ const GroupLeaderDashboard = () => {
                                     csatValue >= 85
                                       ? "#3f8600"
                                       : csatValue >= 70
-                                      ? "#faad14"
-                                      : "#cf1322",
+                                        ? "#faad14"
+                                        : "#cf1322",
                                 }}
                               >
                                 {csatValue.toFixed(2)}%
@@ -917,16 +1096,69 @@ const GroupLeaderDashboard = () => {
                         if (validDays.length === 0) return "0%";
                         const sum = validDays.reduce(
                           (total, val) => total + val,
-                          0
+                          0,
                         );
                         return `${(sum / validDays.length).toFixed(2)}%`;
                       })()}
                     </Text>
                   </Text>
                 </div>
-              </div>
+              </>
             ) : (
               <Empty description="Нет данных за последнюю неделю" />
+            )}
+          </Card>
+
+          <Card
+            title={
+              <Space>
+                <BarChartOutlined />
+                <span>Сравнение сотрудников по CSAT (сегодня)</span>
+              </Space>
+            }
+            style={{ marginTop: 24 }}
+          >
+            {groupData?.todayKpi && groupData.todayKpi.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart
+                  layout="vertical"
+                  data={groupData.todayKpi.map((kpi) => {
+                    const employee = groupData?.employees?.find(
+                      (e) => e.employee_id === kpi.employee_id,
+                    );
+                    const csatValue =
+                      kpi.csat_percentage ||
+                      (kpi.total_feedbacks > 0
+                        ? Math.round(
+                            (kpi.positive_feedbacks / kpi.total_feedbacks) *
+                              100,
+                          )
+                        : 0);
+                    return {
+                      name: employee
+                        ? `${employee.last_name} ${employee.first_name[0]}.`
+                        : `ID ${kpi.employee_id}`,
+                      csat: csatValue,
+                      fcr: kpi.fcr_percentage || 0,
+                    };
+                  })}
+                  margin={{ left: 100 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    label={{ value: "Процент (%)", position: "bottom" }}
+                  />
+                  <YAxis type="category" dataKey="name" width={120} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="csat" fill="#8884d8" name="CSAT %" />
+                  <Bar dataKey="fcr" fill="#82ca9d" name="FCR %" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Empty description="Нет данных для сравнения сотрудников" />
             )}
           </Card>
 
@@ -968,7 +1200,7 @@ const GroupLeaderDashboard = () => {
               <Input
                 value={(() => {
                   const employee = groupData?.employees?.find(
-                    (e) => e.employee_id === selectedRecord.employee_id
+                    (e) => e.employee_id === selectedRecord.employee_id,
                   );
                   return employee
                     ? `${employee.last_name} ${employee.first_name} ${
@@ -1075,7 +1307,6 @@ const GroupLeaderDashboard = () => {
       >
         {selectedEmployeeDetails && (
           <div>
-            {/* Информация о сотруднике */}
             <Card
               title="Информация о сотруднике"
               size="small"
@@ -1096,9 +1327,9 @@ const GroupLeaderDashboard = () => {
                       "Руководитель группы"
                         ? "blue"
                         : selectedEmployeeDetails.employee.role ===
-                          "Руководитель отдела"
-                        ? "purple"
-                        : "green"
+                            "Руководитель отдела"
+                          ? "purple"
+                          : "green"
                     }
                   >
                     {selectedEmployeeDetails.employee.role}
@@ -1110,9 +1341,9 @@ const GroupLeaderDashboard = () => {
                       selectedEmployeeDetails.employee.status === "Активен"
                         ? "green"
                         : selectedEmployeeDetails.employee.status ===
-                          "В отпуске"
-                        ? "orange"
-                        : "red"
+                            "В отпуске"
+                          ? "orange"
+                          : "red"
                     }
                   >
                     {selectedEmployeeDetails.employee.status}
@@ -1120,7 +1351,7 @@ const GroupLeaderDashboard = () => {
                 </Descriptions.Item>
                 <Descriptions.Item label="Дата приема">
                   {dayjs(selectedEmployeeDetails.employee.hire_date).format(
-                    "DD.MM.YYYY"
+                    "DD.MM.YYYY",
                   )}
                 </Descriptions.Item>
                 <Descriptions.Item label="ID сотрудника" span={2}>
@@ -1131,10 +1362,9 @@ const GroupLeaderDashboard = () => {
               </Descriptions>
             </Card>
 
-            {/* Показатели за день */}
             <Card
               title={`Показатели за ${dayjs(
-                selectedEmployeeDetails.metrics.report_date
+                selectedEmployeeDetails.metrics.report_date,
               ).format("DD.MM.YYYY")}`}
               size="small"
             >
@@ -1154,7 +1384,7 @@ const GroupLeaderDashboard = () => {
                     <Statistic
                       title="Время работы"
                       value={Math.floor(
-                        selectedEmployeeDetails.metrics.work_minutes / 60
+                        selectedEmployeeDetails.metrics.work_minutes / 60,
                       )}
                       suffix={`ч ${
                         selectedEmployeeDetails.metrics.work_minutes % 60
@@ -1178,9 +1408,9 @@ const GroupLeaderDashboard = () => {
                               .verification_status === "Одобрено"
                               ? "green"
                               : selectedEmployeeDetails.metrics
-                                  .verification_status === "Отклонено"
-                              ? "red"
-                              : "orange"
+                                    .verification_status === "Отклонено"
+                                ? "red"
+                                : "orange"
                           }
                         >
                           {selectedEmployeeDetails.metrics.verification_status}
@@ -1193,7 +1423,6 @@ const GroupLeaderDashboard = () => {
 
               <Divider />
 
-              {/* KPI метрики */}
               <Row gutter={[16, 16]}>
                 <Col span={12}>
                   <Card size="small">
@@ -1207,9 +1436,9 @@ const GroupLeaderDashboard = () => {
                           selectedEmployeeDetails.calculatedMetrics.csat >= 85
                             ? "#3f8600"
                             : selectedEmployeeDetails.calculatedMetrics.csat >=
-                              70
-                            ? "#faad14"
-                            : "#cf1322",
+                                70
+                              ? "#faad14"
+                              : "#cf1322",
                       }}
                     />
                     <Progress
@@ -1218,8 +1447,8 @@ const GroupLeaderDashboard = () => {
                         selectedEmployeeDetails.calculatedMetrics.csat >= 85
                           ? "success"
                           : selectedEmployeeDetails.calculatedMetrics.csat >= 70
-                          ? "normal"
-                          : "exception"
+                            ? "normal"
+                            : "exception"
                       }
                       size="small"
                     />
@@ -1247,9 +1476,9 @@ const GroupLeaderDashboard = () => {
                           selectedEmployeeDetails.calculatedMetrics.fcr >= 75
                             ? "#3f8600"
                             : selectedEmployeeDetails.calculatedMetrics.fcr >=
-                              60
-                            ? "#faad14"
-                            : "#cf1322",
+                                60
+                              ? "#faad14"
+                              : "#cf1322",
                       }}
                     />
                     <Progress
@@ -1258,8 +1487,8 @@ const GroupLeaderDashboard = () => {
                         selectedEmployeeDetails.calculatedMetrics.fcr >= 75
                           ? "success"
                           : selectedEmployeeDetails.calculatedMetrics.fcr >= 60
-                          ? "normal"
-                          : "exception"
+                            ? "normal"
+                            : "exception"
                       }
                       size="small"
                     />
@@ -1294,9 +1523,9 @@ const GroupLeaderDashboard = () => {
                             .qualityScore >= 4.5
                             ? "#3f8600"
                             : selectedEmployeeDetails.calculatedMetrics
-                                .qualityScore >= 4.0
-                            ? "#faad14"
-                            : "#cf1322",
+                                  .qualityScore >= 4.0
+                              ? "#faad14"
+                              : "#cf1322",
                       }}
                     />
                     <Progress
@@ -1309,9 +1538,9 @@ const GroupLeaderDashboard = () => {
                           .qualityScore >= 4.5
                           ? "success"
                           : selectedEmployeeDetails.calculatedMetrics
-                              .qualityScore >= 4.0
-                          ? "normal"
-                          : "exception"
+                                .qualityScore >= 4.0
+                            ? "normal"
+                            : "exception"
                       }
                       size="small"
                     />
@@ -1332,9 +1561,9 @@ const GroupLeaderDashboard = () => {
                             .productivity >= 8
                             ? "#3f8600"
                             : selectedEmployeeDetails.calculatedMetrics
-                                .productivity >= 5
-                            ? "#faad14"
-                            : "#cf1322",
+                                  .productivity >= 5
+                              ? "#faad14"
+                              : "#cf1322",
                       }}
                     />
                   </Card>
@@ -1355,16 +1584,15 @@ const GroupLeaderDashboard = () => {
                             .avgHandlingTime <= 10
                             ? "#3f8600"
                             : selectedEmployeeDetails.calculatedMetrics
-                                .avgHandlingTime <= 15
-                            ? "#faad14"
-                            : "#cf1322",
+                                  .avgHandlingTime <= 15
+                              ? "#faad14"
+                              : "#cf1322",
                       }}
                     />
                   </Card>
                 </Col>
               </Row>
 
-              {/* Дополнительная информация */}
               <Divider />
               <Descriptions column={1} size="small">
                 <Descriptions.Item label="Суммарный балл качества">

@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import NotificationBell from "../components/NotificationBell";
+import UserAvatar from "../components/UserAvatar";
 import {
   Layout,
   Menu,
@@ -19,6 +21,7 @@ import {
   Empty,
   Button,
   Table,
+  DatePicker,
 } from "antd";
 import {
   DashboardOutlined,
@@ -37,9 +40,43 @@ import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
+import isBetween from "dayjs/plugin/isBetween";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
+dayjs.extend(isBetween);
+// Цвета для круговой диаграммы
+const COLORS = ["#52c41a", "#faad14", "#ff4d4f"];
+
+// Определяем цвет для роли
+const getRoleColor = (role) => {
+  switch (role) {
+    case "Руководитель отдела":
+      return "purple";
+    case "Руководитель группы":
+      return "blue";
+    case "Сотрудник":
+      return "green";
+    default:
+      return "default";
+  }
+};
 
 const EmployeeDashboard = () => {
   const { user, logout } = useAuth();
@@ -48,6 +85,8 @@ const EmployeeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState({});
   const [weeklyStats, setWeeklyStats] = useState({});
+  // Состояние для фильтра дат
+  const [dateRange, setDateRange] = useState(null);
 
   const menuItems = [
     {
@@ -55,7 +94,6 @@ const EmployeeDashboard = () => {
       icon: <UserOutlined />,
       label: <Link to="/profile">Личный профиль</Link>,
     },
-    
     {
       key: "dashboard",
       icon: <DashboardOutlined />,
@@ -82,14 +120,13 @@ const EmployeeDashboard = () => {
 
         const [todayResponse, weekResponse] = await Promise.all([
           fetch(
-            `http://localhost:5000/api/auth/daily-metrics/today?employee_id=${user.employee_id}`
+            `http://localhost:5000/api/auth/daily-metrics/today?employee_id=${user.employee_id}`,
           ),
           fetch(
-            `http://localhost:5000/api/auth/daily-metrics/week?employee_id=${user.employee_id}`
+            `http://localhost:5000/api/auth/daily-metrics/week?employee_id=${user.employee_id}`,
           ),
         ]);
 
-        // Обрабатываем сегодняшние данные
         if (todayResponse.ok) {
           const todayData = await todayResponse.json();
           console.log("Данные за сегодня от сервера:", todayData);
@@ -97,8 +134,6 @@ const EmployeeDashboard = () => {
           if (todayData && todayData.length > 0) {
             console.log("Найденные данные на сегодня:", todayData[0]);
             setTodayData(todayData[0]);
-
-            // Рассчитываем KPI
             const todayKpis = calculateKPIs(todayData[0]);
             console.log("Рассчитанные KPI:", todayKpis);
             setKpis(todayKpis);
@@ -111,13 +146,11 @@ const EmployeeDashboard = () => {
           console.error("Ошибка загрузки today:", errorText);
         }
 
-        // Обрабатываем недельные данные
         if (weekResponse.ok) {
           const weekData = await weekResponse.json();
           console.log("Данные за неделю:", weekData);
           setWeeklyData(weekData || []);
 
-          // Рассчитываем статистику
           if (weekData.length > 0) {
             const stats = calculateWeeklyStats(weekData);
             setWeeklyStats(stats);
@@ -141,29 +174,24 @@ const EmployeeDashboard = () => {
   const calculateKPIs = (data) => {
     if (!data) return {};
 
-    // CSAT (Customer Satisfaction)
     const csat =
       data.total_feedbacks > 0
         ? ((data.positive_feedbacks / data.total_feedbacks) * 100).toFixed(1)
         : 0;
 
-    // Контакты в час (Contacts per Hour)
     const contactsPerHour =
       data.work_minutes > 0
         ? (data.processed_requests / (data.work_minutes / 60)).toFixed(1)
         : 0;
 
-    // FCR (First Contact Resolution)
     const fcr =
       data.total_requests > 0
         ? ((data.first_contact_resolved / data.total_requests) * 100).toFixed(1)
         : 0;
 
-    // Качество проверки (Quality Score)
     const qualityScore =
       data.checked_requests > 0 ? (data.quality_score / 1).toFixed(1) : 0;
 
-    // Производительность (Productivity)
     const productivity =
       data.work_minutes > 0
         ? ((data.processed_requests / data.work_minutes) * 60).toFixed(1)
@@ -179,21 +207,24 @@ const EmployeeDashboard = () => {
   };
 
   // Расчет статистики за неделю
+  // Расчет статистики за неделю (исправлено: защита от NaN)
   const calculateWeeklyStats = (data) => {
     if (!data || data.length === 0) return {};
 
     const total = data.reduce(
       (acc, day) => ({
         processed_requests:
-          acc.processed_requests + (day.processed_requests || 0),
-        work_minutes: acc.work_minutes + (day.work_minutes || 0),
+          acc.processed_requests + (Number(day.processed_requests) || 0),
+        work_minutes: acc.work_minutes + (Number(day.work_minutes) || 0),
         positive_feedbacks:
-          acc.positive_feedbacks + (day.positive_feedbacks || 0),
-        total_feedbacks: acc.total_feedbacks + (day.total_feedbacks || 0),
+          acc.positive_feedbacks + (Number(day.positive_feedbacks) || 0),
+        total_feedbacks:
+          acc.total_feedbacks + (Number(day.total_feedbacks) || 0),
         first_contact_resolved:
-          acc.first_contact_resolved + (day.first_contact_resolved || 0),
-        total_requests: acc.total_requests + (day.total_requests || 0),
-        quality_score: acc.quality_score + (day.quality_score || 0),
+          acc.first_contact_resolved +
+          (Number(day.first_contact_resolved) || 0),
+        total_requests: acc.total_requests + (Number(day.total_requests) || 0),
+        quality_score: acc.quality_score + (Number(day.quality_score) || 0),
       }),
       {
         processed_requests: 0,
@@ -203,16 +234,17 @@ const EmployeeDashboard = () => {
         first_contact_resolved: 0,
         total_requests: 0,
         quality_score: 0,
-      }
+      },
     );
 
     const average = {
-      processed_requests: Math.round(total.processed_requests / data.length),
-      work_minutes: Math.round(total.work_minutes / data.length),
+      processed_requests:
+        Math.round(total.processed_requests / data.length) || 0,
+      work_minutes: Math.round(total.work_minutes / data.length) || 0,
       csat:
         total.total_feedbacks > 0
           ? ((total.positive_feedbacks / total.total_feedbacks) * 100).toFixed(
-              1
+              1,
             )
           : 0,
       fcr:
@@ -222,7 +254,8 @@ const EmployeeDashboard = () => {
               100
             ).toFixed(1)
           : 0,
-      quality_score: (total.quality_score / data.length).toFixed(1),
+      quality_score:
+        data.length > 0 ? (total.quality_score / data.length).toFixed(1) : 0,
     };
 
     return { total, average, daysCount: data.length };
@@ -248,7 +281,15 @@ const EmployeeDashboard = () => {
       title: "Дата",
       dataIndex: "report_date",
       key: "report_date",
-      render: (date) => dayjs(date).format("DD.MM.YYYY"),
+      render: (date) => {
+        const isToday = dayjs(date).isSame(dayjs(), "day");
+        return (
+          <Tag color={isToday ? "green" : "default"}>
+            {dayjs(date).format("DD.MM.YYYY")}
+            {isToday && " (сегодня)"}
+          </Tag>
+        );
+      },
       sorter: (a, b) =>
         dayjs(a.report_date).unix() - dayjs(b.report_date).unix(),
       defaultSortOrder: "descend",
@@ -277,7 +318,11 @@ const EmployeeDashboard = () => {
                 100
               ).toFixed(1)
             : 0;
-        return `${csat}%`;
+        return (
+          <Tag color={csat >= 85 ? "green" : csat >= 70 ? "orange" : "red"}>
+            {csat}%
+          </Tag>
+        );
       },
       sorter: (a, b) => {
         const csatA =
@@ -294,10 +339,14 @@ const EmployeeDashboard = () => {
         const cph =
           record.work_minutes > 0
             ? (record.processed_requests / (record.work_minutes / 60)).toFixed(
-                1
+                1,
               )
             : 0;
-        return cph;
+        return (
+          <Tag color={cph >= 8 ? "green" : cph >= 5 ? "orange" : "red"}>
+            {cph}
+          </Tag>
+        );
       },
       sorter: (a, b) => {
         const cphA =
@@ -308,10 +357,43 @@ const EmployeeDashboard = () => {
       },
     },
     {
+      title: "FCR",
+      key: "fcr",
+      render: (_, record) => {
+        const fcr =
+          record.total_requests > 0
+            ? (
+                (record.first_contact_resolved / record.total_requests) *
+                100
+              ).toFixed(1)
+            : 0;
+        return (
+          <Tag color={fcr >= 75 ? "green" : fcr >= 60 ? "orange" : "red"}>
+            {fcr}%
+          </Tag>
+        );
+      },
+      sorter: (a, b) => {
+        const fcrA =
+          a.total_requests > 0
+            ? a.first_contact_resolved / a.total_requests
+            : 0;
+        const fcrB =
+          b.total_requests > 0
+            ? b.first_contact_resolved / b.total_requests
+            : 0;
+        return fcrA - fcrB;
+      },
+    },
+    {
       title: "Качество",
       dataIndex: "quality_score",
       key: "quality_score",
-      render: (score) => `${score}%`,
+      render: (score) => (
+        <Tag color={score >= 90 ? "green" : score >= 70 ? "orange" : "red"}>
+          {score}%
+        </Tag>
+      ),
       sorter: (a, b) => a.quality_score - b.quality_score,
     },
     {
@@ -328,18 +410,115 @@ const EmployeeDashboard = () => {
     },
   ];
 
+  // Подготовка данных для графиков
+  const prepareChartData = () => {
+    return [...weeklyData]
+      .sort((a, b) => new Date(a.report_date) - new Date(b.report_date))
+      .map((day) => {
+        const csat =
+          day.total_feedbacks > 0
+            ? ((day.positive_feedbacks / day.total_feedbacks) * 100).toFixed(1)
+            : 0;
+        const contactsPerHour =
+          day.work_minutes > 0
+            ? (day.processed_requests / (day.work_minutes / 60)).toFixed(1)
+            : 0;
+        const fcr =
+          day.total_requests > 0
+            ? ((day.first_contact_resolved / day.total_requests) * 100).toFixed(
+                1,
+              )
+            : 0;
+
+        return {
+          date: dayjs(day.report_date).format("DD.MM"),
+          fullDate: day.report_date,
+          csat: Number(csat),
+          contactsPerHour: Number(contactsPerHour),
+          fcr: Number(fcr),
+          quality: day.quality_score || 0,
+          requests: day.processed_requests || 0,
+        };
+      });
+  };
+
+  const getStatusPieData = () => {
+    const statuses = {
+      Одобрено: 0,
+      Ожидание: 0,
+      Отклонено: 0,
+    };
+
+    weeklyData.forEach((day) => {
+      if (statuses[day.verification_status] !== undefined) {
+        statuses[day.verification_status]++;
+      }
+    });
+
+    return Object.entries(statuses)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }));
+  };
+
+  const getTopDays = () => {
+    return [...weeklyData]
+      .sort((a, b) => b.processed_requests - a.processed_requests)
+      .slice(0, 5)
+      .map((day) => ({
+        date: dayjs(day.report_date).format("DD.MM"),
+        requests: day.processed_requests,
+      }));
+  };
+
+  // Фильтрация данных по датам
+  const getFilteredData = () => {
+    if (!dateRange) return weeklyData;
+
+    const [startDate, endDate] = dateRange;
+    const start = dayjs(startDate).startOf("day");
+    const end = dayjs(endDate).endOf("day");
+
+    return weeklyData.filter((item) => {
+      const itemDate = dayjs(item.report_date);
+      return itemDate >= start && itemDate <= end;
+    });
+  };
+
+  const chartData = prepareChartData();
+  const statusPieData = getStatusPieData();
+  const topDaysData = getTopDays();
+  const filteredData = getFilteredData();
+
+  // Сброс фильтра
+  const handleResetFilter = () => {
+    setDateRange(null);
+  };
+
   if (loading) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
         <Sider theme="light" width={250}>
           <div style={{ padding: "16px", textAlign: "center" }}>
-            <Avatar size={64} style={{ backgroundColor: "#1890ff" }}>
-              {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
-            </Avatar>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: "12px",
+              }}
+            >
+              <UserAvatar user={user} size={64} />
+            </div>
             <div style={{ marginTop: "12px", fontWeight: "500" }}>
               {user?.first_name || user?.username || "Сотрудник"}
             </div>
-            <div style={{ color: "#666", fontSize: "12px" }}>{user?.role}</div>
+            <div style={{ color: "#666", fontSize: "12px" }}>
+              <Tag
+                color={getRoleColor(user?.role)}
+                style={{ fontSize: "11px" }}
+              >
+                {user?.role}
+              </Tag>
+            </div>
           </div>
           <Menu
             theme="light"
@@ -378,13 +557,23 @@ const EmployeeDashboard = () => {
     <Layout style={{ minHeight: "100vh" }}>
       <Sider theme="light" width={250}>
         <div style={{ padding: "16px", textAlign: "center" }}>
-          <Avatar size={64} style={{ backgroundColor: "#1890ff" }}>
-            {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
-          </Avatar>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              marginBottom: "12px",
+            }}
+          >
+            <UserAvatar user={user} size={64} />
+          </div>
           <div style={{ marginTop: "12px", fontWeight: "500" }}>
             {user?.first_name || user?.username || "Сотрудник"}
           </div>
-          <div style={{ color: "#666", fontSize: "12px" }}>{user?.role}</div>
+          <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
+            <Tag color={getRoleColor(user?.role)} style={{ fontSize: "12px" }}>
+              {user?.role}
+            </Tag>
+          </div>
           <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
             ID: {user?.employee_id}
           </div>
@@ -411,6 +600,7 @@ const EmployeeDashboard = () => {
           <Title level={4} style={{ margin: 0 }}>
             Основные показатели
           </Title>
+          <NotificationBell userId={user?.employee_id} />
           <Button onClick={logout} icon={<LogoutOutlined />}>
             Выйти
           </Button>
@@ -449,6 +639,145 @@ const EmployeeDashboard = () => {
                 </Space>
               </Card>
             </Col>
+          </Row>
+
+          {/* График динамики показателей */}
+          {chartData.length > 0 && (
+            <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+              <Col span={24}>
+                <Card
+                  title={
+                    <Space>
+                      <BarChartOutlined />
+                      <span>Динамика показателей</span>
+                    </Space>
+                  }
+                >
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis
+                        yAxisId="left"
+                        label={{
+                          value: "CSAT / FCR (%)",
+                          angle: -90,
+                          position: "insideLeft",
+                        }}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        label={{
+                          value: "Контакты/час",
+                          angle: 90,
+                          position: "insideRight",
+                        }}
+                      />
+                      <Tooltip />
+                      <Legend />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="csat"
+                        stroke="#8884d8"
+                        name="CSAT %"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                      />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="fcr"
+                        stroke="#82ca9d"
+                        name="FCR %"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="contactsPerHour"
+                        stroke="#ff7300"
+                        name="Контакты/час"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Card>
+              </Col>
+            </Row>
+          )}
+
+          {/* Графики: топ дней и статусы */}
+          <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+            {topDaysData.length > 0 && (
+              <Col span={12}>
+                <Card
+                  title={
+                    <Space>
+                      <BarChartOutlined />
+                      <span>Топ дней по продуктивности</span>
+                    </Space>
+                  }
+                >
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={topDaysData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis
+                        label={{
+                          value: "Обработано запросов",
+                          angle: -90,
+                          position: "insideLeft",
+                        }}
+                      />
+                      <Tooltip />
+                      <Bar dataKey="requests" fill="#8884d8" name="Запросов" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+              </Col>
+            )}
+
+            {statusPieData.length > 0 && (
+              <Col span={12}>
+                <Card
+                  title={
+                    <Space>
+                      <TrophyOutlined />
+                      <span>Статус проверки записей</span>
+                    </Space>
+                  }
+                >
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={statusPieData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) =>
+                          `${name}: ${(percent * 100).toFixed(0)}%`
+                        }
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {statusPieData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Card>
+              </Col>
+            )}
           </Row>
 
           {/* Данные за сегодня */}
@@ -503,7 +832,7 @@ const EmployeeDashboard = () => {
                         <Descriptions.Item label="Статус проверки">
                           <Tag
                             color={getStatusColor(
-                              todayData.verification_status
+                              todayData.verification_status,
                             )}
                           >
                             {todayData.verification_status}
@@ -512,7 +841,6 @@ const EmployeeDashboard = () => {
                       </Descriptions>
                     </Col>
 
-                    {/* KPI за сегодня */}
                     <Col span={24}>
                       <Divider orientation="left">
                         Ключевые показатели (KPI)
@@ -530,8 +858,8 @@ const EmployeeDashboard = () => {
                                   kpis.csat >= 85
                                     ? "#3f8600"
                                     : kpis.csat >= 70
-                                    ? "#faad14"
-                                    : "#cf1322",
+                                      ? "#faad14"
+                                      : "#cf1322",
                               }}
                             />
                             <Progress
@@ -540,8 +868,8 @@ const EmployeeDashboard = () => {
                                 kpis.csat >= 85
                                   ? "success"
                                   : kpis.csat >= 70
-                                  ? "normal"
-                                  : "exception"
+                                    ? "normal"
+                                    : "exception"
                               }
                               size="small"
                             />
@@ -558,8 +886,8 @@ const EmployeeDashboard = () => {
                                   kpis.contactsPerHour >= 8
                                     ? "#3f8600"
                                     : kpis.contactsPerHour >= 5
-                                    ? "#faad14"
-                                    : "#cf1322",
+                                      ? "#faad14"
+                                      : "#cf1322",
                               }}
                             />
                             <Text type="secondary">Цель: 8 контактов/час</Text>
@@ -577,8 +905,8 @@ const EmployeeDashboard = () => {
                                   kpis.fcr >= 75
                                     ? "#3f8600"
                                     : kpis.fcr >= 60
-                                    ? "#faad14"
-                                    : "#cf1322",
+                                      ? "#faad14"
+                                      : "#cf1322",
                               }}
                             />
                             <Progress
@@ -587,8 +915,8 @@ const EmployeeDashboard = () => {
                                 kpis.fcr >= 75
                                   ? "success"
                                   : kpis.fcr >= 60
-                                  ? "normal"
-                                  : "exception"
+                                    ? "normal"
+                                    : "exception"
                               }
                               size="small"
                             />
@@ -743,7 +1071,7 @@ const EmployeeDashboard = () => {
                     {(() => {
                       const totalRequests = weeklyData.reduce(
                         (sum, day) => sum + (day.processed_requests || 0),
-                        0
+                        0,
                       );
                       if (totalRequests > 100) {
                         return (
@@ -762,27 +1090,56 @@ const EmployeeDashboard = () => {
             </Col>
           </Row>
 
-          {/* История за неделю */}
+          {/* История за неделю с ФИЛЬТРОМ ДАТ */}
           <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
             <Col span={24}>
               <Card
                 title={
                   <Space>
                     <HistoryOutlined />
-                    <span>История за неделю</span>
+                    <span>История</span>
+                  </Space>
+                }
+                extra={
+                  <Space>
+                    <RangePicker
+                      onChange={(dates) => setDateRange(dates)}
+                      placeholder={["Начало", "Конец"]}
+                      format="DD.MM.YYYY"
+                      allowClear
+                    />
+                    {dateRange && (
+                      <Button onClick={handleResetFilter} size="small">
+                        Сбросить
+                      </Button>
+                    )}
                   </Space>
                 }
               >
-                {weeklyData.length > 0 ? (
-                  <Table
-                    dataSource={weeklyData}
-                    columns={columns}
-                    rowKey="record_id"
-                    pagination={{ pageSize: 7 }}
-                    scroll={{ x: true }}
-                  />
+                {filteredData.length > 0 ? (
+                  <>
+                    <div style={{ marginBottom: 16, textAlign: "right" }}>
+                      <Text type="secondary">
+                        Найдено записей: {filteredData.length} из{" "}
+                        {weeklyData.length}
+                      </Text>
+                    </div>
+                    <Table
+                      dataSource={filteredData}
+                      columns={columns}
+                      rowKey="record_id"
+                      pagination={{ pageSize: 10, showSizeChanger: true }}
+                      scroll={{ x: true }}
+                    />
+                  </>
                 ) : (
-                  <Empty description="Нет данных за последнюю неделю" />
+                  <Empty
+                    description={
+                      dateRange
+                        ? "Нет данных за выбранный период"
+                        : "Нет данных для отображения"
+                    }
+                  />
                 )}
               </Card>
             </Col>
@@ -791,6 +1148,6 @@ const EmployeeDashboard = () => {
       </Layout>
     </Layout>
   );
-};
+};;;;
 
 export default EmployeeDashboard;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  Tag,
   Layout,
   Menu,
   Avatar,
@@ -33,6 +34,20 @@ import "dayjs/locale/ru";
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
+// Определяем цвет для роли
+const getRoleColor = (role) => {
+  switch (role) {
+    case "Руководитель отдела":
+      return "purple";
+    case "Руководитель группы":
+      return "blue";
+    case "Сотрудник":
+      return "green";
+    default:
+      return "default";
+  }
+};
+
 const DailyMetricsForm = () => {
   const { user, logout } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,12 +56,13 @@ const DailyMetricsForm = () => {
   const [todayData, setTodayData] = useState(null);
   const [weekData, setWeekData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState(null);
 
   const menuItems = [
     {
       key: "profile",
       icon: <UserOutlined />,
-      label: <Link to="/profile">Профиль</Link>,
+      label: <Link to="/profile">Личный профиль</Link>,
     },
     {
       key: "dashboard",
@@ -69,15 +85,19 @@ const DailyMetricsForm = () => {
 
       setLoading(true);
       try {
-        // Делаем параллельные запросы
-        const [todayResponse, weekResponse] = await Promise.all([
-          fetch(
-            `http://localhost:5000/api/auth/daily-metrics/today?employee_id=${user.employee_id}`
-          ),
-          fetch(
-            `http://localhost:5000/api/auth/daily-metrics/week?employee_id=${user.employee_id}`
-          ),
-        ]);
+        // Делаем параллельные запросы, включая профиль
+        const [todayResponse, weekResponse, profileResponse] =
+          await Promise.all([
+            fetch(
+              `http://localhost:5000/api/auth/daily-metrics/today?employee_id=${user.employee_id}`,
+            ),
+            fetch(
+              `http://localhost:5000/api/auth/daily-metrics/week?employee_id=${user.employee_id}`,
+            ),
+            fetch(
+              `http://localhost:5000/api/auth/profile?employee_id=${user.employee_id}`,
+            ),
+          ]);
 
         if (todayResponse.ok) {
           const todayResult = await todayResponse.json();
@@ -92,6 +112,11 @@ const DailyMetricsForm = () => {
           setWeekData(weekResult || []);
         } else {
           console.error("Ошибка загрузки week:", await weekResponse.text());
+        }
+
+        if (profileResponse.ok) {
+          const profileResult = await profileResponse.json();
+          setProfileData(profileResult);
         }
       } catch (error) {
         console.error("Ошибка загрузки данных:", error);
@@ -133,10 +158,14 @@ const DailyMetricsForm = () => {
         return;
       }
 
+      // ФОРМИРУЕМ ДАТУ ПРАВИЛЬНО - без учета времени
+      const selectedDate = values.report_date;
+      const formattedDate = selectedDate.format("YYYY-MM-DD");
+
       const payload = {
         ...values,
         employee_id: user.employee_id,
-        report_date: values.report_date.format("YYYY-MM-DD"),
+        report_date: formattedDate, // Используем только дату без времени
         processed_requests: Number(values.processed_requests) || 0,
         work_minutes: Number(values.work_minutes) || 0,
         positive_feedbacks: Number(values.positive_feedbacks) || 0,
@@ -148,6 +177,7 @@ const DailyMetricsForm = () => {
       };
 
       console.log("Отправляемые данные:", payload);
+      console.log("Отправляемая дата:", formattedDate);
 
       const response = await fetch(
         "http://localhost:5000/api/auth/daily-metrics",
@@ -157,7 +187,7 @@ const DailyMetricsForm = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
-        }
+        },
       );
 
       const responseData = await response.json();
@@ -165,7 +195,6 @@ const DailyMetricsForm = () => {
 
       if (response.ok) {
         message.success("Данные успешно сохранены!");
-
         // Обновляем данные после сохранения
         const newTodayData = {
           ...payload,
@@ -174,7 +203,6 @@ const DailyMetricsForm = () => {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-
         setTodayData(newTodayData);
         setWeekData((prev) => [...prev, newTodayData]);
         setModalVisible(false);
@@ -189,16 +217,23 @@ const DailyMetricsForm = () => {
     }
   };
 
-  // Рассчитываем средние показатели за неделю
+  // Рассчитываем средние показатели за неделю (исправлено: защита от NaN)
   const weeklyStats = weekData.reduce(
     (acc, day) => ({
-      totalProcessed: acc.totalProcessed + (day.processed_requests || 0),
-      totalMinutes: acc.totalMinutes + (day.work_minutes || 0),
-      avgQuality: acc.avgQuality + (day.quality_score || 0),
+      totalProcessed:
+        acc.totalProcessed + (Number(day.processed_requests) || 0),
+      totalMinutes: acc.totalMinutes + (Number(day.work_minutes) || 0),
+      totalQuality: acc.totalQuality + (Number(day.quality_score) || 0),
       count: acc.count + 1,
     }),
-    { totalProcessed: 0, totalMinutes: 0, avgQuality: 0, count: 0 }
+    { totalProcessed: 0, totalMinutes: 0, totalQuality: 0, count: 0 },
   );
+
+  // Безопасное вычисление среднего качества
+  const averageQuality =
+    weeklyStats.count > 0
+      ? (weeklyStats.totalQuality / weeklyStats.count).toFixed(1)
+      : 0;
 
   if (loading) {
     return (
@@ -224,7 +259,9 @@ const DailyMetricsForm = () => {
             size={80}
             style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
           >
-            {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
+            {profileData?.first_name?.[0] ||
+              user?.first_name?.[0] ||
+              user?.username?.[0]?.toUpperCase() || <UserOutlined />}
           </Avatar>
           <div
             style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
@@ -232,7 +269,7 @@ const DailyMetricsForm = () => {
             {user?.username}
           </div>
           <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-            {user?.role}
+            <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
           </div>
           <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
             ID: {user?.employee_id}
@@ -456,13 +493,7 @@ const DailyMetricsForm = () => {
                   <Col span={12}>
                     <Statistic
                       title="Среднее качество"
-                      value={
-                        weeklyStats.count > 0
-                          ? (
-                              weeklyStats.avgQuality / weeklyStats.count
-                            ).toFixed(1)
-                          : 0
-                      }
+                      value={averageQuality}
                       suffix="%"
                     />
                   </Col>
@@ -478,7 +509,7 @@ const DailyMetricsForm = () => {
                       value={
                         weeklyStats.count > 0
                           ? Math.round(
-                              weeklyStats.totalProcessed / weeklyStats.count
+                              weeklyStats.totalProcessed / weeklyStats.count,
                             )
                           : 0
                       }

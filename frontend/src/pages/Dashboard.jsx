@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import NotificationBell from "../components/NotificationBell";
 import {
   Layout,
   Menu,
@@ -39,7 +40,18 @@ import "dayjs/locale/ru";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
-
+const getRoleColor = (role) => {
+  switch (role) {
+    case "Руководитель отдела":
+      return "purple";
+    case "Руководитель группы":
+      return "blue";
+    case "Сотрудник":
+      return "green";
+    default:
+      return "default";
+  }
+};
 // Вспомогательная функция для безопасного округления
 const safeRound = (value, decimals = 2) => {
   if (value === null || value === undefined || isNaN(value)) {
@@ -137,7 +149,7 @@ const Dashboard = () => {
               size={80}
               style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
             >
-              {user?.username?.[0]?.toUpperCase() || <UserOutlined />}
+              {user?.first_name?.[0]?.toUpperCase() || <UserOutlined />}
             </Avatar>
             <div
               style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
@@ -145,7 +157,12 @@ const Dashboard = () => {
               {user?.username}
             </div>
             <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-              {user?.role}
+              <Tag
+                color={getRoleColor(user?.role)}
+                style={{ fontSize: "12px" }}
+              >
+                {user?.role}
+              </Tag>
             </div>
             <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
               ID: {user?.employee_id}
@@ -202,7 +219,9 @@ const Dashboard = () => {
             {user?.username}
           </div>
           <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-            {user?.role}
+            <Tag color={getRoleColor(user?.role)} style={{ fontSize: "12px" }}>
+              {user?.role}
+            </Tag>
           </div>
           <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
             ID: {user?.employee_id}
@@ -228,11 +247,14 @@ const Dashboard = () => {
           }}
         >
           <Title level={4} style={{ margin: 0 }}>
-            Общая статистика
+            Показатели
           </Title>
-          <Button onClick={logout} icon={<LogoutOutlined />}>
-            Выйти
-          </Button>
+          <Space>
+            <NotificationBell userId={user?.employee_id} />
+            <Button onClick={logout} icon={<LogoutOutlined />}>
+              Выйти
+            </Button>
+          </Space>
         </Header>
 
         <Content
@@ -287,8 +309,8 @@ const Dashboard = () => {
                               stats.avg_csat >= 85
                                 ? "#3f8600"
                                 : stats.avg_csat >= 70
-                                ? "#faad14"
-                                : "#cf1322",
+                                  ? "#faad14"
+                                  : "#cf1322",
                           }}
                         />
                         <Progress
@@ -297,8 +319,8 @@ const Dashboard = () => {
                             stats.avg_csat >= 85
                               ? "success"
                               : stats.avg_csat >= 70
-                              ? "normal"
-                              : "exception"
+                                ? "normal"
+                                : "exception"
                           }
                           size="small"
                         />
@@ -316,8 +338,8 @@ const Dashboard = () => {
                               stats.avg_quality >= 85
                                 ? "#3f8600"
                                 : stats.avg_quality >= 70
-                                ? "#faad14"
-                                : "#cf1322",
+                                  ? "#faad14"
+                                  : "#cf1322",
                           }}
                         />
                         <Progress
@@ -326,8 +348,8 @@ const Dashboard = () => {
                             stats.avg_quality >= 85
                               ? "success"
                               : stats.avg_quality >= 70
-                              ? "normal"
-                              : "exception"
+                                ? "normal"
+                                : "exception"
                           }
                           size="small"
                         />
@@ -345,8 +367,8 @@ const Dashboard = () => {
                               stats.avg_contacts_per_hour >= 8
                                 ? "#3f8600"
                                 : stats.avg_contacts_per_hour >= 5
-                                ? "#faad14"
-                                : "#cf1322",
+                                  ? "#faad14"
+                                  : "#cf1322",
                           }}
                         />
                       </Card>
@@ -363,8 +385,8 @@ const Dashboard = () => {
                               stats.avg_fcr >= 75
                                 ? "#3f8600"
                                 : stats.avg_fcr >= 60
-                                ? "#faad14"
-                                : "#cf1322",
+                                  ? "#faad14"
+                                  : "#cf1322",
                           }}
                         />
                         <Progress
@@ -373,8 +395,8 @@ const Dashboard = () => {
                             stats.avg_fcr >= 75
                               ? "success"
                               : stats.avg_fcr >= 60
-                              ? "normal"
-                              : "exception"
+                                ? "normal"
+                                : "exception"
                           }
                           size="small"
                         />

@@ -9,6 +9,8 @@ import DailyMetricsForm from './pages/DailyMetricsForm';
 import Profile from './pages/Profile';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import GroupLeaderDashboard from './pages/GroupLeaderDashboard';
+import Leaderboard from "./pages/Leaderboard";
+
 
 function App() {
   return (
@@ -63,7 +65,8 @@ function App() {
               }}
             </ProtectedRoute>
           } />
-          
+          <Route path="/leaderboard" element={<Leaderboard />} />
+
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
