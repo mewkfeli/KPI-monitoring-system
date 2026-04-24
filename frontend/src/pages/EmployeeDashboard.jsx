@@ -98,12 +98,7 @@ const EmployeeDashboard = () => {
       key: "dashboard",
       icon: <DashboardOutlined />,
       label: <Link to="/dashboard">Показатели</Link>,
-    },
-    {
-      key: "daily-metrics",
-      icon: <FormOutlined />,
-      label: <Link to="/daily-metrics">Ввод данных за день</Link>,
-    },
+    }
   ];
 
   useEffect(() => {
@@ -805,7 +800,7 @@ const EmployeeDashboard = () => {
                   </Button>
                 }
               >
-                {todayData ? (
+                todayData (
                   <Row gutter={[24, 24]}>
                     <Col span={24}>
                       <Descriptions bordered column={2}>
@@ -925,19 +920,7 @@ const EmployeeDashboard = () => {
                       </Row>
                     </Col>
                   </Row>
-                ) : (
-                  <Alert
-                    message="Данные за сегодня не введены"
-                    description="Перейдите на страницу 'Ввод данных за день' для заполнения метрик"
-                    type="info"
-                    showIcon
-                    action={
-                      <Button size="small" type="primary">
-                        <Link to="/daily-metrics">Перейти к вводу</Link>
-                      </Button>
-                    }
-                  />
-                )}
+                ) 
               </Card>
             </Col>
           </Row>

@@ -133,11 +133,6 @@ const Dashboard = () => {
       icon: <DashboardOutlined />,
       label: <Link to="/dashboard">Показатели</Link>,
     },
-    {
-      key: "daily-metrics",
-      icon: <FormOutlined />,
-      label: <Link to="/daily-metrics">Ввод данных за день</Link>,
-    },
   ];
   
   if (loading) {
@@ -547,24 +542,6 @@ const Dashboard = () => {
                 }
               >
                 <Row gutter={[16, 16]}>
-                  <Col span={6}>
-                    <Card
-                      size="small"
-                      hoverable
-                      onClick={() => navigate("/daily-metrics")}
-                      style={{ textAlign: "center", cursor: "pointer" }}
-                    >
-                      <FormOutlined
-                        style={{
-                          fontSize: "24px",
-                          color: "#1890ff",
-                          marginBottom: "8px",
-                        }}
-                      />
-                      <div>Ввод данных за день</div>
-                    </Card>
-                  </Col>
-
                   <Col span={6}>
                     <Card
                       size="small"

@@ -5,7 +5,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import DailyMetricsForm from './pages/DailyMetricsForm';
 import Profile from './pages/Profile';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import GroupLeaderDashboard from './pages/GroupLeaderDashboard';
@@ -27,11 +26,6 @@ function App() {
             </ProtectedRoute>
           } />
           
-          <Route path="/daily-metrics" element={
-            <ProtectedRoute allowedRoles={['Сотрудник']}>
-              <DailyMetricsForm />
-            </ProtectedRoute>
-          } />
           
           {/* Для всех авторизованных */}
           <Route path="/profile" element={
