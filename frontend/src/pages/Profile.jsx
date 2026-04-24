@@ -99,11 +99,6 @@ const Profile = () => {
           icon: <DashboardOutlined />,
           label: <Link to="/dashboard">Показатели</Link>,
         },
-        {
-          key: "daily-metrics",
-          icon: <FormOutlined />,
-          label: <Link to="/daily-metrics">Ввод данных за день</Link>,
-        },
       ];
     }
   };
