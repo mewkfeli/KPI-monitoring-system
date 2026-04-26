@@ -64,6 +64,7 @@ import {
   SafetyCertificateOutlined,
   PhoneOutlined,
   MailOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 import { Link, useNavigate } from "react-router-dom";
@@ -332,6 +333,11 @@ const GroupLeaderDashboard = () => {
       icon: <TrophyOutlined />,
       label: <Link to="/leaderboard">Рейтинг сотрудников</Link>,
     },
+    {
+              key: "knowledge",
+              icon: <BookOutlined />,
+              label: <Link to="/knowledge">База знаний</Link>,
+            },
   ];
 
   // Колонки для таблицы сотрудников

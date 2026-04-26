@@ -31,6 +31,7 @@ import {
   HistoryOutlined,
   StarOutlined,
   BarChartOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
@@ -85,6 +86,11 @@ const Profile = () => {
           icon: <TrophyOutlined />,
           label: <Link to="/leaderboard">Рейтинг сотрудников</Link>,
         },
+        {
+          key: "knowledge",
+          icon: <BookOutlined />,
+          label: <Link to="/knowledge">База знаний</Link>,
+        },
       ];
     } else {
       // Меню для обычного сотрудника
@@ -98,6 +104,11 @@ const Profile = () => {
           key: "dashboard",
           icon: <DashboardOutlined />,
           label: <Link to="/dashboard">Показатели</Link>,
+        },
+        {
+          key: "knowledge",
+          icon: <BookOutlined />,
+          label: <Link to="/knowledge">База знаний</Link>,
         },
       ];
     }

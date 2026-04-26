@@ -35,6 +35,7 @@ import {
   BarChartOutlined,
   HistoryOutlined,
   TrophyOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
@@ -98,7 +99,12 @@ const EmployeeDashboard = () => {
       key: "dashboard",
       icon: <DashboardOutlined />,
       label: <Link to="/dashboard">Показатели</Link>,
-    }
+    },
+    {
+              key: "knowledge",
+              icon: <BookOutlined />,
+              label: <Link to="/knowledge">База знаний</Link>,
+            },
   ];
 
   useEffect(() => {
