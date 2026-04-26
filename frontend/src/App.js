@@ -9,6 +9,8 @@ import Profile from './pages/Profile';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import GroupLeaderDashboard from './pages/GroupLeaderDashboard';
 import Leaderboard from "./pages/Leaderboard";
+import KnowledgeBase from "./pages/KnowledgeBase";
+
 
 
 function App() {
@@ -60,6 +62,8 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/knowledge" element={<KnowledgeBase />} />
+
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

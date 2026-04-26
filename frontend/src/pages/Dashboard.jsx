@@ -34,6 +34,7 @@ import {
   StarOutlined,
   HistoryOutlined,
   TeamOutlined,
+  BookOutlined 
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
@@ -133,6 +134,11 @@ const Dashboard = () => {
       icon: <DashboardOutlined />,
       label: <Link to="/dashboard">Показатели</Link>,
     },
+    {
+              key: "knowledge",
+              icon: <BookOutlined />,
+              label: <Link to="/knowledge">База знаний</Link>,
+            },
   ];
   
   if (loading) {
