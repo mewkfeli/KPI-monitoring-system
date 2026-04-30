@@ -83,5 +83,40 @@ export const NotificationService = {
       [userId]
     );
     return rows[0].count;
+  },
+
+  /**
+   * Отправить уведомление о новом сообщении в чате всем участникам группы
+   * @param {number} groupId - ID группы
+   * @param {string} senderName - Имя отправителя
+   * @param {string} message - Текст сообщения (кратко)
+   */
+  async notifyGroupNewMessage(groupId, senderName, message) {
+    try {
+      // Получаем всех активных сотрудников группы
+      const [members] = await db.query(
+        `SELECT employee_id FROM employees 
+         WHERE group_id = ? AND status = 'Активен'`,
+        [groupId]
+      );
+      
+      const shortMessage = message.length > 50 
+        ? message.substring(0, 50) + '...' 
+        : message;
+      
+      for (const member of members) {
+        await this.createNotification(
+          member.employee_id,
+          `💬 Новое сообщение от ${senderName}`,
+          shortMessage,
+          'info',
+          'chat',
+          null
+        );
+      }
+      console.log(`✅ Уведомления о сообщении отправлены ${members.length} участникам группы ${groupId}`);
+    } catch (error) {
+      console.error("❌ Ошибка отправки уведомлений о сообщении:", error);
+    }
   }
 };

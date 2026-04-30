@@ -76,7 +76,7 @@ router.get("/daily-metrics/today", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Ошибка при получении данных за сегодня:", error);
-    res.status(500).json({ message: "Ошибка сервера" });
+    res.status(500).json({ message: "втф 500 ошибка" });
   }
 });
 
@@ -85,7 +85,7 @@ router.get("/daily-metrics/week", async (req, res) => {
   const { employee_id } = req.query;
   
   if (!employee_id) {
-    return res.status(400).json({ message: "Отсутствует employee_id" });
+    return res.status(400).json({ message: "Отсутствует айди сотрудника" });
   }
 
   const today = new Date();

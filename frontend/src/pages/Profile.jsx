@@ -22,6 +22,7 @@ import {
   DashboardOutlined,
   FormOutlined,
   LogoutOutlined,
+  MessageOutlined,
   UserOutlined,
   CalendarOutlined,
   TeamOutlined,
@@ -76,6 +77,12 @@ const Profile = () => {
           icon: <UserOutlined />,
           label: <Link to="/profile">Личный профиль</Link>,
         },
+        ,
+    {
+      key: "chat", 
+      icon: <MessageOutlined />,
+      label: <Link to="/chat">Чат группы</Link>,
+    },
         {
           key: "group-leader",
           icon: <TeamOutlined />,

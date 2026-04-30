@@ -10,6 +10,7 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import GroupLeaderDashboard from './pages/GroupLeaderDashboard';
 import Leaderboard from "./pages/Leaderboard";
 import KnowledgeBase from "./pages/KnowledgeBase";
+import ChatPage from "./pages/ChatPage";
 
 
 
@@ -35,7 +36,8 @@ function App() {
               <Profile />
             </ProtectedRoute>
           } />
-          
+          <Route path="/chat" element={<ChatPage />} />
+
           <Route path="/employee-dashboard" element={
             <ProtectedRoute allowedRoles={['Сотрудник']}>
               <EmployeeDashboard />
