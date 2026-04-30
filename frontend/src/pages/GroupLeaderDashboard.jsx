@@ -4,6 +4,8 @@ import { saveAs } from "file-saver";
 import { DownloadOutlined } from "@ant-design/icons";
 import UserAvatar from "../components/UserAvatar";
 import NotificationBell from "../components/NotificationBell";
+import ChatButton from "../components/ChatButton";
+
 import {
   LineChart,
   Line,
@@ -734,6 +736,7 @@ const GroupLeaderDashboard = () => {
                 Экспорт в Excel
               </Button>
               <NotificationBell userId={user?.employee_id} />
+                <ChatButton userId={user?.employee_id} />
               <Button onClick={logout} icon={<LogoutOutlined />}>
                 Выйти
               </Button>
