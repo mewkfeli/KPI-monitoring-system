@@ -11,6 +11,7 @@ import GroupLeaderDashboard from './pages/GroupLeaderDashboard';
 import Leaderboard from "./pages/Leaderboard";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import ChatPage from "./pages/ChatPage";
+import JoinInvite from "./pages/JoinInvite";
 
 
 
@@ -37,6 +38,7 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/join/:code" element={<JoinInvite />} />
 
           <Route path="/employee-dashboard" element={
             <ProtectedRoute allowedRoles={['Сотрудник']}>

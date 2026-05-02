@@ -130,30 +130,46 @@ const ChatPage = () => {
     currentChatRef.current = currentChat;
   }, [currentChat]);
   
+  // Прокрутка вниз
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+  
   // Загрузка списка чатов
   const loadChats = useCallback(async () => {
-    if (!user?.employee_id) return;
-    
-    try {
-      const response = await fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`);
-      if (response.ok) {
-        const data = await response.json();
-        const uniqueChats = data.reduce((acc, current) => {
-          const exists = acc.some(item => item.id === current.id && item.type === current.type);
-          if (!exists) acc.push(current);
-          return acc;
-        }, []);
-        const sortedChats = uniqueChats.sort((a, b) => {
-          if (a.unread_count > 0 && b.unread_count === 0) return -1;
-          if (a.unread_count === 0 && b.unread_count > 0) return 1;
-          return (a.name || '').localeCompare(b.name || '');
-        });
-        setChats(sortedChats);
+  if (!user?.employee_id) return;
+  
+  try {
+    const response = await fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`);
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Удаляем дубликаты по id + type
+      const uniqueChats = [];
+      const seen = new Set();
+      
+      for (const chat of data) {
+        const key = `${chat.type}_${chat.id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueChats.push(chat);
+        }
       }
-    } catch (error) {
-      console.error("Ошибка загрузки чатов:", error);
+      
+      const sortedChats = uniqueChats.sort((a, b) => {
+        if (a.unread_count > 0 && b.unread_count === 0) return -1;
+        if (a.unread_count === 0 && b.unread_count > 0) return 1;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      
+      setChats(sortedChats);
     }
-  }, [user?.employee_id]);
+  } catch (error) {
+    console.error("Ошибка загрузки чатов:", error);
+  }
+}, [user?.employee_id]);
   
   // Загрузка сообщений в текущем чате
   const loadMessages = useCallback(async () => {
@@ -166,12 +182,30 @@ const ChatPage = () => {
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
+        
+        // Отмечаем все непрочитанные сообщения при открытии чата
+        if (socket && data.length > 0) {
+          const unreadMessages = data.filter(msg => 
+            msg.sender_id !== user?.employee_id && 
+            !msg.is_deleted &&
+            (!msg.read_count || msg.read_count === 0)
+          );
+          
+          unreadMessages.forEach(msg => {
+            socket.emit("mark_read", { message_id: msg.message_id });
+          });
+          
+          if (unreadMessages.length > 0) {
+            setTimeout(() => loadChats(), 500);
+          }
+        }
+        
         setTimeout(() => scrollToBottom(), 100);
       }
     } catch (error) {
       console.error("Ошибка загрузки сообщений:", error);
     }
-  }, [currentChat]);
+  }, [currentChat, user?.employee_id, socket, loadChats, scrollToBottom]);
   
   // Загрузка всех сотрудников
   const loadAllEmployees = useCallback(async () => {
@@ -209,14 +243,29 @@ const ChatPage = () => {
     }
   }, [createGroupVisible, loadAllEmployees]);
   
-  // Прокрутка вниз
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+  // Подключение к чату через сокет (вход в комнату)
+  useEffect(() => {
+    if (socket && currentChat) {
+      let roomName;
+      if (currentChat.type === 'private') {
+        roomName = `private_${currentChat.id}`;
+      } else if (currentChat.type === 'custom') {
+        roomName = `custom_${currentChat.id}`;
+      } else {
+        roomName = `group_${currentChat.id}`;
+      }
+      
+      console.log(`🔗 Подключаемся к комнате: ${roomName}`);
+      socket.emit("join_chat", { chat_type: currentChat.type, chat_id: currentChat.id });
+      
+      return () => {
+        console.log(`🚪 Отключаемся от комнаты: ${roomName}`);
+        socket.emit("leave_chat", { chat_type: currentChat.type, chat_id: currentChat.id });
+      };
     }
-  }, []);
+  }, [socket, currentChat]);
   
-  // Socket.IO подключение - ВСЕ ОБРАБОТЧИКИ ВНУТРИ ЭТОГО useEffect
+  // Socket.IO подключение
   useEffect(() => {
     if (!user?.employee_id) return;
     
@@ -236,6 +285,8 @@ const ChatPage = () => {
     });
     
     newSocket.on("new_message", (message) => {
+      console.log("📨 Получено сообщение:", message);
+      
       if (currentChatRef.current && 
           message.chat_type === currentChatRef.current.type && 
           message.chat_id === currentChatRef.current.id) {
@@ -255,14 +306,22 @@ const ChatPage = () => {
     });
     
     newSocket.on("new_chat_created", (newChat) => {
-      console.log("📢 Новая группа создана:", newChat);
-      setChats(prev => {
-        const exists = prev.some(c => c.id === newChat.id && c.type === newChat.type);
-        if (exists) return prev;
-        return [newChat, ...prev];
-      });
-      message.info(`Вас добавили в группу: ${newChat.name}`);
-    });
+  console.log("📢 Новая группа создана:", newChat);
+  
+  setChats(prev => {
+    // ПРОВЕРКА: существует ли уже такой чат
+    const exists = prev.some(c => c.id === newChat.id && c.type === newChat.type);
+    if (exists) {
+      console.log("⚠️ Чат уже есть в списке, пропускаем");
+      return prev;
+    }
+    
+    // Добавляем только если чата нет
+    return [newChat, ...prev];
+  });
+  
+  message.info(`Вас добавили в группу: ${newChat.name}`);
+});
     
     newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
       setMessages(prev => prev.map(msg =>
@@ -308,6 +367,7 @@ const ChatPage = () => {
     });
     
     newSocket.on("unread_count_update", () => {
+      console.log("🔄 Обновляем счетчики непрочитанных");
       loadChats();
     });
     
@@ -320,7 +380,7 @@ const ChatPage = () => {
     return () => {
       newSocket.disconnect();
     };
-  }, [user?.employee_id, loadChats, scrollToBottom]);
+  }, [user, loadChats, scrollToBottom]);
   
   // Поиск сотрудников для личного чата
   const searchEmployees = async (query) => {
@@ -404,33 +464,19 @@ const ChatPage = () => {
       });
       
       const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || "Ошибка создания группы");
-      }
-      
-      setCreateGroupVisible(false);
-      setGroupName("");
-      setGroupMembers([]);
-      
-      await loadChats();
-      
-      setTimeout(() => {
-        const newGroup = chats.find(c => c.id === data.group_id && c.type === 'custom');
-        if (newGroup) {
-          setCurrentChat(newGroup);
-        } else {
-          setCurrentChat({
-            id: data.group_id,
-            type: "custom",
-            name: newGroupName,
-            avatar: null,
-            unread_count: 0
-          });
-        }
-      }, 200);
-      
-      message.success("Группа создана!");
+  
+  if (!response.ok) {
+    throw new Error(data.error || "Ошибка создания группы");
+  }
+  
+  // ПОКАЗЫВАЕМ МОДАЛКУ С КОДОМ
+  if (data.invite_code) {
+    setInviteCode(data.invite_code);  // Сохраняем код
+    setInviteCodeModalVisible(true);   // Показываем модалку
+    message.success("Группа создана! Код приглашения готов");
+  } else {
+    message.success("Группа создана!");
+  }
       
     } catch (error) {
       console.error("Ошибка создания группы:", error);
@@ -442,32 +488,45 @@ const ChatPage = () => {
   
   // Присоединение по коду
   const handleJoinByCode = async () => {
-    if (!joinCode.trim()) {
-      message.warning("Введите код приглашения");
-      return;
-    }
+  if (!joinCode.trim()) {
+    message.warning("Введите код приглашения");
+    return;
+  }
+  
+  try {
+    const response = await fetch("http://localhost:5000/api/chat/join-by-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invite_code: joinCode, user_id: user.employee_id }),
+    });
     
-    try {
-      const response = await fetch("http://localhost:5000/api/chat/join-by-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invite_code: joinCode, user_id: user.employee_id }),
-      });
+    const data = await response.json();
+    
+    if (response.ok) {
+      message.success("Вы присоединились к чату!");
+      setJoinCodeVisible(false);
+      setJoinCode("");
       
-      if (response.ok) {
-        const data = await response.json();
-        message.success("Вы присоединились к чату!");
-        setJoinCodeVisible(false);
-        setJoinCode("");
-        loadChats();
-      } else {
-        message.error("Неверный код приглашения");
+      // Перезагружаем список чатов с сервера (а не добавляем вручную)
+      await loadChats();
+      
+      // Если в ответе есть ID чата - переключаемся на него
+      if (data.target_id) {
+        setTimeout(() => {
+          const joinedChat = chats.find(c => c.id === data.target_id);
+          if (joinedChat) {
+            setCurrentChat(joinedChat);
+          }
+        }, 500);
       }
-    } catch (error) {
-      console.error("Ошибка присоединения:", error);
-      message.error("Не удалось присоединиться");
+    } else {
+      message.error(data.error || "Неверный код приглашения");
     }
-  };
+  } catch (error) {
+    console.error("Ошибка присоединения:", error);
+    message.error("Не удалось присоединиться");
+  }
+};
   
   // Получение информации о группе
   const fetchGroupInfo = async (groupId) => {
@@ -480,6 +539,29 @@ const ChatPage = () => {
       }
     } catch (error) {
       console.error("Ошибка получения информации о группе:", error);
+    }
+  };
+
+  // Удаление участника (только для админа)
+  const handleRemoveMember = async (memberId) => {
+    if (!currentGroupInfo) return;
+    try {
+      const response = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo.group_id}/remove-member`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_id: user.employee_id, member_id: memberId }),
+      });
+      if (response.ok) {
+        message.success("Участник удалён");
+        fetchGroupInfo(currentGroupInfo.group_id);
+        loadChats();
+      } else {
+        const err = await response.json();
+        message.error(err.error || "Не удалось удалить участника");
+      }
+    } catch (error) {
+      console.error("Ошибка удаления участника:", error);
+      message.error("Не удалось удалить участника");
     }
   };
   
@@ -503,6 +585,8 @@ const ChatPage = () => {
       setSending(true);
       const tempId = `temp_${Date.now()}_${Math.random()}`;
       pendingMessagesRef.current.add(tempId);
+      
+      console.log(`📤 Отправка в чат: type=${currentChat.type}, id=${currentChat.id}`);
       
       socket.emit("send_message", {
         message: messageText,
@@ -725,19 +809,42 @@ const ChatPage = () => {
   
   // Меню чата
   const chatMenuItems = [
-    {
-      key: "info",
-      icon: <TeamOutlined />,
-      label: "Информация о группе",
-      onClick: () => fetchGroupInfo(currentChat?.id)
-    },
-    {
-      key: "invite",
-      icon: <LinkOutlined />,
-      label: "Пригласить участников",
-      onClick: () => setInviteCodeModalVisible(true)
+  {
+    key: "info",
+    icon: <TeamOutlined />,
+    label: "Информация о группе",
+    onClick: () => fetchGroupInfo(currentChat?.id)
+  },
+  {
+    key: "invite",
+    icon: <LinkOutlined />,
+    label: "Пригласить участников",
+    onClick: () => {
+      // Нужно получить код приглашения для текущей группы
+      fetchInviteCode(currentChat?.id);
     }
-  ];
+  }
+];
+
+// Функция получения кода приглашения
+const fetchInviteCode = async (groupId) => {
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/chat/group/${groupId}/invite-code?user_id=${user?.employee_id}`
+    );
+    if (response.ok) {
+      const data = await response.json();
+      setInviteCode(data.invite_code);
+      setInviteCodeModalVisible(true);
+    } else {
+      const error = await response.json();
+      message.error(error.error || "Не удалось получить код приглашения");
+    }
+  } catch (error) {
+    console.error("Ошибка:", error);
+    message.error("Ошибка получения кода");
+  }
+};
   
   // Горячие клавиши
   useEffect(() => {
@@ -811,17 +918,21 @@ const ChatPage = () => {
           </Space>
         </Header>
         
-        <Layout style={{ flexDirection: "row" }}>
+        <Layout style={{ flexDirection: "row", height: "calc(100vh - 64px)" }}>
           {/* Список чатов - левая панель */}
           <div style={{
             width: 350,
+            minWidth: 350,
+            flexShrink: 0,
             background: "#fafafa",
             borderRight: "1px solid #e8e8e8",
             overflowY: "auto",
-            height: "calc(100vh - 64px)",
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
           }}>
-            <div style={{ padding: "16px", borderBottom: "1px solid #e8e8e8", background: "#fff" }}>
-              <Space direction="vertical" style={{ width: "100%" }}>
+            <div style={{ padding: "16px", borderBottom: "1px solid #e8e8e8", background: "#fff", flexShrink: 0 }}>
+              <Space direction="vertical" style={{ width: "100%" }} size={12}>
                 <Input.Search
                   placeholder="Поиск чатов..."
                   allowClear
@@ -856,61 +967,66 @@ const ChatPage = () => {
               </Space>
             </div>
             
-            <List
-              dataSource={chats}
-              renderItem={(chat) => (
-                <div
-                  onClick={() => setCurrentChat(chat)}
-                  style={{
-                    padding: "12px 16px",
-                    cursor: "pointer",
-                    background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent",
-                    borderBottom: "1px solid #f0f0f0",
-                    transition: "background 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) {
-                      e.currentTarget.style.background = "#f5f5f5";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) {
-                      e.currentTarget.style.background = "transparent";
-                    }
-                  }}
-                >
-                  <Space>
-                    <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
-                      {renderChatAvatar(chat)}
-                    </Badge>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <Text strong style={{ fontSize: 14 }}>{chat.name || "Без названия"}</Text>
-                        {chat.unread_count > 0 && (
-                          <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f" }} />
-                        )}
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              <List
+                dataSource={chats}
+                renderItem={(chat) => (
+                  <div
+                    onClick={() => setCurrentChat(chat)}
+                    style={{
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent",
+                      borderBottom: "1px solid #f0f0f0",
+                      transition: "background 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) {
+                        e.currentTarget.style.background = "#f5f5f5";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) {
+                        e.currentTarget.style.background = "transparent";
+                      }
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
+                        {renderChatAvatar(chat)}
+                      </Badge>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                          <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {chat.name || "Без названия"}
+                          </Text>
+                          {chat.unread_count > 0 && (
+                            <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />
+                          )}
+                        </div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}
+                        </Text>
                       </div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {chat.type === "group" ? "Рабочая группа" : chat.type === "custom" ? "Группа" : "Личный чат"}
-                      </Text>
                     </div>
-                  </Space>
-                </div>
-              )}
-            />
+                  </div>
+                )}
+              />
+            </div>
           </div>
           
           {/* Область чата - правая панель */}
-          <Content style={{
-            margin: 0,
-            padding: 0,
-            background: "#fff",
-            minHeight: "calc(100vh - 64px)",
+          <div style={{
+            flex: 1,
             display: "flex",
             flexDirection: "column",
+            background: "#fff",
+            height: "100%",
+            overflow: "hidden",
           }}>
             {currentChat ? (
               <>
+                {/* Header чата - фиксированный */}
                 <div style={{
                   padding: "16px 24px",
                   borderBottom: "1px solid #f0f0f0",
@@ -918,6 +1034,7 @@ const ChatPage = () => {
                   justifyContent: "space-between",
                   alignItems: "center",
                   background: "#fff",
+                  flexShrink: 0,
                 }}>
                   <Space>
                     {renderChatAvatar(currentChat)}
@@ -938,11 +1055,15 @@ const ChatPage = () => {
                   )}
                 </div>
                 
+                {/* Сообщения - с прокруткой */}
                 <div style={{
                   flex: 1,
                   overflowY: "auto",
                   padding: "24px",
                   background: "#fafafa",
+                  display: "flex",
+                  flexDirection: "column",
+                  minHeight: 0,
                 }}>
                   {messages.length === 0 ? (
                     <Empty description="Нет сообщений. Напишите что-нибудь!" style={{ marginTop: 100 }} />
@@ -959,6 +1080,11 @@ const ChatPage = () => {
                             display: "flex",
                             justifyContent: isMine ? "flex-end" : "flex-start",
                             marginBottom: 16,
+                          }}
+                          onMouseEnter={() => {
+                            if (socket && !isMine && !msg.is_deleted) {
+                              socket.emit("mark_read", { message_id: msg.message_id });
+                            }
                           }}
                         >
                           <div style={{
@@ -1077,7 +1203,6 @@ const ChatPage = () => {
                       );
                     })
                   )}
-                  
                   <div ref={messagesEndRef} />
                 </div>
                 
@@ -1089,7 +1214,8 @@ const ChatPage = () => {
                     borderTop: "1px solid #f0f0f0",
                     fontSize: 12,
                     color: "#999",
-                    fontStyle: "italic"
+                    fontStyle: "italic",
+                    flexShrink: 0,
                   }}>
                     <Space>
                       <WifiOutlined style={{ fontSize: 12, color: "#52c41a" }} />
@@ -1098,8 +1224,8 @@ const ChatPage = () => {
                   </div>
                 )}
                 
-                {/* Поле ввода */}
-                <div style={{ padding: "16px 24px", borderTop: "1px solid #f0f0f0", background: "#fff" }}>
+                {/* Поле ввода - фиксированное внизу */}
+                <div style={{ padding: "16px 24px", borderTop: "1px solid #f0f0f0", background: "#fff", flexShrink: 0 }}>
                   {replyTo && (
                     <div style={{ background: "#e6f7ff", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <Space>
@@ -1173,7 +1299,7 @@ const ChatPage = () => {
                 </Space>
               </div>
             )}
-          </Content>
+          </div>
         </Layout>
       </Layout>
       
@@ -1276,17 +1402,17 @@ const ChatPage = () => {
             </Select>
           </Form.Item>
           
-<Alert 
-  message="Вы будете администратором группы" 
-  description="Администратор может добавлять/удалять участников и управлять настройками группы"
-  type="info" 
-  showIcon 
-  style={{ 
-    marginTop: 16,
-    padding: "8px 12px",
-    fontSize: 12,
-  }}
-/>
+          <Alert 
+            message="Вы будете администратором группы" 
+            description="Администратор может добавлять/удалять участников и управлять настройками группы"
+            type="info" 
+            showIcon 
+            style={{ 
+              marginTop: 16,
+              padding: "8px 12px",
+              fontSize: 12,
+            }}
+          />
         </Form>
       </Modal>
       
@@ -1314,38 +1440,91 @@ const ChatPage = () => {
       
       {/* Код приглашения */}
       <Modal
-        title="Код для приглашения"
-        open={inviteCodeModalVisible}
-        onCancel={() => setInviteCodeModalVisible(false)}
-        footer={[
-          <Button key="copy" type="primary" icon={<CopyOutlined />} onClick={copyInviteCode}>
-            Скопировать код
-          </Button>,
-          <Button key="close" onClick={() => setInviteCodeModalVisible(false)}>Закрыть</Button>,
-        ]}
-      >
-        <Paragraph>
-          Отправьте этот код другим сотрудникам, чтобы они присоединились к чату:
-        </Paragraph>
-        <div style={{
-          background: "#f5f5f5",
-          padding: "12px",
-          borderRadius: 8,
-          textAlign: "center",
-          fontFamily: "monospace",
-          fontSize: 18,
-          fontWeight: "bold",
-        }}>
-          {inviteCode}
-        </div>
-        <Divider />
-        <Alert
-          message="Код действителен 7 дней"
-          description="Вы также можете пригласить участников напрямую через кнопку добавления в группе"
-          type="info"
-          showIcon
-        />
-      </Modal>
+  title={
+    <Space>
+      <LinkOutlined style={{ color: "#1890ff" }} />
+      <span>Код для приглашения</span>
+    </Space>
+  }
+  open={inviteCodeModalVisible}
+  onCancel={() => {
+    setInviteCodeModalVisible(false);
+    setInviteCode("");
+  }}
+  footer={[
+    <Button 
+      key="copy" 
+      type="primary" 
+      icon={<CopyOutlined />} 
+      onClick={() => {
+        navigator.clipboard.writeText(inviteCode);
+        message.success("Код скопирован в буфер обмена!");
+      }}
+      size="large"
+    >
+      Скопировать код
+    </Button>,
+    <Button 
+      key="close" 
+      onClick={() => {
+        setInviteCodeModalVisible(false);
+        setInviteCode("");
+      }}
+    >
+      Закрыть
+    </Button>,
+  ]}
+  width={500}
+>
+  <div style={{ textAlign: "center", marginBottom: 16 }}>
+    <Text type="secondary">
+      Отправьте этот код другим сотрудникам, чтобы они присоединились к чату:
+    </Text>
+  </div>
+  
+  {/* Блок с кодом */}
+  <div style={{
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    padding: "20px",
+    borderRadius: 12,
+    textAlign: "center",
+    marginBottom: 16,
+  }}>
+    <Text style={{
+      fontFamily: "monospace",
+      fontSize: 24,
+      fontWeight: "bold",
+      color: "white",
+      letterSpacing: 2,
+      wordBreak: "break-all",
+    }}>
+      {inviteCode || "Ошибка генерации кода"}
+    </Text>
+  </div>
+  
+  {/* Информация о сроке действия */}
+  <div style={{
+    background: "#f6ffed",
+    padding: "12px",
+    borderRadius: 8,
+    marginBottom: 16,
+    border: "1px solid #b7eb8f",
+  }}>
+    <Space>
+      <ClockCircleOutlined style={{ color: "#52c41a" }} />
+      <Text strong style={{ color: "#389e0d" }}>Код действителен 7 дней</Text>
+    </Space>
+  </div>
+  
+  {/* Альтернативный способ приглашения */}
+  <Alert
+    message="💡 Альтернативный способ"
+    description="Вы также можете пригласить участников напрямую через кнопку 'Добавить участников' в информации о группе (иконка ⚙️ → Информация о группе)"
+    type="info"
+    showIcon
+    style={{ marginTop: 8 }}
+  />
+</Modal>
       
       {/* Информация о группе */}
       <Drawer
@@ -1380,7 +1559,19 @@ const ChatPage = () => {
             <List
               dataSource={currentGroupInfo.members}
               renderItem={(member) => (
-                <List.Item>
+                <List.Item
+                  actions={currentGroupInfo.can_edit && member.role !== 'admin' ? [
+                    <a key="remove" onClick={() => {
+                      Modal.confirm({
+                        title: 'Подтвердите удаление',
+                        content: `Вы уверены, что хотите удалить ${member.first_name} ${member.last_name}?`,
+                        okText: 'Удалить',
+                        cancelText: 'Отмена',
+                        onOk: () => handleRemoveMember(member.user_id)
+                      });
+                    }}>Удалить</a>
+                  ] : []}
+                >
                   <List.Item.Meta
                     avatar={<Avatar src={member.avatar_url ? `http://localhost:5000${member.avatar_url}` : null} icon={<UserOutlined />} />}
                     title={`${member.last_name} ${member.first_name}`}

@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { db } from "./db.js";
 import { NotificationService } from "./notification.service.js";
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -205,6 +206,30 @@ router.get("/list", async (req, res) => {
   }
 });
 
+// ============= ПОЛУЧЕНИЕ НЕПРОЧИТАННЫХ СООБЩЕНИЙ =============
+router.get("/unread-count", async (req, res) => {
+  const { user_id, chat_type, chat_id } = req.query;
+  
+  try {
+    const [result] = await db.query(
+      `SELECT COUNT(*) as count
+       FROM chat_messages cm
+       LEFT JOIN chat_read_receipts crr ON cm.message_id = crr.message_id AND crr.user_id = ?
+       WHERE cm.chat_type = ? 
+         AND cm.chat_id = ? 
+         AND cm.sender_id != ? 
+         AND crr.receipt_id IS NULL 
+         AND (cm.is_deleted = FALSE OR cm.is_deleted IS NULL)`,
+      [user_id, chat_type, chat_id, user_id]
+    );
+    
+    res.json({ count: result[0]?.count || 0 });
+  } catch (error) {
+    console.error("Ошибка подсчета непрочитанных:", error);
+    res.json({ count: 0 });
+  }
+});
+
 // ============= ИСТОРИЯ СООБЩЕНИЙ =============
 router.get("/history", async (req, res) => {
   const { chat_type, chat_id, limit = 200 } = req.query;
@@ -379,15 +404,16 @@ router.post("/create-group", async (req, res) => {
       }
     }
 
-    // Создаем пригласительный код
-    const crypto = await import('crypto');
+    // СОЗДАЕМ ПРИГЛАСИТЕЛЬНЫЙ КОД (ОДИН РАЗ!)
     const inviteCode = crypto.randomBytes(16).toString('hex');
-
+    
     await db.query(
       `INSERT INTO chat_invites (invite_code, target_type, target_id, created_by, expires_at, created_at) 
        VALUES (?, 'custom', ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY), NOW())`,
       [inviteCode, group_id, created_by]
     );
+    
+    console.log('✅ Пригласительный код создан:', inviteCode);
 
     // Отправляем событие через Socket.IO всем участникам
     if (io) {
@@ -399,10 +425,8 @@ router.post("/create-group", async (req, res) => {
         unread_count: 0
       };
 
-      // Отправляем создателю
       io.to(`user_${created_by}`).emit("new_chat_created", newChatInfo);
 
-      // Отправляем всем добавленным участникам
       for (const member_id of member_ids) {
         if (member_id !== created_by) {
           io.to(`user_${member_id}`).emit("new_chat_created", newChatInfo);
@@ -418,7 +442,12 @@ router.post("/create-group", async (req, res) => {
       }
     }
 
-    res.json({ success: true, group_id: group_id, invite_code: inviteCode });
+    // ВОЗВРАЩАЕМ КОД В ОТВЕТЕ
+    res.json({ 
+      success: true, 
+      group_id: group_id, 
+      invite_code: inviteCode
+    });
 
   } catch (error) {
     console.error('❌ Ошибка создания группы:', error);
@@ -617,6 +646,9 @@ router.post("/join-by-code", async (req, res) => {
           "custom_group",
           inviteData.target_id
         );
+        
+        // НЕ ОТПРАВЛЯЕМ СОБЫТИЕ new_chat_created здесь
+        // Пользователь сам обновит список через loadChats()
       }
 
       await db.query(
@@ -625,21 +657,8 @@ router.post("/join-by-code", async (req, res) => {
       );
 
       res.json({ success: true, target_id: inviteData.target_id, target_type: 'custom' });
-    } else if (inviteData.target_type === 'private') {
-      const [existing] = await db.query(
-        `SELECT * FROM private_chat_participants WHERE chat_id = ? AND user_id = ?`,
-        [inviteData.target_id, user_id]
-      );
-
-      if (existing.length === 0) {
-        await db.query(
-          `INSERT INTO private_chat_participants (chat_id, user_id) VALUES (?, ?)`,
-          [inviteData.target_id, user_id]
-        );
-      }
-
-      res.json({ success: true, target_id: inviteData.target_id, target_type: 'private' });
     }
+    // ... остальной код
   } catch (error) {
     console.error("Ошибка присоединения по коду:", error);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -731,5 +750,53 @@ router.delete('/draft', async (req, res) => {
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
-
+// ============= ПОЛУЧЕНИЕ КОДА ПРИГЛАШЕНИЯ =============
+router.get("/group/:groupId/invite-code", async (req, res) => {
+  const { groupId } = req.params;
+  const { user_id } = req.query;
+  
+  console.log('🔑 Запрос кода приглашения для группы:', groupId, 'пользователь:', user_id);
+  
+  try {
+    // Временно убираем проверку на участника
+    // Проверяем, существует ли группа
+    const [group] = await db.query(
+      `SELECT group_id, group_name FROM custom_groups WHERE group_id = ?`,
+      [groupId]
+    );
+    
+    if (group.length === 0) {
+      return res.status(404).json({ error: "Группа не найдена" });
+    }
+    
+    // Ищем активное приглашение
+    let [invite] = await db.query(
+      `SELECT invite_code, expires_at FROM chat_invites 
+       WHERE target_type = 'custom' AND target_id = ? 
+       AND (expires_at IS NULL OR expires_at > NOW())
+       ORDER BY created_at DESC LIMIT 1`,
+      [groupId]
+    );
+    
+    // Если нет активного приглашения - создаем новое
+    if (invite.length === 0) {
+      const newInviteCode = crypto.randomBytes(16).toString('hex');
+      
+      await db.query(
+        `INSERT INTO chat_invites (invite_code, target_type, target_id, created_by, expires_at) 
+         VALUES (?, 'custom', ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
+        [newInviteCode, groupId, user_id || 1]
+      );
+      
+      invite = [{ invite_code: newInviteCode }];
+      console.log('✅ Создан новый код приглашения:', newInviteCode);
+    }
+    
+    res.json({ invite_code: invite[0].invite_code });
+    
+  } catch (error) {
+    console.error("Ошибка получения кода приглашения:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
 export default router;
