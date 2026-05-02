@@ -14,6 +14,8 @@ import chatRoutes from "./chat.routes.js";
 import { db } from "./db.js";
 import { KPICollector } from "./services/kpiCollector.service.js";
 
+
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -26,8 +28,11 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+app.use(express.raw({ limit: '10mb' }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // РАЗДАЧА СТАТИЧЕСКИХ ФАЙЛОВ - АБСОЛЮТНЫЙ ПУТЬ
 const uploadsPath = path.join(__dirname, 'uploads');
@@ -83,7 +88,7 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
-
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const server = http.createServer(app);
 
 // Socket.IO
@@ -144,37 +149,47 @@ io.on("connection", (socket) => {
 
   // Отправка сообщения
   socket.on("send_message", async (data) => {
-    const { message, attachment_url, attachment_type, is_image } = data;
+  const { message, attachment_url, attachment_type, is_image, _tempId } = data;
+  
+  try {
+    const [result] = await db.query(
+      `INSERT INTO chat_messages (group_id, sender_id, message, attachment_url, attachment_type) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [user.group_id, user.employee_id, message || '', attachment_url || null, attachment_type || null]
+    );
     
-    try {
-      const [result] = await db.query(
-        `INSERT INTO chat_messages (group_id, sender_id, message, attachment_url, attachment_type) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [user.group_id, user.employee_id, message || '', attachment_url || null, attachment_type || null]
-      );
-      
-      const messageData = {
-        message_id: result.insertId,
-        group_id: user.group_id,
-        sender_id: user.employee_id,
-        sender_name: user.full_name,
-        sender_role: user.role,
-        message: message || '',
-        created_at: new Date().toISOString(),
-        attachment_url: attachment_url || null,
-        attachment_type: attachment_type || null,
-        is_image: is_image || false,
-        read_count: 0,
-        reactions: {},
-      };
-      
-      io.to(`group_${user.group_id}`).emit("new_message", messageData);
-      
-    } catch (error) {
-      console.error("Ошибка:", error);
-      socket.emit("error", { message: "Ошибка отправки" });
-    }
-  });
+    // Получаем аватарку отправителя
+    const [senderInfo] = await db.query(
+      `SELECT avatar_url FROM employees WHERE employee_id = ?`,
+      [user.employee_id]
+    );
+    
+    const messageData = {
+      message_id: result.insertId,
+      group_id: user.group_id,
+      sender_id: user.employee_id,
+      sender_name: user.full_name,
+      sender_role: user.role,
+      sender_avatar_url: senderInfo[0]?.avatar_url || null,
+      message: message || '',
+      created_at: new Date().toISOString(),
+      attachment_url: attachment_url || null,
+      attachment_type: attachment_type || null,
+      is_image: is_image || false,
+      read_count: 0,
+      reactions: {},
+      status: 'sent',
+      _tempId: _tempId || null, // сохраняем временный ID
+    };
+    
+    // Отправляем только в комнату группы
+    io.to(`group_${user.group_id}`).emit("new_message", messageData);
+    
+  } catch (error) {
+    console.error("Ошибка сохранения сообщения:", error);
+    socket.emit("error", { message: "Ошибка при отправке сообщения" });
+  }
+});
 
   // Редактирование
   socket.on("edit_message", async (data) => {

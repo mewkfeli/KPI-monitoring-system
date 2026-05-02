@@ -1,36 +1,114 @@
-// auth.routes.js (обновленная версия)
+// backend/auth.routes.js
 import express from "express";
 import bcrypt from "bcrypt";
+import path from "path";
+import fs from "fs";
+import multer from "multer";
+import { fileURLToPath } from "url";
 import { db } from "./db.js";
 import { NotificationService } from "./notification.service.js";
 import { KPICollector } from "./services/kpiCollector.service.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const router = express.Router();
+
+// ============= НАСТРОЙКА MULTER ДЛЯ АВАТАРОК =============
+const avatarsDir = path.join(process.cwd(), 'uploads', 'avatars');
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir, { recursive: true });
+  console.log('Создана папка для аватарок:', avatarsDir);
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, avatarsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'avatar-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Только изображения'));
+    }
+  }
+});
 
 // ============= АВТОРИЗАЦИЯ =============
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  const [rows] = await db.query("SELECT * FROM employees WHERE username = ?", [username]);
-
-  if (rows.length === 0) {
-    return res.status(401).json({ message: "Неверный логин или пароль" });
+  
+  console.log('Login attempt for:', username);
+  
+  // Проверяем наличие данных
+  if (!username || !password) {
+    console.log('Missing username or password');
+    return res.status(400).json({ message: "Логин и пароль обязательны" });
   }
+  
+  try {
+    const [rows] = await db.query(
+      "SELECT employee_id, username, password_hash, first_name, last_name, role, group_id, avatar_url FROM employees WHERE username = ?",
+      [username]
+    );
 
-  const user = rows[0];
-  const ok = await bcrypt.compare(password, user.password_hash);
+    if (rows.length === 0) {
+      console.log('User not found:', username);
+      return res.status(401).json({ message: "Неверный логин или пароль" });
+    }
 
-  if (!ok) {
-    return res.status(401).json({ message: "Неверный логин или пароль" });
+    const user = rows[0];
+    
+    // Проверяем наличие password_hash
+    if (!user.password_hash) {
+      console.log('No password_hash for user:', username);
+      return res.status(401).json({ message: "Ошибка авторизации. Обратитесь к администратору." });
+    }
+    
+    console.log('Comparing password for user:', username);
+    console.log('Password hash exists:', !!user.password_hash);
+    
+    // Сравниваем пароль
+    let isPasswordValid = false;
+    try {
+      isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    } catch (bcryptError) {
+      console.error('Bcrypt error:', bcryptError);
+      return res.status(500).json({ message: "Ошибка проверки пароля" });
+    }
+    
+    console.log('Password valid:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      console.log('Wrong password for user:', username);
+      return res.status(401).json({ message: "Неверный логин или пароль" });
+    }
+
+    console.log('Login successful:', username);
+    
+    res.json({
+      employee_id: user.employee_id,
+      username: user.username,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      role: user.role,
+      group_id: user.group_id,
+      avatar_url: user.avatar_url,
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: "Ошибка сервера" });
   }
-
-  res.json({
-    employee_id: user.employee_id,
-    username: user.username,
-    first_name: user.first_name,
-    last_name: user.last_name,
-    role: user.role,
-    group_id: user.group_id,
-  });
 });
 
 router.post("/register", async (req, res) => {
@@ -55,9 +133,69 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// ============= ПОЛУЧЕНИЕ ДАННЫХ (только чтение) =============
+// ============= ЗАГРУЗКА АВАТАРКИ =============
+router.post('/upload-avatar', upload.single('avatar'), async (req, res) => {
+  console.log('=== UPLOAD AVATAR ===');
+  console.log('File:', req.file);
+  console.log('Body:', req.body);
+  
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не загружен' });
+    }
+    
+    const { employee_id } = req.body;
+    if (!employee_id) {
+      return res.status(400).json({ error: 'ID сотрудника не указан' });
+    }
+    
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    console.log('Avatar URL:', avatarUrl);
+    
+    const [result] = await db.query(
+      'UPDATE employees SET avatar_url = ? WHERE employee_id = ?',
+      [avatarUrl, employee_id]
+    );
+    console.log('DB Update result:', result);
+    
+    res.json({ success: true, avatar_url: avatarUrl });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
-// Получение данных за сегодня
+// ============= УДАЛЕНИЕ АВАТАРКИ =============
+router.delete('/avatar', async (req, res) => {
+  const { employee_id } = req.body;
+  
+  try {
+    const [rows] = await db.query(
+      'SELECT avatar_url FROM employees WHERE employee_id = ?',
+      [employee_id]
+    );
+    
+    if (rows[0]?.avatar_url) {
+      const oldPath = path.join(process.cwd(), rows[0].avatar_url);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+    
+    await db.query(
+      'UPDATE employees SET avatar_url = NULL WHERE employee_id = ?',
+      [employee_id]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============= ПОЛУЧЕНИЕ ДАННЫХ =============
+
 router.get("/daily-metrics/today", async (req, res) => {
   const { employee_id } = req.query;
   
@@ -76,11 +214,10 @@ router.get("/daily-metrics/today", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Ошибка при получении данных за сегодня:", error);
-    res.status(500).json({ message: "втф 500 ошибка" });
+    res.status(500).json({ message: "Ошибка сервера" });
   }
 });
 
-// Получение данных за неделю
 router.get("/daily-metrics/week", async (req, res) => {
   const { employee_id } = req.query;
   
@@ -106,12 +243,11 @@ router.get("/daily-metrics/week", async (req, res) => {
   }
 });
 
-// Получение информации о сотруднике
 router.get("/employee-info", async (req, res) => {
   const { employee_id } = req.query;
   try {
     const [rows] = await db.query(
-      "SELECT employee_id, username, first_name, last_name, role, group_id FROM employees WHERE employee_id = ?",
+      "SELECT employee_id, username, first_name, last_name, role, group_id, avatar_url FROM employees WHERE employee_id = ?",
       [employee_id]
     );
     if (rows.length === 0) {
@@ -124,7 +260,6 @@ router.get("/employee-info", async (req, res) => {
   }
 });
 
-// Получение списка групп для регистрации
 router.get("/groups", async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -140,7 +275,6 @@ router.get("/groups", async (req, res) => {
   }
 });
 
-// Получение расширенной информации о профиле сотрудника
 router.get("/profile", async (req, res) => {
   const { employee_id } = req.query;
   if (!employee_id) {
@@ -151,7 +285,7 @@ router.get("/profile", async (req, res) => {
     const [rows] = await db.query(
       `SELECT 
         e.employee_id, e.username, e.last_name, e.first_name, e.middle_name,
-        e.group_id, e.role, e.hire_date, e.status,
+        e.group_id, e.role, e.hire_date, e.status, e.avatar_url,
         wg.group_name, d.department_name
       FROM employees e
       LEFT JOIN work_groups wg ON e.group_id = wg.group_id
@@ -169,7 +303,6 @@ router.get("/profile", async (req, res) => {
   }
 });
 
-// Получение статистики сотрудника
 router.get("/employee-stats", async (req, res) => {
   const { employee_id } = req.query;
   if (!employee_id) {
@@ -210,7 +343,6 @@ router.get("/employee-stats", async (req, res) => {
   }
 });
 
-// Статистика для дашборда
 router.get("/dashboard-stats", async (req, res) => {
   const { employee_id } = req.query;
   if (!employee_id) {
@@ -247,7 +379,6 @@ router.get("/dashboard-stats", async (req, res) => {
   }
 });
 
-// Последняя активность
 router.get("/recent-activity", async (req, res) => {
   const { employee_id, limit = 5 } = req.query;
   if (!employee_id) {

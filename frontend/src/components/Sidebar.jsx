@@ -1,5 +1,5 @@
 // frontend/src/components/Sidebar.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Avatar, Typography, Tag } from 'antd';
 import {
   UserOutlined,
@@ -32,11 +32,41 @@ const getRoleColor = (role) => {
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const [avatarKey, setAvatarKey] = useState(Date.now());
   const isLeader = user?.role === "Руководитель группы" || user?.role === "Руководитель отдела";
 
-  // Меню для разных ролей
+  useEffect(() => {
+    setAvatarKey(Date.now());
+  }, [user?.avatar_url]);
+
+  useEffect(() => {
+    const handleAvatarUpdate = (event) => {
+      console.log('Avatar update event received:', event.detail);
+      setAvatarKey(Date.now());
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        if (event.detail?.avatar_url !== undefined) {
+          parsedUser.avatar_url = event.detail.avatar_url;
+          localStorage.setItem('user', JSON.stringify(parsedUser));
+        }
+      }
+    };
+    
+    window.addEventListener('avatar-updated', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('avatar-updated', handleAvatarUpdate);
+    };
+  }, []);
+
+  const getAvatarUrl = () => {
+    if (user?.avatar_url) {
+      return `http://localhost:5000${user.avatar_url}?t=${avatarKey}`;
+    }
+    return null;
+  };
+
   const getMenuItems = () => {
-    // Базовые пункты для всех
     const baseItems = [
       {
         key: "/profile",
@@ -55,7 +85,6 @@ const Sidebar = () => {
       },
     ];
 
-    // Для руководителей
     const leaderItems = [
       {
         key: "/group-leader",
@@ -69,7 +98,6 @@ const Sidebar = () => {
       },
     ];
 
-    // Для сотрудников
     const employeeItems = [
       {
         key: "/dashboard",
@@ -86,23 +114,28 @@ const Sidebar = () => {
   };
 
   const menuItems = getMenuItems();
-  
-  // Определяем текущий выбранный пункт меню
   const selectedKey = menuItems.find(item => location.pathname === item.key)?.key || location.pathname;
+  const avatarUrl = getAvatarUrl();
 
   return (
     <Sider theme="light" width={250}>
       <div style={{ padding: "16px", textAlign: "center" }}>
-        <Avatar
-          size={80}
-          style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
-        >
-          {user?.first_name?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || <UserOutlined />}
-        </Avatar>
-        <div style={{ marginTop: 12, fontWeight: 500, fontSize: 16 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+          <Avatar
+            size={80}
+            src={avatarUrl}
+            style={{ 
+              backgroundColor: avatarUrl ? 'transparent' : '#1890ff', 
+              fontSize: "32px",
+            }}
+          >
+            {!avatarUrl && (user?.first_name?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || <UserOutlined />)}
+          </Avatar>
+        </div>
+        <div style={{ fontWeight: 500, fontSize: 16, marginBottom: 4 }}>
           {user?.username}
         </div>
-        <div style={{ color: "#666", fontSize: 13, marginTop: 4 }}>
+        <div style={{ color: "#666", fontSize: 13 }}>
           <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
         </div>
       </div>
@@ -121,18 +154,7 @@ const Sidebar = () => {
         right: 0, 
         padding: "0 16px" 
       }}>
-        <Menu
-          theme="light"
-          mode="inline"
-          items={[
-            {
-              key: "logout",
-              icon: <LogoutOutlined />,
-              label: <span onClick={logout} style={{ cursor: 'pointer' }}>Выйти</span>,
-              style: { marginTop: 'auto' }
-            }
-          ]}
-        />
+        
       </div>
     </Sider>
   );

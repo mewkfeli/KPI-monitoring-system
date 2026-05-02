@@ -45,17 +45,16 @@ import {
 import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
-import UserAvatar from "../components/UserAvatar";
+import Sidebar from "../components/Sidebar";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
 import relativeTime from "dayjs/plugin/relativeTime";
 import Picker from "emoji-picker-react";
-import Sidebar from "../components/Sidebar";
 
 dayjs.extend(relativeTime);
 dayjs.locale("ru");
 
-const { Header, Sider, Content } = Layout;
+const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
@@ -100,7 +99,9 @@ const ChatPage = () => {
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const isLeader = user?.role === "Руководитель группы" || user?.role === "Руководитель отдела";
+  const pendingMessagesRef = useRef(new Set());
+  const isPasteProcessingRef = useRef(false);
+  const uploadingRef = useRef(false);
 
   const isImageFile = (filename) => {
     if (!filename) return false;
@@ -117,7 +118,14 @@ const ChatPage = () => {
   };
 
   const uploadFile = async (file, messageText = null) => {
+    if (uploadingRef.current) {
+      console.log('Уже загружаем файл, пропускаем');
+      return null;
+    }
+    
     if (!socket || !groupInfo) return null;
+    
+    uploadingRef.current = true;
     
     const formData = new FormData();
     formData.append('file', file);
@@ -155,12 +163,16 @@ const ChatPage = () => {
           finalMessage = `📎 Файл: ${file.name}`;
         }
         
+        const tempId = `temp_${Date.now()}_${Math.random()}`;
+        pendingMessagesRef.current.add(tempId);
+        
         socket.emit("send_message", { 
           message: finalMessage,
           group_id: groupInfo.group_id,
           attachment_url: data.fileUrl,
           attachment_type: file.type,
           is_image: isImg,
+          _tempId: tempId,
         });
         
         message.success(isImg ? "Изображение отправлено" : "Файл загружен");
@@ -176,12 +188,17 @@ const ChatPage = () => {
     } finally {
       setUploading(false);
       setUploadProgress(null);
+      uploadingRef.current = false;
     }
   };
 
-  // Обработка вставки из буфера обмена - ДОБАВЛЯЕМ ЭТУ ФУНКЦИЮ
   useEffect(() => {
     const handlePaste = async (e) => {
+      if (isPasteProcessingRef.current) {
+        console.log('Уже обрабатываем вставку, пропускаем');
+        return;
+      }
+      
       const items = e.clipboardData?.items;
       if (!items) return;
       
@@ -190,80 +207,32 @@ const ChatPage = () => {
         
         if (item.type.startsWith('image/')) {
           e.preventDefault();
+          e.stopPropagation();
+          
+          isPasteProcessingRef.current = true;
           
           const file = item.getAsFile();
-          if (!file) continue;
+          if (file) {
+            const timestamp = Date.now();
+            const ext = file.type.split('/')[1];
+            const fileName = `paste_${timestamp}.${ext}`;
+            const renamedFile = new File([file], fileName, { type: file.type });
+            
+            await uploadFile(renamedFile, "");
+          }
           
-          const timestamp = Date.now();
-          const ext = file.type.split('/')[1];
-          const fileName = `paste_${timestamp}.${ext}`;
-          const renamedFile = new File([file], fileName, { type: file.type });
-          
-          await uploadFile(renamedFile, "");
+          isPasteProcessingRef.current = false;
           break;
         }
       }
     };
     
-    // Добавляем обработчик на весь документ
     document.addEventListener('paste', handlePaste);
     
     return () => {
       document.removeEventListener('paste', handlePaste);
     };
   }, [groupInfo?.group_id, socket, user]);
-
-  const getMenuItems = () => {
-    const baseItems = [
-      {
-        key: "profile",
-        icon: <UserOutlined />,
-        label: <Link to="/profile">Личный профиль</Link>,
-      },
-      {
-        key: "chat",
-        icon: <MessageOutlined />,
-        label: <Link to="/chat">Чат группы</Link>,
-      },
-    ];
-
-    if (isLeader) {
-      return [
-        ...baseItems,
-        {
-          key: "group-leader",
-          icon: <TeamOutlined />,
-          label: <Link to="/group-leader">Дашборд группы</Link>,
-        },
-        {
-          key: "leaderboard",
-          icon: <TeamOutlined />,
-          label: <Link to="/leaderboard">Рейтинг сотрудников</Link>,
-        },
-        {
-          key: "knowledge",
-          icon: <BookOutlined />,
-          label: <Link to="/knowledge">База знаний</Link>,
-        },
-      ];
-    } else {
-      return [
-        ...baseItems,
-        {
-          key: "dashboard",
-          icon: <TeamOutlined />,
-          label: <Link to="/dashboard">Показатели</Link>,
-        },
-        {
-          key: "knowledge",
-          icon: <BookOutlined />,
-          label: <Link to="/knowledge">База знаний</Link>,
-        },
-      ];
-    }
-  };
-
-  const menuItems = getMenuItems();
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
@@ -384,7 +353,6 @@ const ChatPage = () => {
     }
   };
 
-  // Подключение к Socket.IO
   useEffect(() => {
     if (!user?.employee_id) return;
 
@@ -404,11 +372,31 @@ const ChatPage = () => {
     });
 
     newSocket.on("new_message", (message) => {
+      console.log('📨 Новое сообщение:', message);
+      
+      if (message._tempId && pendingMessagesRef.current.has(message._tempId)) {
+        console.log('Это наше сообщение, удаляем из pending');
+        pendingMessagesRef.current.delete(message._tempId);
+      }
+      
       setMessages((prev) => {
         const prevArray = Array.isArray(prev) ? prev : [];
-        if (prevArray.some((m) => m?.message_id === message?.message_id)) {
+        
+        const existsById = prevArray.some((m) => m?.message_id === message?.message_id);
+        if (existsById) {
+          console.log('Сообщение уже есть по ID, пропускаем');
           return prevArray;
         }
+        
+        if (message._tempId) {
+          const existsByTemp = prevArray.some((m) => m?._tempId === message._tempId);
+          if (existsByTemp) {
+            console.log('Сообщение уже есть по tempId, пропускаем');
+            return prevArray;
+          }
+        }
+        
+        console.log('Добавляем новое сообщение');
         const newMessages = [...prevArray, message];
         setTimeout(() => scrollToBottom(), 100);
         return newMessages;
@@ -480,7 +468,6 @@ const ChatPage = () => {
     };
   }, [user?.employee_id]);
 
-  // Загрузка истории сообщений из БД
   useEffect(() => {
     if (!user?.employee_id) return;
 
@@ -527,7 +514,6 @@ const ChatPage = () => {
     loadHistory();
   }, [user?.employee_id]);
 
-  // Сохраняем черновик
   useEffect(() => {
     if (newMessage && groupInfo?.group_id) {
       const timeoutId = setTimeout(() => {
@@ -536,6 +522,12 @@ const ChatPage = () => {
       return () => clearTimeout(timeoutId);
     }
   }, [newMessage, groupInfo?.group_id]);
+
+  useEffect(() => {
+    return () => {
+      pendingMessagesRef.current.clear();
+    };
+  }, []);
 
   const handleSend = async () => {
     const hasText = newMessage.trim();
@@ -555,10 +547,16 @@ const ChatPage = () => {
     
     if (messageText) {
       setSending(true);
+      
+      const tempId = `temp_${Date.now()}_${Math.random()}`;
+      pendingMessagesRef.current.add(tempId);
+      
       socket.emit("send_message", { 
         message: messageText,
         group_id: groupInfo.group_id,
+        _tempId: tempId,
       });
+      
       setNewMessage("");
       setReplyTo(null);
       clearDraft();
@@ -635,7 +633,6 @@ const ChatPage = () => {
     );
   };
 
-  // Горячие клавиши
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -680,8 +677,7 @@ const ChatPage = () => {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sidebar />
-
-
+      
       <Layout>
         <Header
           style={{
@@ -790,12 +786,15 @@ const ChatPage = () => {
                         {!isMine && (
                           <div style={{ marginBottom: 4, fontSize: 12 }}>
                             <Space size={4}>
-            <Avatar
-              size={80}
-              style={{ backgroundColor: "#1890ff", fontSize: "32px"}}
-            >
-              {user?.first_name?.[0]?.toUpperCase() || <UserOutlined />}
-            </Avatar>
+                              <Avatar 
+                                size="small" 
+                                src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null}
+                                style={{ 
+                                  backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
+                                }}
+                              >
+                                {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
+                              </Avatar>
                               <Text strong style={{ fontSize: 12 }}>{msg.sender_name}</Text>
                               {getRoleBadge(msg.sender_role)}
                             </Space>
@@ -1071,6 +1070,9 @@ const ChatPage = () => {
             <Card key={result.message_id} size="small" style={{ marginBottom: 8 }}>
               <Space direction="vertical">
                 <Space>
+                  <Avatar size="small" src={result.sender_avatar_url ? `http://localhost:5000${result.sender_avatar_url}` : null}>
+                    {!result.sender_avatar_url && (result.first_name?.[0]?.toUpperCase() || "U")}
+                  </Avatar>
                   <Text strong>{result.first_name} {result.last_name}</Text>
                   <Tag color={getRoleColor(result.role)}>{result.role}</Tag>
                   <Text type="secondary">{dayjs(result.created_at).format("DD.MM.YY HH:mm")}</Text>

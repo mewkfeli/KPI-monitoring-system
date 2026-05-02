@@ -107,6 +107,7 @@ router.get("/history", async (req, res) => {
          e.first_name,
          e.middle_name,
          e.role,
+         e.avatar_url as sender_avatar_url,
          (SELECT COUNT(*) FROM chat_read_receipts WHERE message_id = cm.message_id) as read_count
        FROM chat_messages cm
        JOIN employees e ON cm.sender_id = e.employee_id
@@ -118,35 +119,36 @@ router.get("/history", async (req, res) => {
     
     // Получаем реакции отдельно для каждого сообщения
     const messagesWithReactions = [];
-    for (const row of rows) {
-      const [reactions] = await db.query(
-        `SELECT reaction, COUNT(*) as count 
-         FROM chat_reactions 
-         WHERE message_id = ? 
-         GROUP BY reaction`,
-        [row.message_id]
-      );
-      
-      const reactionMap = {};
-      reactions.forEach(r => { reactionMap[r.reaction] = parseInt(r.count); });
-      
-      messagesWithReactions.push({
-        message_id: row.message_id,
-        sender_id: row.sender_id,
-        sender_name: `${row.first_name} ${row.last_name}`,
-        sender_role: row.role,
-        message: row.is_deleted ? "⚠️ Сообщение удалено" : row.message,
-        created_at: row.created_at,
-        attachment_url: row.attachment_url,
-        attachment_type: row.attachment_type,
-        reply_to_id: row.reply_to_id,
-        edited_at: row.edited_at,
-        is_deleted: row.is_deleted,
-        read_count: row.read_count,
-        reactions: reactionMap,
-        status: 'sent',
-      });
-    }
+for (const row of rows) {
+  const [reactions] = await db.query(
+    `SELECT reaction, COUNT(*) as count 
+     FROM chat_reactions 
+     WHERE message_id = ? 
+     GROUP BY reaction`,
+    [row.message_id]
+  );
+  
+  const reactionMap = {};
+  reactions.forEach(r => { reactionMap[r.reaction] = parseInt(r.count); });
+  
+  messagesWithReactions.push({
+    message_id: row.message_id,
+    sender_id: row.sender_id,
+    sender_name: `${row.first_name} ${row.last_name}`,
+    sender_role: row.role,
+    sender_avatar_url: row.sender_avatar_url,
+    message: row.is_deleted ? "⚠️ Сообщение удалено" : row.message,
+    created_at: row.created_at,
+    attachment_url: row.attachment_url,
+    attachment_type: row.attachment_type,
+    reply_to_id: row.reply_to_id,
+    edited_at: row.edited_at,
+    is_deleted: row.is_deleted,
+    read_count: row.read_count,
+    reactions: reactionMap,
+    status: 'sent',
+  });
+}
     
     res.json(messagesWithReactions);
   } catch (error) {

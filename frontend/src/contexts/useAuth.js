@@ -6,8 +6,8 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(false); // Для блокировки повторных запросов
-  const messageShownRef = useRef(false); // Для предотвращения дублирования сообщений
+  const [authLoading, setAuthLoading] = useState(false);
+  const messageShownRef = useRef(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -28,7 +28,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password) => {
-    // Предотвращаем повторные запросы во время выполнения
     if (authLoading) {
       console.log("Запрос уже выполняется");
       return { success: false, error: "Запрос уже выполняется" };
@@ -51,7 +50,6 @@ export const AuthProvider = ({ children }) => {
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
         
-        // Показываем только одно сообщение об успехе
         if (!messageShownRef.current) {
           messageShownRef.current = true;
           message.success('Вход выполнен успешно!');
@@ -62,7 +60,6 @@ export const AuthProvider = ({ children }) => {
       } else {
         const errorData = await res.json();
         
-        // Показываем только одно сообщение об ошибке
         if (!messageShownRef.current) {
           messageShownRef.current = true;
           message.error(errorData.message || 'Неверный логин или пароль');
@@ -74,7 +71,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Login error:", error);
       
-      // Показываем только одно сообщение об ошибке
       if (!messageShownRef.current) {
         messageShownRef.current = true;
         message.error('Ошибка соединения с сервером');
@@ -86,16 +82,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-  // Очищаем состояние пользователя
-  setUser(null);
-  // Очищаем localStorage
-  localStorage.removeItem('user');
-  // Принудительно перезагружаем страницу для полного сброса состояния
-  window.location.href = '/login';
-};
+    setUser(null);
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
 
   const register = async (userData) => {
-    // Предотвращаем повторные запросы
     if (authLoading) {
       return { success: false, error: "Запрос уже выполняется" };
     }
@@ -116,7 +108,6 @@ export const AuthProvider = ({ children }) => {
         console.log("Регистрация успешна:", result);
         message.success('Регистрация успешна!');
         
-        // Автоматически логиним после регистрации
         const loginResult = await login(userData.username, userData.password);
         
         setAuthLoading(false);
@@ -136,13 +127,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Добавляем функцию обновления пользователя (для аватарки)
+  const updateUser = (updatedData) => {
+    const newUser = { ...user, ...updatedData };
+    setUser(newUser);
+    localStorage.setItem('user', JSON.stringify(newUser));
+  };
+
   const value = {
     user,
     loading,
-    authLoading, // Добавляем состояние загрузки авторизации
+    authLoading,
     login,
     register,
     logout,
+    updateUser, // ← добавляем функцию обновления
     isAuthenticated: !!user,
   };
 
