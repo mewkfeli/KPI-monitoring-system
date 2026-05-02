@@ -21,6 +21,11 @@ import {
   Upload,
   Popover,
   Progress as AntProgress,
+  Drawer,
+  Form,
+  Select,
+  Alert,
+  Dropdown,
 } from "antd";
 import {
   UserOutlined,
@@ -28,10 +33,8 @@ import {
   LogoutOutlined,
   SendOutlined,
   MessageOutlined,
-  EyeOutlined,
   WifiOutlined,
   ClockCircleOutlined,
-  BookOutlined,
   SmileOutlined,
   PaperClipOutlined,
   EditOutlined,
@@ -41,9 +44,13 @@ import {
   CloseOutlined,
   CheckOutlined,
   ArrowLeftOutlined,
+  PlusOutlined,
+  UserAddOutlined,
+  LinkOutlined,
+  CopyOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
-import { Link } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
 import Sidebar from "../components/Sidebar";
 import dayjs from "dayjs";
@@ -55,85 +62,477 @@ dayjs.extend(relativeTime);
 dayjs.locale("ru");
 
 const { Header, Content } = Layout;
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
+const { Option } = Select;
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👏"];
 
 const getRoleColor = (role) => {
   switch (role) {
-    case "Руководитель отдела":
-      return "purple";
-    case "Руководитель группы":
-      return "blue";
-    case "Сотрудник":
-      return "green";
-    default:
-      return "default";
+    case "Руководитель отдела": return "purple";
+    case "Руководитель группы": return "blue";
+    case "Сотрудник": return "green";
+    default: return "default";
   }
 };
 
 const ChatPage = () => {
   const { user, logout } = useAuth();
   const [socket, setSocket] = useState(null);
+  const [connected, setConnected] = useState(false);
+  
+  // Состояния для чатов
+  const [chats, setChats] = useState([]);
+  const [currentChat, setCurrentChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [groupInfo, setGroupInfo] = useState(null);
-  const [usersOnline, setUsersOnline] = useState([]);
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [typingTimeout, setTypingTimeout] = useState(null);
-  const [connected, setConnected] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
-  
   const [replyTo, setReplyTo] = useState(null);
   const [editMessage, setEditMessage] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  
+  // Состояния для модальных окон
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
+  const [createGroupVisible, setCreateGroupVisible] = useState(false);
+  const [createGroupLoading, setCreateGroupLoading] = useState(false);
+  const [groupMembers, setGroupMembers] = useState([]);
+  const [groupName, setGroupName] = useState("");
+  const [inviteCodeModalVisible, setInviteCodeModalVisible] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinCodeVisible, setJoinCodeVisible] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [groupInfoDrawerVisible, setGroupInfoDrawerVisible] = useState(false);
+  const [currentGroupInfo, setCurrentGroupInfo] = useState(null);
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [addMemberVisible, setAddMemberVisible] = useState(false);
+  const [selectedNewMembers, setSelectedNewMembers] = useState([]);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const pendingMessagesRef = useRef(new Set());
   const isPasteProcessingRef = useRef(false);
   const uploadingRef = useRef(false);
-
-  const isImageFile = (filename) => {
-    if (!filename) return false;
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
-    const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-    return imageExtensions.includes(ext);
-  };
-
-  const isMessageImage = (msg) => {
-    if (!msg?.attachment_url) return false;
-    if (msg.attachment_type?.startsWith('image/')) return true;
-    if (msg.is_image) return true;
-    return isImageFile(msg.attachment_url);
-  };
-
-  const uploadFile = async (file, messageText = null) => {
-    if (uploadingRef.current) {
-      console.log('Уже загружаем файл, пропускаем');
-      return null;
+  const currentChatRef = useRef(null);
+  
+  // Обновляем реф при изменении текущего чата
+  useEffect(() => {
+    currentChatRef.current = currentChat;
+  }, [currentChat]);
+  
+  // Загрузка списка чатов
+  const loadChats = useCallback(async () => {
+    if (!user?.employee_id) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`);
+      if (response.ok) {
+        const data = await response.json();
+        const uniqueChats = data.reduce((acc, current) => {
+          const exists = acc.some(item => item.id === current.id && item.type === current.type);
+          if (!exists) acc.push(current);
+          return acc;
+        }, []);
+        const sortedChats = uniqueChats.sort((a, b) => {
+          if (a.unread_count > 0 && b.unread_count === 0) return -1;
+          if (a.unread_count === 0 && b.unread_count > 0) return 1;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+        setChats(sortedChats);
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки чатов:", error);
+    }
+  }, [user?.employee_id]);
+  
+  // Загрузка сообщений в текущем чате
+  const loadMessages = useCallback(async () => {
+    if (!currentChat) return;
+    
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/chat/history?chat_type=${currentChat.type}&chat_id=${currentChat.id}&limit=200`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+        setTimeout(() => scrollToBottom(), 100);
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки сообщений:", error);
+    }
+  }, [currentChat]);
+  
+  // Загрузка всех сотрудников
+  const loadAllEmployees = useCallback(async () => {
+    setEmployeesLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/auth/employees/all?user_id=${user?.employee_id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAllEmployees(data);
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки сотрудников:", error);
+    } finally {
+      setEmployeesLoading(false);
+    }
+  }, [user?.employee_id]);
+  
+  // Загрузка чатов при монтировании
+  useEffect(() => {
+    loadChats();
+    setLoading(false);
+  }, [loadChats]);
+  
+  // Загрузка сообщений при смене чата
+  useEffect(() => {
+    if (currentChat) {
+      loadMessages();
+    }
+  }, [currentChat, loadMessages]);
+  
+  // Загрузка сотрудников при открытии модалки
+  useEffect(() => {
+    if (createGroupVisible) {
+      loadAllEmployees();
+    }
+  }, [createGroupVisible, loadAllEmployees]);
+  
+  // Прокрутка вниз
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+  
+  // Socket.IO подключение - ВСЕ ОБРАБОТЧИКИ ВНУТРИ ЭТОГО useEffect
+  useEffect(() => {
+    if (!user?.employee_id) return;
+    
+    const newSocket = io("http://localhost:5000", {
+      auth: { employeeId: user.employee_id },
+      transports: ['websocket', 'polling'],
+    });
+    
+    newSocket.on("connect", () => {
+      console.log("✅ Socket.IO подключен");
+      setConnected(true);
+    });
+    
+    newSocket.on("disconnect", () => {
+      console.log("❌ Socket.IO отключен");
+      setConnected(false);
+    });
+    
+    newSocket.on("new_message", (message) => {
+      if (currentChatRef.current && 
+          message.chat_type === currentChatRef.current.type && 
+          message.chat_id === currentChatRef.current.id) {
+        
+        if (message._tempId && pendingMessagesRef.current.has(message._tempId)) {
+          pendingMessagesRef.current.delete(message._tempId);
+        }
+        
+        setMessages(prev => {
+          const exists = prev.some(m => m?.message_id === message?.message_id);
+          if (exists) return prev;
+          setTimeout(() => scrollToBottom(), 100);
+          return [...prev, message];
+        });
+      }
+      loadChats();
+    });
+    
+    newSocket.on("new_chat_created", (newChat) => {
+      console.log("📢 Новая группа создана:", newChat);
+      setChats(prev => {
+        const exists = prev.some(c => c.id === newChat.id && c.type === newChat.type);
+        if (exists) return prev;
+        return [newChat, ...prev];
+      });
+      message.info(`Вас добавили в группу: ${newChat.name}`);
+    });
+    
+    newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
+      setMessages(prev => prev.map(msg =>
+        msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
+      ));
+    });
+    
+    newSocket.on("message_deleted", ({ message_id }) => {
+      setMessages(prev => prev.map(msg =>
+        msg?.message_id === message_id ? { ...msg, message: "⚠️ Сообщение удалено", is_deleted: true } : msg
+      ));
+    });
+    
+    newSocket.on("reaction_update", ({ message_id, reactions }) => {
+      setMessages(prev => prev.map(msg =>
+        msg?.message_id === message_id ? { ...msg, reactions } : msg
+      ));
+    });
+    
+    newSocket.on("user_typing", ({ user_name, is_typing }) => {
+      setTypingUsers(prev => {
+        const newSet = new Set(prev);
+        if (is_typing) {
+          newSet.add(user_name);
+          setTimeout(() => {
+            setTypingUsers(current => {
+              const updated = new Set(current);
+              updated.delete(user_name);
+              return updated;
+            });
+          }, 3000);
+        } else {
+          newSet.delete(user_name);
+        }
+        return newSet;
+      });
+    });
+    
+    newSocket.on("read_update", ({ message_id, read_count }) => {
+      setMessages(prev => prev.map(msg =>
+        msg?.message_id === message_id ? { ...msg, read_count } : msg
+      ));
+    });
+    
+    newSocket.on("unread_count_update", () => {
+      loadChats();
+    });
+    
+    newSocket.on("error", ({ message: errorMsg }) => {
+      message.error(errorMsg);
+    });
+    
+    setSocket(newSocket);
+    
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [user?.employee_id, loadChats, scrollToBottom]);
+  
+  // Поиск сотрудников для личного чата
+  const searchEmployees = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
     }
     
-    if (!socket || !groupInfo) return null;
+    setSearching(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/auth/employees/all?search=${encodeURIComponent(query)}&user_id=${user?.employee_id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data);
+      }
+    } catch (error) {
+      console.error("Ошибка поиска:", error);
+    } finally {
+      setSearching(false);
+    }
+  };
+  
+  // Начать приватный чат
+  const startPrivateChat = async (employee) => {
+    try {
+      const response = await fetch("http://localhost:5000/api/chat/private", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user1_id: user.employee_id, user2_id: employee.employee_id }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const newChat = {
+          id: data.chat_id,
+          type: "private",
+          name: `${employee.first_name} ${employee.last_name}`,
+          avatar: employee.avatar_url,
+          unread_count: 0
+        };
+        setChats(prev => {
+          const exists = prev.some(c => c.id === newChat.id && c.type === newChat.type);
+          if (exists) return prev;
+          return [newChat, ...prev];
+        });
+        setCurrentChat(newChat);
+        setSearchModalVisible(false);
+        setSearchQuery("");
+        loadChats();
+      }
+    } catch (error) {
+      console.error("Ошибка создания чата:", error);
+      message.error("Не удалось начать чат");
+    }
+  };
+  
+  // Создание группы
+  const handleCreateGroup = async () => {
+    if (!groupName.trim()) {
+      message.warning("Введите название группы");
+      return;
+    }
+    
+    if (createGroupLoading) return;
+    
+    setCreateGroupLoading(true);
+    
+    const newGroupName = groupName;
+    const selectedMembers = [...groupMembers];
+    
+    try {
+      const response = await fetch("http://localhost:5000/api/chat/create-group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          group_name: newGroupName,
+          created_by: user.employee_id,
+          is_private: false,
+          member_ids: selectedMembers,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Ошибка создания группы");
+      }
+      
+      setCreateGroupVisible(false);
+      setGroupName("");
+      setGroupMembers([]);
+      
+      await loadChats();
+      
+      setTimeout(() => {
+        const newGroup = chats.find(c => c.id === data.group_id && c.type === 'custom');
+        if (newGroup) {
+          setCurrentChat(newGroup);
+        } else {
+          setCurrentChat({
+            id: data.group_id,
+            type: "custom",
+            name: newGroupName,
+            avatar: null,
+            unread_count: 0
+          });
+        }
+      }, 200);
+      
+      message.success("Группа создана!");
+      
+    } catch (error) {
+      console.error("Ошибка создания группы:", error);
+      message.error("Не удалось создать группу: " + error.message);
+    } finally {
+      setCreateGroupLoading(false);
+    }
+  };
+  
+  // Присоединение по коду
+  const handleJoinByCode = async () => {
+    if (!joinCode.trim()) {
+      message.warning("Введите код приглашения");
+      return;
+    }
+    
+    try {
+      const response = await fetch("http://localhost:5000/api/chat/join-by-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invite_code: joinCode, user_id: user.employee_id }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        message.success("Вы присоединились к чату!");
+        setJoinCodeVisible(false);
+        setJoinCode("");
+        loadChats();
+      } else {
+        message.error("Неверный код приглашения");
+      }
+    } catch (error) {
+      console.error("Ошибка присоединения:", error);
+      message.error("Не удалось присоединиться");
+    }
+  };
+  
+  // Получение информации о группе
+  const fetchGroupInfo = async (groupId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/chat/group/${groupId}?user_id=${user.employee_id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentGroupInfo(data);
+        setGroupInfoDrawerVisible(true);
+      }
+    } catch (error) {
+      console.error("Ошибка получения информации о группе:", error);
+    }
+  };
+  
+  // Копировать код приглашения
+  const copyInviteCode = () => {
+    navigator.clipboard.writeText(inviteCode);
+    message.success("Код скопирован!");
+  };
+  
+  // Отправка сообщения
+  const handleSend = async () => {
+    if (!newMessage.trim() && !replyTo && !uploading) return;
+    if (!socket || !currentChat) return;
+    
+    let messageText = newMessage.trim();
+    if (replyTo) {
+      messageText = `> ${replyTo.sender_name}: ${replyTo.message.substring(0, 50)}${replyTo.message.length > 50 ? '...' : ''}\n\n${messageText}`;
+    }
+    
+    if (messageText) {
+      setSending(true);
+      const tempId = `temp_${Date.now()}_${Math.random()}`;
+      pendingMessagesRef.current.add(tempId);
+      
+      socket.emit("send_message", {
+        message: messageText,
+        chat_type: currentChat.type,
+        chat_id: currentChat.id,
+        _tempId: tempId,
+      });
+      
+      setNewMessage("");
+      setReplyTo(null);
+      setSending(false);
+    }
+    
+    if (typingTimeout) clearTimeout(typingTimeout);
+    if (socket) socket.emit("typing", { is_typing: false });
+  };
+  
+  // Загрузка файла
+  const uploadFile = async (file, messageText = null) => {
+    if (uploadingRef.current || !socket || !currentChat) return null;
     
     uploadingRef.current = true;
+    setUploading(true);
+    setUploadProgress(0);
     
     const formData = new FormData();
     formData.append('file', file);
     formData.append('sender_id', user.employee_id);
-    formData.append('group_id', groupInfo.group_id);
-    
-    setUploading(true);
-    setUploadProgress(0);
+    formData.append('chat_type', currentChat.type);
+    formData.append('chat_id', currentChat.id);
     
     try {
       const progressInterval = setInterval(() => {
@@ -156,7 +555,7 @@ const ChatPage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        const isImg = isImageFile(file.name);
+        const isImg = data.is_image;
         
         let finalMessage = messageText || '';
         if (!finalMessage && !isImg) {
@@ -166,9 +565,10 @@ const ChatPage = () => {
         const tempId = `temp_${Date.now()}_${Math.random()}`;
         pendingMessagesRef.current.add(tempId);
         
-        socket.emit("send_message", { 
+        socket.emit("send_message", {
           message: finalMessage,
-          group_id: groupInfo.group_id,
+          chat_type: currentChat.type,
+          chat_id: currentChat.id,
           attachment_url: data.fileUrl,
           attachment_type: file.type,
           is_image: isImg,
@@ -191,33 +591,26 @@ const ChatPage = () => {
       uploadingRef.current = false;
     }
   };
-
+  
+  // Обработка вставки изображения
   useEffect(() => {
     const handlePaste = async (e) => {
-      if (isPasteProcessingRef.current) {
-        console.log('Уже обрабатываем вставку, пропускаем');
-        return;
-      }
+      if (isPasteProcessingRef.current) return;
       
       const items = e.clipboardData?.items;
       if (!items) return;
       
       for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        
-        if (item.type.startsWith('image/')) {
+        if (items[i].type.startsWith('image/')) {
           e.preventDefault();
-          e.stopPropagation();
-          
           isPasteProcessingRef.current = true;
           
-          const file = item.getAsFile();
+          const file = items[i].getAsFile();
           if (file) {
             const timestamp = Date.now();
             const ext = file.type.split('/')[1];
             const fileName = `paste_${timestamp}.${ext}`;
             const renamedFile = new File([file], fileName, { type: file.type });
-            
             await uploadFile(renamedFile, "");
           }
           
@@ -228,110 +621,42 @@ const ChatPage = () => {
     };
     
     document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [currentChat]);
+  
+  // Печатание
+  const handleTyping = (e) => {
+    setNewMessage(e.target.value);
+    if (!socket) return;
     
-    return () => {
-      document.removeEventListener('paste', handlePaste);
-    };
-  }, [groupInfo?.group_id, socket, user]);
-
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, []);
-
-  const loadDraft = async () => {
-    if (!user?.employee_id || !groupInfo?.group_id) return;
+    if (typingTimeout) clearTimeout(typingTimeout);
+    socket.emit("typing", { is_typing: true });
     
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/chat/draft?user_id=${user.employee_id}&group_id=${groupInfo.group_id}`
-      );
-      const draft = await response.json();
-      if (draft && draft.content) {
-        setNewMessage(draft.content);
-        if (draft.reply_to_id) {
-          const repliedMsg = (Array.isArray(messages) ? messages : []).find(m => m?.message_id === draft.reply_to_id);
-          if (repliedMsg) setReplyTo(repliedMsg);
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка загрузки черновика:", error);
+    const newTimeout = setTimeout(() => {
+      if (socket) socket.emit("typing", { is_typing: false });
+    }, 1000);
+    
+    setTypingTimeout(newTimeout);
+  };
+  
+  // Реакции
+  const handleAddReaction = (messageId, reaction) => {
+    if (socket) {
+      socket.emit("add_reaction", { message_id: messageId, reaction });
     }
   };
-
-  const saveDraft = async (content, replyToMsg = replyTo) => {
-    if (!user?.employee_id || !groupInfo?.group_id) return;
-    
-    try {
-      await fetch("http://localhost:5000/api/chat/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: user.employee_id,
-          group_id: groupInfo.group_id,
-          content: content || "",
-          reply_to_id: replyToMsg?.message_id || null,
-        }),
-      });
-    } catch (error) {
-      console.error("Ошибка сохранения черновика:", error);
-    }
-  };
-
-  const clearDraft = async () => {
-    if (!user?.employee_id || !groupInfo?.group_id) return;
-    
-    try {
-      await fetch("http://localhost:5000/api/chat/draft", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: user.employee_id,
-          group_id: groupInfo.group_id,
-        }),
-      });
-    } catch (error) {
-      console.error("Ошибка очистки черновика:", error);
-    }
-  };
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim() || !groupInfo?.group_id) return;
-    
-    setSearching(true);
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/chat/search?group_id=${groupInfo.group_id}&query=${encodeURIComponent(searchQuery)}&limit=50`
-      );
-      if (response.ok) {
-        const results = await response.json();
-        setSearchResults(Array.isArray(results) ? results : []);
-      }
-    } catch (error) {
-      console.error("Ошибка поиска:", error);
-      message.error("Ошибка поиска");
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const handleFileUpload = async (file) => {
-    await uploadFile(file, "");
-    return false;
-  };
-
+  
+  // Редактирование
   const handleEditMessage = async () => {
     if (!editMessage || !editMessage.newMessage?.trim() || !socket) return;
-    
     socket.emit("edit_message", {
       message_id: editMessage.id,
       message: editMessage.newMessage.trim(),
     });
-    
     setEditMessage(null);
   };
-
+  
+  // Удаление
   const handleDeleteMessage = (messageId) => {
     Modal.confirm({
       title: "Удалить сообщение?",
@@ -340,280 +665,34 @@ const ChatPage = () => {
       okType: "danger",
       cancelText: "Отмена",
       onOk: () => {
-        if (socket) {
-          socket.emit("delete_message", { message_id: messageId });
-        }
+        if (socket) socket.emit("delete_message", { message_id: messageId });
       },
     });
   };
-
-  const handleAddReaction = (messageId, reaction) => {
-    if (socket) {
-      socket.emit("add_reaction", { message_id: messageId, reaction });
-    }
+  
+  const isImageFile = (filename) => {
+    if (!filename) return false;
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+    const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+    return imageExtensions.includes(ext);
   };
-
-  useEffect(() => {
-    if (!user?.employee_id) return;
-
-    const newSocket = io("http://localhost:5000", {
-      auth: { employeeId: user.employee_id },
-      transports: ['websocket', 'polling'],
-    });
-
-    newSocket.on("connect", () => {
-      console.log("✅ Socket.IO подключен");
-      setConnected(true);
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("❌ Socket.IO отключен");
-      setConnected(false);
-    });
-
-    newSocket.on("new_message", (message) => {
-      console.log('📨 Новое сообщение:', message);
-      
-      if (message._tempId && pendingMessagesRef.current.has(message._tempId)) {
-        console.log('Это наше сообщение, удаляем из pending');
-        pendingMessagesRef.current.delete(message._tempId);
-      }
-      
-      setMessages((prev) => {
-        const prevArray = Array.isArray(prev) ? prev : [];
-        
-        const existsById = prevArray.some((m) => m?.message_id === message?.message_id);
-        if (existsById) {
-          console.log('Сообщение уже есть по ID, пропускаем');
-          return prevArray;
-        }
-        
-        if (message._tempId) {
-          const existsByTemp = prevArray.some((m) => m?._tempId === message._tempId);
-          if (existsByTemp) {
-            console.log('Сообщение уже есть по tempId, пропускаем');
-            return prevArray;
-          }
-        }
-        
-        console.log('Добавляем новое сообщение');
-        const newMessages = [...prevArray, message];
-        setTimeout(() => scrollToBottom(), 100);
-        return newMessages;
-      });
-    });
-
-    newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
-      setMessages((prev) => {
-        const prevArray = Array.isArray(prev) ? prev : [];
-        return prevArray.map((msg) =>
-          msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
-        );
-      });
-    });
-
-    newSocket.on("message_deleted", ({ message_id }) => {
-      setMessages((prev) => {
-        const prevArray = Array.isArray(prev) ? prev : [];
-        return prevArray.map((msg) =>
-          msg?.message_id === message_id 
-            ? { ...msg, message: "⚠️ Сообщение удалено", is_deleted: true } 
-            : msg
-        );
-      });
-    });
-
-    newSocket.on("reaction_update", ({ message_id, reactions }) => {
-      setMessages((prev) => {
-        const prevArray = Array.isArray(prev) ? prev : [];
-        return prevArray.map((msg) =>
-          msg?.message_id === message_id ? { ...msg, reactions } : msg
-        );
-      });
-    });
-
-    newSocket.on("users_online", (users) => {
-      setUsersOnline(Array.isArray(users) ? users : []);
-    });
-
-    newSocket.on("user_typing", ({ user_name, is_typing }) => {
-      setTypingUsers((prev) => {
-        const newSet = new Set(prev);
-        if (is_typing) {
-          newSet.add(user_name);
-        } else {
-          newSet.delete(user_name);
-        }
-        return newSet;
-      });
-    });
-
-    newSocket.on("read_update", ({ message_id, read_count }) => {
-      setMessages((prev) => {
-        const prevArray = Array.isArray(prev) ? prev : [];
-        return prevArray.map((msg) =>
-          msg?.message_id === message_id ? { ...msg, read_count } : msg
-        );
-      });
-    });
-
-    newSocket.on("error", ({ message: errorMsg }) => {
-      message.error(errorMsg);
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [user?.employee_id]);
-
-  useEffect(() => {
-    if (!user?.employee_id) return;
-
-    const loadHistory = async () => {
-      setLoading(true);
-      try {
-        const groupRes = await fetch(
-          `http://localhost:5000/api/chat/my-group?employee_id=${user.employee_id}`
-        );
-        const groupData = await groupRes.json();
-        setGroupInfo(groupData);
-
-        const historyRes = await fetch(
-          `http://localhost:5000/api/chat/history?group_id=${groupData.group_id}&limit=200`
-        );
-        
-        if (historyRes.ok) {
-          const history = await historyRes.json();
-          const historyArray = Array.isArray(history) ? history : [];
-          console.log(`Загружено ${historyArray.length} сообщений из БД`);
-          setMessages(historyArray);
-          
-          setTimeout(() => {
-            if (socket && historyArray.length > 0) {
-              const unreadMessages = historyArray.filter(msg => 
-                msg && msg.sender_id !== user.employee_id && msg.read_count === 0
-              );
-              unreadMessages.forEach(msg => {
-                socket.emit("mark_read", { message_id: msg.message_id });
-              });
-            }
-          }, 500);
-        }
-      } catch (error) {
-        console.error("Ошибка загрузки истории чата:", error);
-        message.error("Не удалось загрузить историю чата");
-        setMessages([]);
-      } finally {
-        setLoading(false);
-        setTimeout(() => scrollToBottom(), 200);
-      }
-    };
-
-    loadHistory();
-  }, [user?.employee_id]);
-
-  useEffect(() => {
-    if (newMessage && groupInfo?.group_id) {
-      const timeoutId = setTimeout(() => {
-        saveDraft(newMessage);
-      }, 1000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [newMessage, groupInfo?.group_id]);
-
-  useEffect(() => {
-    return () => {
-      pendingMessagesRef.current.clear();
-    };
-  }, []);
-
-  const handleSend = async () => {
-    const hasText = newMessage.trim();
-    const hasReply = replyTo;
-    const isUploadingFile = uploading;
-    
-    if (!hasText && !hasReply && !isUploadingFile) {
-      return;
-    }
-    
-    if (!socket || !groupInfo) return;
-    
-    let messageText = newMessage.trim();
-    if (replyTo) {
-      messageText = `> ${replyTo.sender_name}: ${replyTo.message.substring(0, 50)}${replyTo.message.length > 50 ? '...' : ''}\n\n${messageText}`;
-    }
-    
-    if (messageText) {
-      setSending(true);
-      
-      const tempId = `temp_${Date.now()}_${Math.random()}`;
-      pendingMessagesRef.current.add(tempId);
-      
-      socket.emit("send_message", { 
-        message: messageText,
-        group_id: groupInfo.group_id,
-        _tempId: tempId,
-      });
-      
-      setNewMessage("");
-      setReplyTo(null);
-      clearDraft();
-      setSending(false);
-    }
-    
-    if (typingTimeout) clearTimeout(typingTimeout);
-    socket.emit("typing", { is_typing: false });
+  
+  const isMessageImage = (msg) => {
+    if (!msg?.attachment_url) return false;
+    if (msg.attachment_type?.startsWith('image/')) return true;
+    if (msg.is_image) return true;
+    return isImageFile(msg.attachment_url);
   };
-
-  const handleTyping = (e) => {
-    setNewMessage(e.target.value);
-    
-    if (!socket) return;
-    
-    if (typingTimeout) clearTimeout(typingTimeout);
-    
-    socket.emit("typing", { is_typing: true });
-    
-    const newTimeout = setTimeout(() => {
-      socket.emit("typing", { is_typing: false });
-    }, 1000);
-    
-    setTypingTimeout(newTimeout);
-  };
-
-  const handleMessageSeen = (messageId, senderId) => {
-    if (socket && messageId && senderId !== user?.employee_id) {
-      socket.emit("mark_read", { message_id: messageId });
-    }
-  };
-
+  
   const formatTime = (date) => {
     if (!date) return "";
     const msgDate = dayjs(date);
     const now = dayjs();
-    
-    if (msgDate.isSame(now, "day")) {
-      return msgDate.format("HH:mm");
-    } else if (msgDate.isSame(now.subtract(1, "day"), "day")) {
-      return `Вчера ${msgDate.format("HH:mm")}`;
-    } else {
-      return msgDate.format("DD.MM.YY HH:mm");
-    }
+    if (msgDate.isSame(now, "day")) return msgDate.format("HH:mm");
+    else if (msgDate.isSame(now.subtract(1, "day"), "day")) return `Вчера ${msgDate.format("HH:mm")}`;
+    else return msgDate.format("DD.MM.YY HH:mm");
   };
-
-  const getRoleBadge = (role) => {
-    switch (role) {
-      case "Руководитель отдела":
-        return <Tag color="purple" style={{ fontSize: 10 }}>Рук. отдела</Tag>;
-      case "Руководитель группы":
-        return <Tag color="blue" style={{ fontSize: 10 }}>Рук. группы</Tag>;
-      default:
-        return null;
-    }
-  };
-
+  
   const getReactionButtons = (messageId, currentReactions = {}) => {
     const reactionsObj = currentReactions || {};
     return (
@@ -632,7 +711,35 @@ const ChatPage = () => {
       </Space>
     );
   };
-
+  
+  // Рендер аватара чата
+  const renderChatAvatar = (chat) => {
+    if (chat.type === 'group') {
+      return <Avatar icon={<TeamOutlined />} style={{ backgroundColor: "#1890ff" }} />;
+    } else if (chat.type === 'custom') {
+      return <Avatar icon={<TeamOutlined />} style={{ backgroundColor: "#52c41a" }} />;
+    } else {
+      return <Avatar src={chat.avatar ? `http://localhost:5000${chat.avatar}` : null} icon={<UserOutlined />} />;
+    }
+  };
+  
+  // Меню чата
+  const chatMenuItems = [
+    {
+      key: "info",
+      icon: <TeamOutlined />,
+      label: "Информация о группе",
+      onClick: () => fetchGroupInfo(currentChat?.id)
+    },
+    {
+      key: "invite",
+      icon: <LinkOutlined />,
+      label: "Пригласить участников",
+      onClick: () => setInviteCodeModalVisible(true)
+    }
+  ];
+  
+  // Горячие клавиши
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -652,50 +759,41 @@ const ChatPage = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  if (loading) {
+  
+  if (loading && chats.length === 0) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
           <Header style={{ background: "#fff", padding: "0 24px" }}>
-            <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>Чат группы</Title>
+            <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>Чат</Title>
           </Header>
           <Content style={{ margin: "24px", padding: "24px", background: "#fff" }}>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
               <Spin size="large" />
-              <div style={{ marginLeft: 16 }}>Загрузка чата...</div>
+              <div style={{ marginLeft: 16 }}>Загрузка чатов...</div>
             </div>
           </Content>
         </Layout>
       </Layout>
     );
   }
-
-  const messagesArray = Array.isArray(messages) ? messages : [];
-
+  
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sidebar />
       
       <Layout>
-        <Header
-          style={{
-            background: "#fff",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "0 24px",
-          }}
-        >
+        <Header style={{
+          background: "#fff",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "0 24px",
+        }}>
           <Space>
             <MessageOutlined style={{ fontSize: 20, color: "#1890ff" }} />
-            <Title level={4} style={{ margin: 0 }}>Чат группы</Title>
-            {groupInfo && (
-              <Tag color="geekblue" icon={<TeamOutlined />}>
-                {groupInfo.group_name}
-              </Tag>
-            )}
+            <Title level={4} style={{ margin: 0 }}>Мессенджер</Title>
             {connected ? (
               <Badge status="success" text="Подключено" />
             ) : (
@@ -712,386 +810,676 @@ const ChatPage = () => {
             <Button onClick={logout} icon={<LogoutOutlined />}>Выйти</Button>
           </Space>
         </Header>
-
-        <Content
-          style={{
-            margin: "24px",
-            padding: "24px",
+        
+        <Layout style={{ flexDirection: "row" }}>
+          {/* Список чатов - левая панель */}
+          <div style={{
+            width: 350,
+            background: "#fafafa",
+            borderRight: "1px solid #e8e8e8",
+            overflowY: "auto",
+            height: "calc(100vh - 64px)",
+          }}>
+            <div style={{ padding: "16px", borderBottom: "1px solid #e8e8e8", background: "#fff" }}>
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Input.Search
+                  placeholder="Поиск чатов..."
+                  allowClear
+                  onSearch={(val) => {
+                    if (!val) {
+                      loadChats();
+                    } else {
+                      const filtered = chats.filter(c => 
+                        c.name?.toLowerCase().includes(val.toLowerCase())
+                      );
+                      setChats(filtered);
+                    }
+                  }}
+                />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button 
+                    type="primary" 
+                    icon={<PlusOutlined />} 
+                    onClick={() => setCreateGroupVisible(true)}
+                    style={{ flex: 1 }}
+                  >
+                    Создать группу
+                  </Button>
+                  <Button 
+                    icon={<UserAddOutlined />} 
+                    onClick={() => setJoinCodeVisible(true)}
+                    style={{ flex: 1 }}
+                  >
+                    Присоединиться
+                  </Button>
+                </div>
+              </Space>
+            </div>
+            
+            <List
+              dataSource={chats}
+              renderItem={(chat) => (
+                <div
+                  onClick={() => setCurrentChat(chat)}
+                  style={{
+                    padding: "12px 16px",
+                    cursor: "pointer",
+                    background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent",
+                    borderBottom: "1px solid #f0f0f0",
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) {
+                      e.currentTarget.style.background = "#f5f5f5";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) {
+                      e.currentTarget.style.background = "transparent";
+                    }
+                  }}
+                >
+                  <Space>
+                    <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
+                      {renderChatAvatar(chat)}
+                    </Badge>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <Text strong style={{ fontSize: 14 }}>{chat.name || "Без названия"}</Text>
+                        {chat.unread_count > 0 && (
+                          <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f" }} />
+                        )}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {chat.type === "group" ? "Рабочая группа" : chat.type === "custom" ? "Группа" : "Личный чат"}
+                      </Text>
+                    </div>
+                  </Space>
+                </div>
+              )}
+            />
+          </div>
+          
+          {/* Область чата - правая панель */}
+          <Content style={{
+            margin: 0,
+            padding: 0,
             background: "#fff",
-            borderRadius: "8px",
-            minHeight: "calc(100vh - 112px)",
+            minHeight: "calc(100vh - 64px)",
             display: "flex",
             flexDirection: "column",
-          }}
-        >
-          <Card size="small" style={{ marginBottom: 16 }}>
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Space>
-                  <TeamOutlined />
-                  <Text strong>Группа: {groupInfo?.group_name}</Text>
-                </Space>
-                <Space>
-                  <WifiOutlined style={{ color: connected ? "#52c41a" : "#ff4d4f" }} />
-                  <Text type="secondary">{usersOnline.length} участников в чате</Text>
-                </Space>
-              </div>
-            </Space>
-          </Card>
-
-          {uploading && uploadProgress !== null && (
-            <div style={{ marginBottom: 16 }}>
-              <AntProgress percent={uploadProgress} status="active" />
-              <Text type="secondary" style={{ fontSize: 12 }}>Загрузка...</Text>
-            </div>
-          )}
-
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              marginBottom: 16,
-              minHeight: 400,
-              maxHeight: "calc(100vh - 380px)",
-            }}
-          >
-            {messagesArray.length === 0 ? (
-              <Empty description="Пока нет сообщений. Напишите что-нибудь!" />
-            ) : (
-              <List
-                dataSource={messagesArray.filter(msg => msg && typeof msg === 'object')}
-                renderItem={(msg) => {
-                  const isMine = msg.sender_id === user?.employee_id;
-                  const isImage = isMessageImage(msg);
-                  const imageUrl = msg.attachment_url ? `http://localhost:5000${msg.attachment_url}` : null;
+          }}>
+            {currentChat ? (
+              <>
+                <div style={{
+                  padding: "16px 24px",
+                  borderBottom: "1px solid #f0f0f0",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: "#fff",
+                }}>
+                  <Space>
+                    {renderChatAvatar(currentChat)}
+                    <div>
+                      <Text strong style={{ fontSize: 16 }}>{currentChat.name}</Text>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {currentChat.type === "group" ? "Рабочая группа" : currentChat.type === "custom" ? "Пользовательская группа" : "Личный чат"}
+                        </Text>
+                      </div>
+                    </div>
+                  </Space>
                   
-                  return (
-                    <div
-                      key={msg.message_id}
-                      style={{
-                        display: "flex",
-                        justifyContent: isMine ? "flex-end" : "flex-start",
-                        marginBottom: 16,
-                      }}
-                      onMouseEnter={() => handleMessageSeen(msg.message_id, msg.sender_id)}
-                    >
-                      <div
-                        style={{
-                          maxWidth: isImage ? "60%" : "70%",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: isMine ? "flex-end" : "flex-start",
-                        }}
-                      >
-                        {!isMine && (
-                          <div style={{ marginBottom: 4, fontSize: 12 }}>
-                            <Space size={4}>
-                              <Avatar 
-                                size="small" 
-                                src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null}
-                                style={{ 
-                                  backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
-                                }}
-                              >
-                                {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
-                              </Avatar>
-                              <Text strong style={{ fontSize: 12 }}>{msg.sender_name}</Text>
-                              {getRoleBadge(msg.sender_role)}
-                            </Space>
-                          </div>
-                        )}
-                        
+                  {(currentChat.type === "custom" || currentChat.type === "group") && (
+                    <Dropdown menu={{ items: chatMenuItems }} trigger={["click"]} placement="bottomRight">
+                      <Button icon={<SettingOutlined />} type="text" />
+                    </Dropdown>
+                  )}
+                </div>
+                
+                <div style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  padding: "24px",
+                  background: "#fafafa",
+                }}>
+                  {messages.length === 0 ? (
+                    <Empty description="Нет сообщений. Напишите что-нибудь!" style={{ marginTop: 100 }} />
+                  ) : (
+                    messages.map((msg) => {
+                      const isMine = msg.sender_id === user?.employee_id;
+                      const isImage = isMessageImage(msg);
+                      const imageUrl = msg.attachment_url ? `http://localhost:5000${msg.attachment_url}` : null;
+                      
+                      return (
                         <div
+                          key={msg.message_id}
                           style={{
-                            background: isMine ? "#1890ff" : "#f5f5f5",
-                            color: isMine ? "white" : "#333",
-                            padding: isImage ? "8px" : "10px 14px",
-                            borderRadius: 12,
-                            borderBottomRightRadius: isMine ? 4 : 12,
-                            borderBottomLeftRadius: isMine ? 12 : 4,
-                            wordBreak: "break-word",
-                            maxWidth: "100%",
+                            display: "flex",
+                            justifyContent: isMine ? "flex-end" : "flex-start",
+                            marginBottom: 16,
                           }}
                         >
-                          {isImage && imageUrl ? (
-                            <div>
-                              <img
-                                src={imageUrl}
-                                alt="Изображение"
-                                style={{
-                                  maxWidth: "100%",
-                                  maxHeight: 300,
-                                  borderRadius: 8,
-                                  cursor: "pointer",
-                                }}
-                                onClick={() => setPreviewImage(imageUrl)}
-                                onError={(e) => {
-                                  console.error("Ошибка загрузки изображения:", imageUrl);
-                                  e.target.style.display = "none";
-                                }}
-                              />
-                              {msg.message && msg.message.trim() !== "" && (
-                                <div style={{ 
-                                  marginTop: 8, 
-                                  color: isMine ? "white" : "#333", 
-                                  fontSize: 13,
-                                  wordBreak: "break-word",
-                                }}>
+                          <div style={{
+                            maxWidth: isImage ? "60%" : "70%",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: isMine ? "flex-end" : "flex-start",
+                          }}>
+                            {!isMine && (
+                              <div style={{ marginBottom: 4, fontSize: 12 }}>
+                                <Space size={4}>
+                                  <Avatar
+                                    size="small"
+                                    src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null}
+                                    style={{ backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent" }}
+                                  >
+                                    {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
+                                  </Avatar>
+                                  <Text strong style={{ fontSize: 12 }}>{msg.sender_name}</Text>
+                                </Space>
+                              </div>
+                            )}
+                            
+                            <div style={{
+                              background: isMine ? "#1890ff" : "#f5f5f5",
+                              color: isMine ? "white" : "#333",
+                              padding: isImage ? "8px" : "10px 14px",
+                              borderRadius: 12,
+                              borderBottomRightRadius: isMine ? 4 : 12,
+                              borderBottomLeftRadius: isMine ? 12 : 4,
+                              wordBreak: "break-word",
+                              maxWidth: "100%",
+                            }}>
+                              {isImage && imageUrl ? (
+                                <div>
+                                  <img
+                                    src={imageUrl}
+                                    alt="Изображение"
+                                    style={{
+                                      maxWidth: "100%",
+                                      maxHeight: 300,
+                                      borderRadius: 8,
+                                      cursor: "pointer",
+                                    }}
+                                    onClick={() => setPreviewImage(imageUrl)}
+                                  />
+                                  {msg.message && msg.message.trim() !== "" && (
+                                    <div style={{ marginTop: 8, color: isMine ? "white" : "#333", fontSize: 13 }}>
+                                      {msg.message}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <Text style={{ color: isMine ? "white" : "#333", fontSize: 14, whiteSpace: "pre-wrap" }}>
                                   {msg.message}
+                                </Text>
+                              )}
+                              
+                              {msg.attachment_url && !isImage && (
+                                <div style={{ marginTop: 8 }}>
+                                  <Button
+                                    size="small"
+                                    icon={<FileTextOutlined />}
+                                    onClick={() => window.open(`http://localhost:5000${msg.attachment_url}`, "_blank")}
+                                  >
+                                    Скачать файл
+                                  </Button>
                                 </div>
                               )}
                             </div>
-                          ) : (
-                            <Text style={{ color: isMine ? "white" : "#333", fontSize: 14, whiteSpace: "pre-wrap" }}>
-                              {msg.message}
-                            </Text>
-                          )}
-                          
-                          {msg.attachment_url && !isImage && (
-                            <div style={{ marginTop: 8 }}>
-                              <Button 
-                                size="small" 
-                                icon={<FileTextOutlined />}
-                                onClick={() => window.open(`http://localhost:5000${msg.attachment_url}`, "_blank")}
-                              >
-                                Скачать файл
-                              </Button>
+                            
+                            {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                              <div style={{ marginTop: 4, fontSize: 12 }}>
+                                {Object.entries(msg.reactions).map(([emoji, count]) => (
+                                  <Tag key={emoji} style={{ margin: 0, marginRight: 4, cursor: "pointer" }} onClick={() => handleAddReaction(msg.message_id, emoji)}>
+                                    {emoji} {count}
+                                  </Tag>
+                                ))}
+                              </div>
+                            )}
+                            
+                            <div style={{ fontSize: 11, marginTop: 4, color: "#999" }}>
+                              <Space size={4}>
+                                <ClockCircleOutlined style={{ fontSize: 10 }} />
+                                <span>{formatTime(msg.created_at)}</span>
+                                {msg.edited_at && (
+                                  <Tooltip title={`Отредактировано ${dayjs(msg.edited_at).format("DD.MM.YY HH:mm")}`}>
+                                    <Text type="secondary" style={{ fontSize: 10 }}>(ред.)</Text>
+                                  </Tooltip>
+                                )}
+                              </Space>
                             </div>
-                          )}
-                        </div>
-                        
-                        {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                          <div style={{ marginTop: 4, fontSize: 12 }}>
-                            {Object.entries(msg.reactions).map(([emoji, count]) => (
-                              <Tag key={emoji} style={{ margin: 0, marginRight: 4, cursor: "pointer" }} onClick={() => handleAddReaction(msg.message_id, emoji)}>
-                                {emoji} {count}
-                              </Tag>
-                            ))}
+                            
+                            <div style={{ marginTop: 4 }}>
+                              <Space size={4}>
+                                <Popover content={getReactionButtons(msg.message_id, msg.reactions)} trigger="click" placement="top">
+                                  <Button size="small" type="text" icon={<SmileOutlined />} />
+                                </Popover>
+                                <Tooltip title="Ответить">
+                                  <Button size="small" type="text" icon={<ArrowLeftOutlined />} onClick={() => setReplyTo(msg)} />
+                                </Tooltip>
+                                {isMine && !msg.is_deleted && (
+                                  <>
+                                    <Tooltip title="Редактировать">
+                                      <Button size="small" type="text" icon={<EditOutlined />} onClick={() => setEditMessage({ id: msg.message_id, message: msg.message, newMessage: msg.message })} />
+                                    </Tooltip>
+                                    <Tooltip title="Удалить">
+                                      <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteMessage(msg.message_id)} />
+                                    </Tooltip>
+                                  </>
+                                )}
+                              </Space>
+                            </div>
                           </div>
-                        )}
-                        
-                        <div style={{ fontSize: 11, marginTop: 4, color: "#999" }}>
-                          <Space size={4}>
-                            <ClockCircleOutlined style={{ fontSize: 10 }} />
-                            <span>{formatTime(msg.created_at)}</span>
-                            {msg.edited_at && (
-                              <Tooltip title={`Отредактировано ${dayjs(msg.edited_at).format("DD.MM.YY HH:mm")}`}>
-                                <Text type="secondary" style={{ fontSize: 10 }}>(ред.)</Text>
-                              </Tooltip>
-                            )}
-                            {isMine && msg.read_count > 0 && (
-                              <Tooltip title={`Прочитано ${msg.read_count} участниками`}>
-                                <EyeOutlined style={{ fontSize: 10 }} />
-                              </Tooltip>
-                            )}
-                          </Space>
                         </div>
-                        
-                        <div style={{ marginTop: 4 }}>
-                          <Space size={4}>
-                            <Popover
-                              content={getReactionButtons(msg.message_id, msg.reactions)}
-                              trigger="click"
-                              placement="top"
-                            >
-                              <Button size="small" type="text" icon={<SmileOutlined />} />
-                            </Popover>
-                            <Tooltip title="Ответить">
-                              <Button 
-                                size="small" 
-                                type="text" 
-                                icon={<ArrowLeftOutlined />}
-                                onClick={() => setReplyTo(msg)}
-                              />
-                            </Tooltip>
-                            {isMine && !msg.is_deleted && (
-                              <>
-                                <Tooltip title="Редактировать">
-                                  <Button 
-                                    size="small" 
-                                    type="text" 
-                                    icon={<EditOutlined />}
-                                    onClick={() => setEditMessage({ id: msg.message_id, message: msg.message, newMessage: msg.message })}
-                                  />
-                                </Tooltip>
-                                <Tooltip title="Удалить">
-                                  <Button 
-                                    size="small" 
-                                    type="text" 
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => handleDeleteMessage(msg.message_id)}
-                                  />
-                                </Tooltip>
-                              </>
-                            )}
-                          </Space>
-                        </div>
-                      </div>
+                      );
+                    })
+                  )}
+                  
+                  <div ref={messagesEndRef} />
+                </div>
+                
+                {/* Индикатор "печатает" - над полем ввода */}
+                {typingUsers.size > 0 && (
+                  <div style={{ 
+                    padding: "6px 24px", 
+                    background: "#fff",
+                    borderTop: "1px solid #f0f0f0",
+                    fontSize: 12,
+                    color: "#999",
+                    fontStyle: "italic"
+                  }}>
+                    <Space>
+                      <WifiOutlined style={{ fontSize: 12, color: "#52c41a" }} />
+                      <span>{Array.from(typingUsers).join(", ")} печатает...</span>
+                    </Space>
+                  </div>
+                )}
+                
+                {/* Поле ввода */}
+                <div style={{ padding: "16px 24px", borderTop: "1px solid #f0f0f0", background: "#fff" }}>
+                  {replyTo && (
+                    <div style={{ background: "#e6f7ff", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Space>
+                        <ArrowLeftOutlined />
+                        <Text strong>Ответ для {replyTo.sender_name}:</Text>
+                        <Text type="secondary" style={{ maxWidth: 300 }} ellipsis>
+                          {replyTo.message?.substring(0, 100) || ""}...
+                        </Text>
+                      </Space>
+                      <Button size="small" icon={<CloseOutlined />} onClick={() => setReplyTo(null)} />
                     </div>
-                  );
-                }}
-              />
-            )}
-            
-            {typingUsers.size > 0 && (
-              <div style={{ padding: "8px 12px", color: "#999", fontSize: 12, fontStyle: "italic" }}>
-                {Array.from(typingUsers).join(", ")} печатает...
+                  )}
+                  
+                  {editMessage && (
+                    <div style={{ background: "#fff7e6", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                      <TextArea value={editMessage.newMessage} onChange={(e) => setEditMessage({ ...editMessage, newMessage: e.target.value })} autoSize={{ minRows: 1, maxRows: 3 }} style={{ flex: 1 }} />
+                      <Button size="small" type="primary" icon={<CheckOutlined />} onClick={handleEditMessage} />
+                      <Button size="small" icon={<CloseOutlined />} onClick={() => setEditMessage(null)} />
+                    </div>
+                  )}
+                  
+                  {uploading && uploadProgress !== null && (
+                    <div style={{ marginBottom: 8 }}>
+                      <AntProgress percent={uploadProgress} status="active" size="small" />
+                    </div>
+                  )}
+                  
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Upload beforeUpload={(file) => uploadFile(file)} showUploadList={false} accept="image/*,.pdf,.doc,.docx,.txt">
+                      <Button icon={<PaperClipOutlined />} loading={uploading}>Файл</Button>
+                    </Upload>
+                    
+                    <Popover content={<Picker onEmojiClick={(emoji) => setNewMessage(prev => prev + emoji.emoji)} />} trigger="click" placement="top" open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                      <Button icon={<SmileOutlined />} />
+                    </Popover>
+                    
+                    <TextArea
+                      ref={inputRef}
+                      value={newMessage}
+                      onChange={handleTyping}
+                      onPressEnter={(e) => {
+                        if (!e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      placeholder="Введите сообщение... (Shift+Enter для новой строки, Ctrl+V для вставки изображения)"
+                      autoSize={{ minRows: 1, maxRows: 4 }}
+                      disabled={sending || !connected}
+                      style={{ flex: 1, resize: "none" }}
+                    />
+                    
+                    <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={sending} disabled={!newMessage.trim() && !replyTo && !uploading}>
+                      Отправить
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", flexDirection: "column" }}>
+                <MessageOutlined style={{ fontSize: 64, color: "#d9d9d9", marginBottom: 16 }} />
+                <Title level={4} type="secondary">Выберите чат</Title>
+                <Text type="secondary">Начните диалог или создайте новую группу</Text>
+                <Space style={{ marginTop: 24 }}>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)}>
+                    Создать группу
+                  </Button>
+                  <Button icon={<UserAddOutlined />} onClick={() => setJoinCodeVisible(true)}>
+                    Присоединиться по коду
+                  </Button>
+                </Space>
               </div>
             )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-
-          {replyTo && (
-            <div style={{ 
-              background: "#e6f7ff", 
-              padding: "8px 12px", 
-              borderRadius: 8, 
-              marginBottom: 8,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center"
-            }}>
-              <Space>
-                <ArrowLeftOutlined />
-                <Text strong>Ответ для {replyTo.sender_name}:</Text>
-                <Text type="secondary" style={{ maxWidth: 300 }} ellipsis>
-                  {replyTo.message?.substring(0, 100) || ""}...
-                </Text>
-              </Space>
-              <Button size="small" icon={<CloseOutlined />} onClick={() => setReplyTo(null)} />
-            </div>
-          )}
-
-          {editMessage && (
-            <div style={{ 
-              background: "#fff7e6", 
-              padding: "8px 12px", 
-              borderRadius: 8, 
-              marginBottom: 8,
-              display: "flex",
-              gap: 8,
-              alignItems: "center"
-            }}>
-              <TextArea
-                value={editMessage.newMessage}
-                onChange={(e) => setEditMessage({ ...editMessage, newMessage: e.target.value })}
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                style={{ flex: 1 }}
-              />
-              <Button size="small" type="primary" icon={<CheckOutlined />} onClick={handleEditMessage} />
-              <Button size="small" icon={<CloseOutlined />} onClick={() => setEditMessage(null)} />
-            </div>
-          )}
-
-          <Divider style={{ margin: "8px 0" }} />
-          
-          <div style={{ display: "flex", gap: 8 }}>
-            <Upload
-              beforeUpload={handleFileUpload}
-              showUploadList={false}
-              accept="image/*,.pdf,.doc,.docx,.txt"
-            >
-              <Button icon={<PaperClipOutlined />} loading={uploading}>Файл</Button>
-            </Upload>
-            
-            <Popover
-              content={<Picker onEmojiClick={(emoji) => setNewMessage(prev => prev + emoji.emoji)} />}
-              trigger="click"
-              placement="top"
-              open={showEmojiPicker}
-              onOpenChange={setShowEmojiPicker}
-            >
-              <Button icon={<SmileOutlined />} />
-            </Popover>
-            
-            <TextArea
-              ref={inputRef}
-              value={newMessage}
-              onChange={handleTyping}
-              onPressEnter={(e) => {
-                if (!e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Введите сообщение... (Shift+Enter для новой строки, Ctrl+V для вставки изображения)"
-              autoSize={{ minRows: 1, maxRows: 4 }}
-              disabled={sending || !connected}
-              style={{ flex: 1, resize: "none" }}
-            />
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              onClick={handleSend}
-              loading={sending}
-              disabled={!newMessage.trim() && !replyTo && !uploading}
-            >
-              Отправить
-            </Button>
-          </div>
-        </Content>
+          </Content>
+        </Layout>
       </Layout>
-
+      
+      {/* Модальное окно поиска сотрудников */}
       <Modal
-        open={!!previewImage}
-        footer={null}
-        onCancel={() => setPreviewImage(null)}
-        width="auto"
-        style={{ maxWidth: "90vw" }}
-        styles={{ body: { padding: 0 } }}
-      >
-        <img alt="preview" src={previewImage} style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }} />
-      </Modal>
-
-      <Modal
-        title={
-          <Space>
-            <SearchOutlined />
-            <span>Поиск сообщений (Ctrl+K)</span>
-          </Space>
-        }
+        title={<Space><SearchOutlined /><span>Поиск сотрудников</span></Space>}
         open={searchModalVisible}
         onCancel={() => setSearchModalVisible(false)}
         footer={null}
-        width={600}
+        width={500}
       >
         <Input.Search
-          placeholder="Введите текст для поиска..."
+          placeholder="Введите имя или фамилию..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onSearch={handleSearch}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            searchEmployees(e.target.value);
+          }}
           loading={searching}
-          enterButton
+          allowClear
         />
         <div style={{ marginTop: 16, maxHeight: 400, overflowY: "auto" }}>
-          {Array.isArray(searchResults) && searchResults.map((result) => (
-            <Card key={result.message_id} size="small" style={{ marginBottom: 8 }}>
-              <Space direction="vertical">
-                <Space>
-                  <Avatar size="small" src={result.sender_avatar_url ? `http://localhost:5000${result.sender_avatar_url}` : null}>
-                    {!result.sender_avatar_url && (result.first_name?.[0]?.toUpperCase() || "U")}
-                  </Avatar>
-                  <Text strong>{result.first_name} {result.last_name}</Text>
-                  <Tag color={getRoleColor(result.role)}>{result.role}</Tag>
-                  <Text type="secondary">{dayjs(result.created_at).format("DD.MM.YY HH:mm")}</Text>
-                </Space>
-                <Text>{result.message}</Text>
-                {result.attachment_url && (
-                  <img 
-                    src={`http://localhost:5000${result.attachment_url}`} 
-                    alt="preview" 
-                    style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 4 }}
-                  />
-                )}
+          {searchResults.map((emp) => (
+            <Card key={emp.employee_id} size="small" style={{ marginBottom: 8, cursor: "pointer" }} hoverable onClick={() => startPrivateChat(emp)}>
+              <Space>
+                <Avatar src={emp.avatar_url ? `http://localhost:5000${emp.avatar_url}` : null} icon={<UserOutlined />} />
+                <div>
+                  <Text strong>{emp.last_name} {emp.first_name}</Text>
+                  <br />
+                  <Tag color={getRoleColor(emp.role)}>{emp.role}</Tag>
+                </div>
               </Space>
             </Card>
           ))}
-          {searchQuery && (!searchResults || searchResults.length === 0) && !searching && (
+          {searchQuery && searchResults.length === 0 && !searching && (
             <Empty description="Ничего не найдено" />
           )}
         </div>
+      </Modal>
+      
+      {/* Создание группы */}
+      <Modal
+        title="Создать новую группу"
+        open={createGroupVisible}
+        onOk={handleCreateGroup}
+        onCancel={() => {
+          setCreateGroupVisible(false);
+          setGroupName("");
+          setGroupMembers([]);
+        }}
+        okText="Создать"
+        cancelText="Отмена"
+        confirmLoading={createGroupLoading}
+        width={500}
+      >
+        <Form layout="vertical">
+          <Form.Item label="Название группы" required>
+            <Input
+              placeholder="Введите название группы"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              maxLength={50}
+              showCount
+            />
+          </Form.Item>
+          
+          <Form.Item 
+            label="Участники" 
+            help="Вы можете добавить участников сейчас или пригласить их позже по коду"
+          >
+            <Select
+              mode="multiple"
+              placeholder="Выберите участников"
+              value={groupMembers}
+              onChange={setGroupMembers}
+              loading={employeesLoading}
+              showSearch
+              filterOption={(input, option) => {
+                const label = option?.label?.toString().toLowerCase() || '';
+                return label.includes(input.toLowerCase());
+              }}
+              style={{ width: '100%' }}
+            >
+              {allEmployees.map(emp => (
+                <Option 
+                  key={emp.employee_id} 
+                  value={emp.employee_id}
+                  label={`${emp.last_name} ${emp.first_name}`}
+                >
+                  <Space>
+                    <Avatar size="small" icon={<UserOutlined />} />
+                    <span>{emp.last_name} {emp.first_name}</span>
+                    <Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>
+                      {emp.role === 'Руководитель группы' ? 'Рук. группы' : 
+                       emp.role === 'Руководитель отдела' ? 'Рук. отдела' : 'Сотрудник'}
+                    </Tag>
+                  </Space>
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          
+<Alert 
+  message="Вы будете администратором группы" 
+  description="Администратор может добавлять/удалять участников и управлять настройками группы"
+  type="info" 
+  showIcon 
+  style={{ 
+    marginTop: 16,
+    padding: "8px 12px",
+    fontSize: 12,
+  }}
+/>
+        </Form>
+      </Modal>
+      
+      {/* Присоединение по коду */}
+      <Modal
+        title="Присоединиться к чату"
+        open={joinCodeVisible}
+        onOk={handleJoinByCode}
+        onCancel={() => {
+          setJoinCodeVisible(false);
+          setJoinCode("");
+        }}
+        okText="Присоединиться"
+        cancelText="Отмена"
+      >
+        <Input
+          placeholder="Введите код приглашения"
+          value={joinCode}
+          onChange={(e) => setJoinCode(e.target.value)}
+          prefix={<LinkOutlined />}
+        />
+        <Divider />
+        <Alert message="Введите код, который вам отправили для присоединения к группе или личному чату" type="info" showIcon />
+      </Modal>
+      
+      {/* Код приглашения */}
+      <Modal
+        title="Код для приглашения"
+        open={inviteCodeModalVisible}
+        onCancel={() => setInviteCodeModalVisible(false)}
+        footer={[
+          <Button key="copy" type="primary" icon={<CopyOutlined />} onClick={copyInviteCode}>
+            Скопировать код
+          </Button>,
+          <Button key="close" onClick={() => setInviteCodeModalVisible(false)}>Закрыть</Button>,
+        ]}
+      >
+        <Paragraph>
+          Отправьте этот код другим сотрудникам, чтобы они присоединились к чату:
+        </Paragraph>
+        <div style={{
+          background: "#f5f5f5",
+          padding: "12px",
+          borderRadius: 8,
+          textAlign: "center",
+          fontFamily: "monospace",
+          fontSize: 18,
+          fontWeight: "bold",
+        }}>
+          {inviteCode}
+        </div>
+        <Divider />
+        <Alert
+          message="Код действителен 7 дней"
+          description="Вы также можете пригласить участников напрямую через кнопку добавления в группе"
+          type="info"
+          showIcon
+        />
+      </Modal>
+      
+      {/* Информация о группе */}
+      <Drawer
+        title="Информация о группе"
+        placement="right"
+        onClose={() => setGroupInfoDrawerVisible(false)}
+        open={groupInfoDrawerVisible}
+        width={400}
+      >
+        {currentGroupInfo && (
+          <>
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <Avatar size={80} icon={<TeamOutlined />} style={{ backgroundColor: "#1890ff" }} />
+              <Title level={4} style={{ marginTop: 12 }}>{currentGroupInfo.group_name}</Title>
+              <Text type="secondary">Создана {dayjs(currentGroupInfo.created_at).format("DD.MM.YYYY")}</Text>
+            </div>
+            
+            {currentGroupInfo.can_edit && (
+              <div style={{ marginBottom: 16 }}>
+                <Button 
+                  type="dashed" 
+                  block 
+                  icon={<UserAddOutlined />}
+                  onClick={() => setAddMemberVisible(true)}
+                >
+                  Добавить участников
+                </Button>
+              </div>
+            )}
+            
+            <Divider>Участники ({currentGroupInfo.members?.length || 0})</Divider>
+            <List
+              dataSource={currentGroupInfo.members}
+              renderItem={(member) => (
+                <List.Item>
+                  <List.Item.Meta
+                    avatar={<Avatar src={member.avatar_url ? `http://localhost:5000${member.avatar_url}` : null} icon={<UserOutlined />} />}
+                    title={`${member.last_name} ${member.first_name}`}
+                    description={
+                      <Space>
+                        <Tag color={member.role === 'admin' ? 'gold' : 'default'}>
+                          {member.role === 'admin' ? 'Администратор' : 'Участник'}
+                        </Tag>
+                        <Text type="secondary">{dayjs(member.joined_at).format("DD.MM.YYYY")}</Text>
+                      </Space>
+                    }
+                  />
+                </List.Item>
+              )}
+            />
+          </>
+        )}
+      </Drawer>
+      
+      {/* Добавление участников */}
+      <Modal
+        title="Добавить участников"
+        open={addMemberVisible}
+        onOk={async () => {
+          if (selectedNewMembers.length === 0) {
+            message.warning("Выберите участников");
+            return;
+          }
+          try {
+            const response = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo?.group_id}/add-members`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                admin_id: user.employee_id,
+                member_ids: selectedNewMembers
+              }),
+            });
+            if (response.ok) {
+              message.success("Участники добавлены!");
+              setAddMemberVisible(false);
+              setSelectedNewMembers([]);
+              fetchGroupInfo(currentGroupInfo?.group_id);
+            } else {
+              message.error("Ошибка добавления участников");
+            }
+          } catch (error) {
+            console.error("Ошибка:", error);
+            message.error("Ошибка добавления участников");
+          }
+        }}
+        onCancel={() => {
+          setAddMemberVisible(false);
+          setSelectedNewMembers([]);
+        }}
+        okText="Добавить"
+        cancelText="Отмена"
+      >
+        <Form layout="vertical">
+          <Form.Item label="Выберите сотрудников">
+            <Select
+              mode="multiple"
+              placeholder="Поиск по имени или фамилии"
+              value={selectedNewMembers}
+              onChange={setSelectedNewMembers}
+              loading={employeesLoading}
+              showSearch
+              filterOption={(input, option) => {
+                const label = option?.label?.toString().toLowerCase() || '';
+                return label.includes(input.toLowerCase());
+              }}
+              style={{ width: '100%' }}
+            >
+              {allEmployees
+                .filter(emp => !currentGroupInfo?.members?.some(m => m.user_id === emp.employee_id))
+                .map(emp => (
+                  <Option 
+                    key={emp.employee_id} 
+                    value={emp.employee_id}
+                    label={`${emp.last_name} ${emp.first_name}`}
+                  >
+                    <Space>
+                      <Avatar size="small" icon={<UserOutlined />} />
+                      <span>{emp.last_name} {emp.first_name}</span>
+                      <Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>
+                        {emp.role === 'Руководитель группы' ? 'Рук. группы' : 
+                         emp.role === 'Руководитель отдела' ? 'Рук. отдела' : 'Сотрудник'}
+                      </Tag>
+                    </Space>
+                  </Option>
+                ))}
+            </Select>
+          </Form.Item>
+          <Alert message="Новые участники получат уведомление" type="info" showIcon />
+        </Form>
+      </Modal>
+      
+      {/* Предпросмотр изображения */}
+      <Modal open={!!previewImage} footer={null} onCancel={() => setPreviewImage(null)} width="auto" style={{ maxWidth: "90vw" }}>
+        <img alt="preview" src={previewImage} style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }} />
       </Modal>
     </Layout>
   );

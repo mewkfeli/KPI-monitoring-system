@@ -10,11 +10,9 @@ import fs from "fs";
 import authRoutes from "./auth.routes.js";
 import metricsRoutes from "./metrics.routes.js";
 import groupRoutes from "./group.routes.js";
-import chatRoutes from "./chat.routes.js";
+import chatRoutes, { setIo } from "./chat.routes.js";
 import { db } from "./db.js";
 import { KPICollector } from "./services/kpiCollector.service.js";
-
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,18 +26,17 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
 app.use(express.raw({ limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// РАЗДАЧА СТАТИЧЕСКИХ ФАЙЛОВ - АБСОЛЮТНЫЙ ПУТЬ
+// РАЗДАЧА СТАТИЧЕСКИХ ФАЙЛОВ
 const uploadsPath = path.join(__dirname, 'uploads');
 console.log('📁 Папка для статики:', uploadsPath);
 console.log('📁 Существует?', fs.existsSync(uploadsPath));
 
-// Проверяем и создаём папку если нужно
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
@@ -48,10 +45,8 @@ if (!fs.existsSync(chatPath)) {
   fs.mkdirSync(chatPath, { recursive: true });
 }
 
-// РАЗДАЧА СТАТИКИ - ГЛАВНОЕ
 app.use('/uploads', express.static(uploadsPath));
 
-// ДОБАВЛЯЕМ ЯВНЫЙ МАРШРУТ ДЛЯ ФАЙЛОВ
 app.get('/uploads/chat/:filename', (req, res) => {
   const filepath = path.join(chatPath, req.params.filename);
   console.log('🔍 Запрос файла:', filepath);
@@ -63,7 +58,6 @@ app.get('/uploads/chat/:filename', (req, res) => {
   }
 });
 
-// Тестовый эндпоинт для проверки
 app.get('/api/list-files', (req, res) => {
   try {
     const files = fs.readdirSync(chatPath);
@@ -88,7 +82,7 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 const server = http.createServer(app);
 
 // Socket.IO
@@ -100,6 +94,9 @@ const io = new Server(server, {
   },
   transports: ['websocket', 'polling'],
 });
+
+// ПЕРЕДАЕМ io В CHAT ROUTES (ВАЖНО!)
+setIo(io);
 
 // Socket.IO auth
 io.use(async (socket, next) => {
@@ -140,6 +137,9 @@ io.on("connection", (socket) => {
   const user = socket.user;
   console.log(`🔌 ${user.full_name} подключен`);
 
+  // ПЕРСОНАЛЬНАЯ КОМНАТА ДЛЯ УВЕДОМЛЕНИЙ
+  socket.join(`user_${user.employee_id}`);
+  
   activeUsers.set(socket.id, user);
   socket.join(`group_${user.group_id}`);
   
@@ -149,47 +149,78 @@ io.on("connection", (socket) => {
 
   // Отправка сообщения
   socket.on("send_message", async (data) => {
-  const { message, attachment_url, attachment_type, is_image, _tempId } = data;
-  
-  try {
-    const [result] = await db.query(
-      `INSERT INTO chat_messages (group_id, sender_id, message, attachment_url, attachment_type) 
-       VALUES (?, ?, ?, ?, ?)`,
-      [user.group_id, user.employee_id, message || '', attachment_url || null, attachment_type || null]
-    );
+    const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id } = data;
     
-    // Получаем аватарку отправителя
-    const [senderInfo] = await db.query(
-      `SELECT avatar_url FROM employees WHERE employee_id = ?`,
-      [user.employee_id]
-    );
+    console.log('📨 Отправка сообщения:', { chat_type, chat_id, message: message?.substring(0, 50) });
     
-    const messageData = {
-      message_id: result.insertId,
-      group_id: user.group_id,
-      sender_id: user.employee_id,
-      sender_name: user.full_name,
-      sender_role: user.role,
-      sender_avatar_url: senderInfo[0]?.avatar_url || null,
-      message: message || '',
-      created_at: new Date().toISOString(),
-      attachment_url: attachment_url || null,
-      attachment_type: attachment_type || null,
-      is_image: is_image || false,
-      read_count: 0,
-      reactions: {},
-      status: 'sent',
-      _tempId: _tempId || null, // сохраняем временный ID
-    };
-    
-    // Отправляем только в комнату группы
-    io.to(`group_${user.group_id}`).emit("new_message", messageData);
-    
-  } catch (error) {
-    console.error("Ошибка сохранения сообщения:", error);
-    socket.emit("error", { message: "Ошибка при отправке сообщения" });
-  }
-});
+    try {
+      let result;
+      
+      if (chat_type === 'group') {
+        result = await db.query(
+          `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type) 
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [chat_type, chat_id, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null]
+        );
+      } else {
+        result = await db.query(
+          `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type) 
+           VALUES (?, ?, NULL, ?, ?, ?, ?)`,
+          [chat_type, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null]
+        );
+      }
+      
+      const [senderInfo] = await db.query(
+        `SELECT avatar_url FROM employees WHERE employee_id = ?`,
+        [user.employee_id]
+      );
+      
+      const messageData = {
+        message_id: result[0].insertId,
+        chat_type: chat_type,
+        chat_id: chat_id,
+        sender_id: user.employee_id,
+        sender_name: user.full_name,
+        sender_role: user.role,
+        sender_avatar_url: senderInfo[0]?.avatar_url || null,
+        message: message || '',
+        created_at: new Date().toISOString(),
+        attachment_url: attachment_url || null,
+        attachment_type: attachment_type || null,
+        is_image: is_image || false,
+        read_count: 0,
+        reactions: {},
+        status: 'sent',
+        _tempId: _tempId || null,
+      };
+      
+      let roomName;
+      if (chat_type === 'private') {
+        roomName = `private_${chat_id}`;
+      } else {
+        roomName = `group_${chat_id}`;
+      }
+      
+      io.to(roomName).emit("new_message", messageData);
+      
+    } catch (error) {
+      console.error("Ошибка сохранения сообщения:", error);
+      socket.emit("error", { message: "Ошибка при отправке сообщения" });
+    }
+  });
+
+  // Подключение к чату
+  socket.on("join_chat", ({ chat_type, chat_id }) => {
+    const roomName = chat_type === 'private' ? `private_${chat_id}` : `group_${chat_id}`;
+    socket.join(roomName);
+    console.log(`👥 ${user.full_name} присоединился к ${roomName}`);
+  });
+
+  // Выход из чата
+  socket.on("leave_chat", ({ chat_type, chat_id }) => {
+    const roomName = chat_type === 'private' ? `private_${chat_id}` : `group_${chat_id}`;
+    socket.leave(roomName);
+  });
 
   // Редактирование
   socket.on("edit_message", async (data) => {
@@ -198,7 +229,12 @@ io.on("connection", (socket) => {
       `UPDATE chat_messages SET message = ?, edited_at = NOW() WHERE message_id = ? AND sender_id = ?`,
       [message, message_id, user.employee_id]
     );
-    io.to(`group_${user.group_id}`).emit("message_edited", { message_id, message, edited_at: new Date() });
+    
+    const [msgInfo] = await db.query(`SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`, [message_id]);
+    if (msgInfo.length > 0) {
+      const roomName = msgInfo[0].chat_type === 'private' ? `private_${msgInfo[0].chat_id}` : `group_${msgInfo[0].chat_id}`;
+      io.to(roomName).emit("message_edited", { message_id, message, edited_at: new Date() });
+    }
   });
 
   // Удаление
@@ -208,7 +244,12 @@ io.on("connection", (socket) => {
       `UPDATE chat_messages SET is_deleted = TRUE, message = '⚠️ Сообщение удалено' WHERE message_id = ?`,
       [message_id]
     );
-    io.to(`group_${user.group_id}`).emit("message_deleted", { message_id });
+    
+    const [msgInfo] = await db.query(`SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`, [message_id]);
+    if (msgInfo.length > 0) {
+      const roomName = msgInfo[0].chat_type === 'private' ? `private_${msgInfo[0].chat_id}` : `group_${msgInfo[0].chat_id}`;
+      io.to(roomName).emit("message_deleted", { message_id });
+    }
   });
 
   // Реакции
@@ -236,7 +277,11 @@ io.on("connection", (socket) => {
     const reactionMap = {};
     reactions.forEach(r => { reactionMap[r.reaction] = parseInt(r.count); });
     
-    io.to(`group_${user.group_id}`).emit("reaction_update", { message_id, reactions: reactionMap });
+    const [msgInfo] = await db.query(`SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`, [message_id]);
+    if (msgInfo.length > 0) {
+      const roomName = msgInfo[0].chat_type === 'private' ? `private_${msgInfo[0].chat_id}` : `group_${msgInfo[0].chat_id}`;
+      io.to(roomName).emit("reaction_update", { message_id, reactions: reactionMap });
+    }
   });
 
   // Прочтение
@@ -250,15 +295,20 @@ io.on("connection", (socket) => {
       [message_id]
     );
     
-    io.to(`group_${user.group_id}`).emit("read_update", {
-      message_id,
-      read_count: countResult[0].read_count,
-    });
+    const [msgInfo] = await db.query(`SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`, [message_id]);
+    if (msgInfo.length > 0) {
+      const roomName = msgInfo[0].chat_type === 'private' ? `private_${msgInfo[0].chat_id}` : `group_${msgInfo[0].chat_id}`;
+      io.to(roomName).emit("read_update", {
+        message_id,
+        read_count: countResult[0].read_count,
+      });
+    }
   });
 
   // Печатает
   socket.on("typing", (data) => {
-    socket.to(`group_${user.group_id}`).emit("user_typing", {
+    const roomName = `group_${user.group_id}`;
+    socket.to(roomName).emit("user_typing", {
       user_id: user.employee_id,
       user_name: user.full_name,
       is_typing: data.is_typing,

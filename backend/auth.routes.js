@@ -460,5 +460,63 @@ router.get("/notifications/unread-count", async (req, res) => {
     res.status(500).json({ message: "Ошибка сервера" });
   }
 });
+// ============= ПОЛУЧЕНИЕ ВСЕХ СОТРУДНИКОВ ДЛЯ ПРИГЛАШЕНИЙ =============
+router.get("/employees/all", async (req, res) => {
+  const { user_id, search } = req.query;
+  
+  console.log('📋 Запрос списка сотрудников, user_id:', user_id);
+  
+  try {
+    let query = `
+      SELECT 
+        employee_id, 
+        first_name, 
+        last_name, 
+        middle_name, 
+        role, 
+        avatar_url,
+        group_id
+      FROM employees 
+      WHERE status = 'Активен'
+    `;
+    const params = [];
+    
+    // Исключаем текущего пользователя
+    if (user_id) {
+      query += ` AND employee_id != ?`;
+      params.push(user_id);
+    }
+    
+    // Поиск по имени или фамилии
+    if (search) {
+      query += ` AND (first_name LIKE ? OR last_name LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    
+    query += ` ORDER BY last_name, first_name LIMIT 100`;
+    
+    const [rows] = await db.query(query, params);
+    
+    // Форматируем для удобства
+    const employees = rows.map(emp => ({
+      employee_id: emp.employee_id,
+      first_name: emp.first_name,
+      last_name: emp.last_name,
+      middle_name: emp.middle_name,
+      role: emp.role,
+      avatar_url: emp.avatar_url,
+      group_id: emp.group_id,
+      full_name: `${emp.last_name} ${emp.first_name} ${emp.middle_name || ''}`.trim(),
+      display_name: `${emp.last_name} ${emp.first_name} (${emp.role === 'Руководитель группы' ? 'Рук. группы' : emp.role === 'Руководитель отдела' ? 'Рук. отдела' : 'Сотр.'})`
+    }));
+    
+    console.log(`📋 Найдено сотрудников: ${employees.length}`);
+    res.json(employees);
+    
+  } catch (error) {
+    console.error("Ошибка получения сотрудников:", error);
+    res.status(500).json({ error: "Ошибка сервера", details: error.message });
+  }
+});
 
 export default router;
