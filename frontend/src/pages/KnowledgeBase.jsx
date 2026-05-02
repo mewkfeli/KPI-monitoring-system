@@ -41,6 +41,8 @@ import {
   FileTextOutlined,
   BulbOutlined,
   WarningOutlined,
+    MessageOutlined,
+
   RocketOutlined,
   ExperimentOutlined,
   DatabaseOutlined,
@@ -53,6 +55,7 @@ import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
 import UserAvatar from "../components/UserAvatar";
+import Sidebar from "../components/Sidebar";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -108,7 +111,12 @@ const KnowledgeBase = () => {
         key: "profile",
         icon: <UserOutlined />,
         label: <Link to="/profile">Личный профиль</Link>,
-      }
+      },
+          {
+      key: "chat", 
+      icon: <MessageOutlined />,
+      label: <Link to="/chat">Чат группы</Link>,
+    },
     ];
 
     if (isLeader) {
@@ -203,23 +211,7 @@ const KnowledgeBase = () => {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={250}>
-        <div style={{ padding: "16px", textAlign: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-            <UserAvatar user={user} size={64} />
-          </div>
-          <div style={{ marginTop: 12, fontWeight: 500, fontSize: 16 }}>
-            {user?.first_name || user?.username || "Сотрудник"}
-          </div>
-          <div style={{ color: "#666", fontSize: 13, marginTop: 4 }}>
-            <Tag color={user?.role === "Руководитель группы" ? "blue" : user?.role === "Руководитель отдела" ? "purple" : "green"}>
-              {user?.role}
-            </Tag>
-          </div>
-          <div style={{ color: "#999", fontSize: 11, marginTop: 4 }}>ID: {user?.employee_id}</div>
-        </div>
-        <Menu theme="light" mode="inline" items={menuItems} selectedKeys={["knowledge"]} />
-      </Sider>
+      <Sidebar />
 
       <Layout>
         <Header

@@ -31,6 +31,8 @@ import {
   CalendarOutlined,
   ClockCircleOutlined,
   StarOutlined,
+    MessageOutlined,
+
   CheckCircleOutlined,
   BarChartOutlined,
   HistoryOutlined,
@@ -57,6 +59,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import Sidebar from "../components/Sidebar";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -94,6 +97,11 @@ const EmployeeDashboard = () => {
       key: "profile",
       icon: <UserOutlined />,
       label: <Link to="/profile">Личный профиль</Link>,
+    },
+        {
+      key: "chat", 
+      icon: <MessageOutlined />,
+      label: <Link to="/chat">Чат группы</Link>,
     },
     {
       key: "dashboard",
@@ -498,36 +506,7 @@ const EmployeeDashboard = () => {
   if (loading) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
-        <Sider theme="light" width={250}>
-          <div style={{ padding: "16px", textAlign: "center" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                marginBottom: "12px",
-              }}
-            >
-              <UserAvatar user={user} size={64} />
-            </div>
-            <div style={{ marginTop: "12px", fontWeight: "500" }}>
-              {user?.first_name || user?.username || "Сотрудник"}
-            </div>
-            <div style={{ color: "#666", fontSize: "12px" }}>
-              <Tag
-                color={getRoleColor(user?.role)}
-                style={{ fontSize: "11px" }}
-              >
-                {user?.role}
-              </Tag>
-            </div>
-          </div>
-          <Menu
-            theme="light"
-            mode="inline"
-            items={menuItems}
-            selectedKeys={["dashboard"]}
-          />
-        </Sider>
+        <Sidebar />
         <Layout>
           <Header style={{ background: "#fff", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
@@ -556,36 +535,7 @@ const EmployeeDashboard = () => {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={250}>
-        <div style={{ padding: "16px", textAlign: "center" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              marginBottom: "12px",
-            }}
-          >
-            <UserAvatar user={user} size={64} />
-          </div>
-          <div style={{ marginTop: "12px", fontWeight: "500" }}>
-            {user?.first_name || user?.username || "Сотрудник"}
-          </div>
-          <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-            <Tag color={getRoleColor(user?.role)} style={{ fontSize: "12px" }}>
-              {user?.role}
-            </Tag>
-          </div>
-          <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
-            ID: {user?.employee_id}
-          </div>
-        </div>
-        <Menu
-          theme="light"
-          mode="inline"
-          items={menuItems}
-          selectedKeys={["dashboard"]}
-        />
-      </Sider>
+      <Sidebar />
 
       <Layout>
         <Header
@@ -629,7 +579,7 @@ const EmployeeDashboard = () => {
                       {user?.username || `Сотрудник ${user?.employee_id}`}
                     </Title>
                     <Text type="secondary">
-                      {user?.role} • ID: {user?.employee_id}
+                      {user?.role}
                     </Text>
                     <div>
                       <Text type="secondary" style={{ fontSize: "12px" }}>

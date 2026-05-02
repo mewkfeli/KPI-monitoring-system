@@ -39,6 +39,7 @@ import { Link } from "react-router-dom";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
 import NotificationBell from "../components/NotificationBell";
+import Sidebar from "../components/Sidebar";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -198,33 +199,7 @@ const Profile = () => {
   if (loading) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
-        <Sider theme="light" width={250}>
-          <div style={{ padding: "16px", textAlign: "center" }}>
-            <Avatar
-              size={80}
-              style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
-            >
-              {user?.first_name?.[0]?.toUpperCase() || <UserOutlined />}
-            </Avatar>
-            <div
-              style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
-            >
-              {user?.username}
-            </div>
-            <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-              <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
-            </div>
-            <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
-              ID: {user?.employee_id}
-            </div>
-          </div>
-          <Menu
-            theme="light"
-            mode="inline"
-            items={menuItems}
-            selectedKeys={["profile"]}
-          />
-        </Sider>
+        <Sidebar />
         <Layout>
           <Header style={{ background: "#fff", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
@@ -253,36 +228,7 @@ const Profile = () => {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={250}>
-        <div style={{ padding: "16px", textAlign: "center" }}>
-          <Avatar
-            size={80}
-            style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
-          >
-            {profileData?.first_name?.[0] ||
-              user?.username?.[0]?.toUpperCase() || <UserOutlined />}
-          </Avatar>
-          <div
-            style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
-          >
-            {profileData?.username}
-          </div>
-          <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-            <Tag color={getRoleColor(profileData?.role || user?.role)}>
-              {profileData?.role || user?.role}
-            </Tag>
-          </div>
-          <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
-            ID: {user?.employee_id}
-          </div>
-        </div>
-        <Menu
-          theme="light"
-          mode="inline"
-          items={menuItems}
-          selectedKeys={["profile"]}
-        />
-      </Sider>
+      <Sidebar />
 
       <Layout>
         <Header
@@ -384,12 +330,7 @@ const Profile = () => {
                       <Text>Группа #{profileData?.group_id}</Text>
                     </Space>
                   </Descriptions.Item>
-
-                  <Descriptions.Item label="ID сотрудника">
-                    <Text type="secondary" code>
-                      {user?.employee_id}
-                    </Text>
-                  </Descriptions.Item>
+                 
                 </Descriptions>
               </Card>
             </Col>

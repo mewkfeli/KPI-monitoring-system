@@ -30,6 +30,7 @@ import {
   ClockCircleOutlined,
   BarChartOutlined,
   LogoutOutlined,
+  MessageOutlined,
   DashboardOutlined,
   FormOutlined,
   GoldOutlined,
@@ -41,6 +42,7 @@ import { Link } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
+import Sidebar from "../components/Sidebar";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -146,6 +148,11 @@ const Leaderboard = () => {
       key: "profile",
       icon: <UserOutlined />,
       label: <Link to="/profile">Личный профиль</Link>,
+    },
+        {
+      key: "chat", 
+      icon: <MessageOutlined />,
+      label: <Link to="/chat">Чат группы</Link>,
     },
     {
       key: "group-dashboard",
@@ -335,28 +342,7 @@ const Leaderboard = () => {
   if (loading) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
-        <Sider theme="light" width={250}>
-          <div style={{ padding: "16px", textAlign: "center" }}>
-            <Avatar
-              size={80}
-              style={{ backgroundColor: "#1890ff", fontSize: "32px" }}
-            >
-              {user?.first_name?.[0]?.toUpperCase() || <UserOutlined />}
-            </Avatar>
-            <div style={{ marginTop: 12, fontWeight: 500 }}>
-              {user?.username}
-            </div>
-            <div style={{ color: "#666", fontSize: 13 }}>
-              <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
-            </div>
-          </div>
-          <Menu
-            theme="light"
-            mode="inline"
-            items={menuItems}
-            selectedKeys={["leaderboard"]}
-          />
-        </Sider>
+        <Sidebar />
         <Layout>
           <Header style={{ background: "#fff", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
@@ -385,36 +371,7 @@ const Leaderboard = () => {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={250}>
-        <div style={{ padding: "16px", textAlign: "center" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              marginBottom: "12px",
-            }}
-          >
-            <UserAvatar user={user} size={80} />
-          </div>
-          <div
-            style={{ marginTop: "12px", fontWeight: "500", fontSize: "16px" }}
-          >
-            {user?.username}
-          </div>
-          <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-            <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
-          </div>
-          <div style={{ color: "#999", fontSize: "11px", marginTop: "4px" }}>
-            ID: {user?.employee_id}
-          </div>
-        </div>
-        <Menu
-          theme="light"
-          mode="inline"
-          items={menuItems}
-          selectedKeys={["leaderboard"]}
-        />
-      </Sider>
+      <Sidebar />
 
       <Layout>
         <Header
