@@ -31,6 +31,8 @@ import {
   DeleteOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
+import { useNavigate } from "react-router-dom";
+import { MessageOutlined } from "@ant-design/icons";
 import NotificationBell from "../components/NotificationBell";
 import Sidebar from "../components/Sidebar";
 import dayjs from "dayjs";
@@ -41,6 +43,7 @@ const { Title, Text } = Typography;
 
 const Profile = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [avatarLoading, setAvatarLoading] = useState(false);
@@ -129,7 +132,37 @@ const Profile = () => {
     
     return false;
   };
-
+  // ✅ Функция для начала чата
+  const startChat = async (targetEmployee) => {
+    if (!user || targetEmployee.employee_id === user.employee_id) return;
+    
+    try {
+      const response = await fetch("http://localhost:5000/api/chat/private", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          user1_id: user.employee_id, 
+          user2_id: targetEmployee.employee_id 
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Сохраняем информацию о чате в sessionStorage
+        sessionStorage.setItem('openChat', JSON.stringify({
+          id: data.chat_id,
+          type: 'private',
+          name: `${targetEmployee.first_name} ${targetEmployee.last_name}`,
+          avatar: targetEmployee.avatar_url,
+        }));
+        // Переходим на страницу чата
+        navigate('/chat');
+      }
+    } catch (error) {
+      console.error("Ошибка создания чата:", error);
+      message.error("Не удалось начать чат");
+    }
+  };
   const handleAvatarDelete = () => {
   Modal.confirm({
     title: 'Удалить аватарку?',
@@ -372,6 +405,26 @@ const Profile = () => {
                     <Space><TeamOutlined /><Text>Группа #{profileData?.group_id}</Text></Space>
                   </Descriptions.Item>
                 </Descriptions>
+                {/* Кнопка "Написать сообщение" - только для чужих профилей */}
+{profileData && user && profileData.employee_id !== user.employee_id && (
+  <Row gutter={[24, 24]} style={{ marginTop: 16 }}>
+    <Col span={24} style={{ textAlign: 'center' }}>
+      <Button 
+        type="primary" 
+        size="large"
+        icon={<MessageOutlined />}
+        onClick={() => startChat({
+          employee_id: profileData.employee_id,
+          first_name: profileData.first_name,
+          last_name: profileData.last_name,
+          avatar_url: profileData.avatar_url
+        })}
+      >
+        Написать сообщение
+      </Button>
+    </Col>
+  </Row>
+)}
               </Card>
             </Col>
           </Row>

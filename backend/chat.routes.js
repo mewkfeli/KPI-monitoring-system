@@ -453,13 +453,13 @@ router.post("/create-group", async (req, res) => {
     }
 
     // СОЗДАЕМ ПРИГЛАСИТЕЛЬНЫЙ КОД (ОДИН РАЗ!)
-    const inviteCode = crypto.randomBytes(16).toString('hex');
-    
-    await db.query(
-      `INSERT INTO chat_invites (invite_code, target_type, target_id, created_by, expires_at, created_at) 
-       VALUES (?, 'custom', ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY), NOW())`,
-      [inviteCode, group_id, created_by]
-    );
+const inviteCode = crypto.randomBytes(16).toString('hex');
+
+await db.query(
+  `INSERT INTO chat_invites (invite_code, target_type, target_id, created_by, expires_at, max_uses, created_at) 
+   VALUES (?, 'custom', ?, ?, NULL, 0, NOW())`,  // ✅ NULL = бессрочно, 0 = безлимитно
+  [inviteCode, group_id, created_by]
+);
     
     console.log('✅ Пригласительный код создан:', inviteCode);
 
@@ -666,61 +666,109 @@ router.post("/group/:groupId/add-members", async (req, res) => {
 router.post("/join-by-code", async (req, res) => {
   const { invite_code, user_id } = req.body;
 
+  console.log('🔑 Попытка присоединения по коду:', { invite_code, user_id });
+
   try {
+    // Ищем приглашение (без проверки срока действия)
     const [invite] = await db.query(
       `SELECT * FROM chat_invites 
-       WHERE invite_code = ? AND (expires_at IS NULL OR expires_at > NOW())
-       AND (max_uses IS NULL OR uses_count < max_uses)`,
+       WHERE invite_code = ? 
+       AND (expires_at IS NULL OR 1=1)  -- ✅ ВСЕГДА АКТИВЕН
+       AND (max_uses IS NULL OR uses_count < max_uses OR max_uses = 0)`,
       [invite_code]
     );
 
+    console.log('Найдено приглашений:', invite.length);
+
     if (invite.length === 0) {
-      return res.status(404).json({ error: "Приглашение недействительно" });
+      return res.status(404).json({ error: "Приглашение не найдено" });
     }
 
     const inviteData = invite[0];
 
     if (inviteData.target_type === 'custom') {
+      // Проверяем, не состоит ли уже пользователь в группе
       const [existing] = await db.query(
         `SELECT * FROM custom_group_members WHERE group_id = ? AND user_id = ?`,
         [inviteData.target_id, user_id]
       );
 
-      if (existing.length === 0) {
+      if (existing.length > 0) {
+        // Пользователь уже в группе - просто возвращаем успех
         await db.query(
-          `INSERT INTO custom_group_members (group_id, user_id, role) VALUES (?, ?, 'member')`,
-          [inviteData.target_id, user_id]
+          `UPDATE chat_invites SET uses_count = uses_count + 1 WHERE invite_id = ?`,
+          [inviteData.invite_id]
         );
+        
+        return res.json({ 
+          success: true, 
+          target_id: inviteData.target_id, 
+          target_type: 'custom',
+          message: 'Вы уже состоите в этой группе'
+        });
+      }
 
-        const [groupInfo] = await db.query(
-          `SELECT group_name FROM custom_groups WHERE group_id = ?`,
-          [inviteData.target_id]
-        );
+      // Добавляем пользователя в группу
+      await db.query(
+        `INSERT INTO custom_group_members (group_id, user_id, role) VALUES (?, ?, 'member')`,
+        [inviteData.target_id, user_id]
+      );
 
+      // Получаем информацию о группе для уведомления
+      const [groupInfo] = await db.query(
+        `SELECT group_name FROM custom_groups WHERE group_id = ?`,
+        [inviteData.target_id]
+      );
+
+      // Отправляем уведомление
+      try {
         await NotificationService.createNotification(
           user_id,
           "👥 Присоединение к группе",
-          `Вы присоединились к группе "${groupInfo[0]?.group_name}"`,
+          `Вы присоединились к группе "${groupInfo[0]?.group_name || 'Без названия'}"`,
           "info",
           "custom_group",
           inviteData.target_id
         );
-        
-        // НЕ ОТПРАВЛЯЕМ СОБЫТИЕ new_chat_created здесь
-        // Пользователь сам обновит список через loadChats()
+      } catch (notifError) {
+        console.error('Ошибка создания уведомления:', notifError);
       }
 
+      // Увеличиваем счетчик использований
       await db.query(
         `UPDATE chat_invites SET uses_count = uses_count + 1 WHERE invite_id = ?`,
         [inviteData.invite_id]
       );
 
-      res.json({ success: true, target_id: inviteData.target_id, target_type: 'custom' });
+      console.log('✅ Пользователь присоединился к группе');
+
+      // Отправляем событие через сокет
+      if (io) {
+        const [newMember] = await db.query(
+          `SELECT employee_id, first_name, last_name, avatar_url FROM employees WHERE employee_id = ?`,
+          [user_id]
+        );
+        
+        if (newMember.length > 0) {
+          io.to(`custom_${inviteData.target_id}`).emit("member_joined", {
+            group_id: inviteData.target_id,
+            member: newMember[0]
+          });
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        target_id: inviteData.target_id, 
+        target_type: 'custom',
+        message: 'Вы успешно присоединились к группе'
+      });
+    } else {
+      res.status(400).json({ error: "Неподдерживаемый тип приглашения" });
     }
-    // ... остальной код
   } catch (error) {
     console.error("Ошибка присоединения по коду:", error);
-    res.status(500).json({ error: "Ошибка сервера" });
+    res.status(500).json({ error: "Ошибка сервера", details: error.message });
   }
 });
 
@@ -814,10 +862,9 @@ router.get("/group/:groupId/invite-code", async (req, res) => {
   const { groupId } = req.params;
   const { user_id } = req.query;
   
-  console.log('🔑 Запрос кода приглашения для группы:', groupId, 'пользователь:', user_id);
+  console.log('🔑 Запрос кода приглашения для группы:', groupId);
   
   try {
-    // Временно убираем проверку на участника
     // Проверяем, существует ли группа
     const [group] = await db.query(
       `SELECT group_id, group_name FROM custom_groups WHERE group_id = ?`,
@@ -828,27 +875,27 @@ router.get("/group/:groupId/invite-code", async (req, res) => {
       return res.status(404).json({ error: "Группа не найдена" });
     }
     
-    // Ищем активное приглашение
+    // Ищем активное приглашение (без проверки срока)
     let [invite] = await db.query(
       `SELECT invite_code, expires_at FROM chat_invites 
        WHERE target_type = 'custom' AND target_id = ? 
-       AND (expires_at IS NULL OR expires_at > NOW())
+       AND (expires_at IS NULL OR 1=1)  -- ✅ Всегда активно
        ORDER BY created_at DESC LIMIT 1`,
       [groupId]
     );
     
-    // Если нет активного приглашения - создаем новое
+    // Если нет приглашения - создаем новое (бессрочное)
     if (invite.length === 0) {
       const newInviteCode = crypto.randomBytes(16).toString('hex');
       
       await db.query(
-        `INSERT INTO chat_invites (invite_code, target_type, target_id, created_by, expires_at) 
-         VALUES (?, 'custom', ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
+        `INSERT INTO chat_invites (invite_code, target_type, target_id, created_by, expires_at, max_uses) 
+         VALUES (?, 'custom', ?, ?, NULL, 0)`,  // ✅ Бессрочное и безлимитное
         [newInviteCode, groupId, user_id || 1]
       );
       
       invite = [{ invite_code: newInviteCode }];
-      console.log('✅ Создан новый код приглашения:', newInviteCode);
+      console.log('✅ Создан новый бессрочный код:', newInviteCode);
     }
     
     res.json({ invite_code: invite[0].invite_code });
@@ -1016,6 +1063,228 @@ router.delete("/group/:groupId", async (req, res) => {
   } catch (error) {
     console.error("Ошибка удаления группы:", error);
     res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// ============= НАСТРОЙКА MULTER ДЛЯ АВАТАРОК ГРУПП =============
+const groupAvatarsDir = './uploads/group-avatars/';
+if (!fs.existsSync(groupAvatarsDir)) {
+  fs.mkdirSync(groupAvatarsDir, { recursive: true });
+}
+
+const groupAvatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, groupAvatarsDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'group-avatar-' + uniqueSuffix + ext);
+  }
+});
+
+const uploadGroupAvatar = multer({
+  storage: groupAvatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Только изображения'));
+    }
+  }
+});
+
+// ============= ЗАГРУЗКА АВАТАРКИ ГРУППЫ =============
+router.post('/group/:groupId/avatar', uploadGroupAvatar.single('avatar'), async (req, res) => {
+  const { groupId } = req.params;
+  const { admin_id } = req.body;
+  
+  if (!req.file) {
+    return res.status(400).json({ error: 'Файл не загружен' });
+  }
+  
+  try {
+    // Проверяем, что пользователь админ группы
+    const [adminCheck] = await db.query(
+      `SELECT role FROM custom_group_members WHERE group_id = ? AND user_id = ? AND role = 'admin'`,
+      [groupId, admin_id]
+    );
+    
+    if (adminCheck.length === 0) {
+      return res.status(403).json({ error: 'Только администратор может менять аватарку' });
+    }
+    
+    const avatarUrl = `/uploads/group-avatars/${req.file.filename}`;
+    
+    await db.query(
+      `UPDATE custom_groups SET group_avatar = ? WHERE group_id = ?`,
+      [avatarUrl, groupId]
+    );
+    
+    res.json({ success: true, avatar_url: avatarUrl });
+  } catch (error) {
+    console.error('Ошибка загрузки аватарки группы:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============= УДАЛЕНИЕ АВАТАРКИ ГРУППЫ =============
+router.delete('/group/:groupId/avatar', async (req, res) => {
+  const { groupId } = req.params;
+  const { admin_id } = req.body;
+  
+  try {
+    const [adminCheck] = await db.query(
+      `SELECT role FROM custom_group_members WHERE group_id = ? AND user_id = ? AND role = 'admin'`,
+      [groupId, admin_id]
+    );
+    
+    if (adminCheck.length === 0) {
+      return res.status(403).json({ error: 'Только администратор может менять аватарку' });
+    }
+    
+    const [rows] = await db.query(
+      `SELECT group_avatar FROM custom_groups WHERE group_id = ?`,
+      [groupId]
+    );
+    
+    if (rows[0]?.group_avatar) {
+      const oldPath = path.join(process.cwd(), rows[0].group_avatar);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+    
+    await db.query(
+      `UPDATE custom_groups SET group_avatar = NULL WHERE group_id = ?`,
+      [groupId]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Ошибка удаления аватарки группы:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+// ============= ЗАКРЕПИТЬ СООБЩЕНИЕ =============
+router.post('/messages/:messageId/pin', async (req, res) => {
+  const { messageId } = req.params;
+  const { user_id } = req.body;
+  
+  try {
+    // Получаем информацию о сообщении и чате
+    const [message] = await db.query(
+      `SELECT cm.*, 
+              CASE 
+                WHEN cm.chat_type = 'custom' THEN (
+                  SELECT role FROM custom_group_members 
+                  WHERE group_id = cm.chat_id AND user_id = ? AND role = 'admin'
+                )
+                WHEN cm.chat_type = 'group' THEN (
+                  SELECT role FROM employees 
+                  WHERE employee_id = ? AND role IN ('Руководитель группы', 'Руководитель отдела')
+                )
+                ELSE NULL
+              END as user_role
+       FROM chat_messages cm
+       WHERE cm.message_id = ?`,
+      [user_id, user_id, messageId]
+    );
+    
+    if (message.length === 0) {
+      return res.status(404).json({ error: 'Сообщение не найдено' });
+    }
+    
+    // Проверяем права (только админ или руководитель)
+    if (message[0].chat_type === 'private' || !message[0].user_role) {
+      return res.status(403).json({ error: 'Нет прав для закрепления' });
+    }
+    
+    await db.query(
+      `UPDATE chat_messages 
+       SET is_pinned = TRUE, pinned_by = ?, pinned_at = NOW() 
+       WHERE message_id = ?`,
+      [user_id, messageId]
+    );
+    
+    // Отправляем событие через сокет
+    if (io) {
+      const roomName = message[0].chat_type === 'private' 
+        ? `private_${message[0].chat_id}` 
+        : message[0].chat_type === 'custom' 
+          ? `custom_${message[0].chat_id}` 
+          : `group_${message[0].chat_id}`;
+      
+      io.to(roomName).emit('message_pinned', { message_id: messageId });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Ошибка закрепления:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============= ОТКРЕПИТЬ СООБЩЕНИЕ =============
+router.post('/messages/:messageId/unpin', async (req, res) => {
+  const { messageId } = req.params;
+  const { user_id } = req.body;
+  
+  try {
+    const [message] = await db.query(
+      `SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`,
+      [messageId]
+    );
+    
+    if (message.length === 0) {
+      return res.status(404).json({ error: 'Сообщение не найдено' });
+    }
+    
+    await db.query(
+      `UPDATE chat_messages 
+       SET is_pinned = FALSE, pinned_by = NULL, pinned_at = NULL 
+       WHERE message_id = ?`,
+      [messageId]
+    );
+    
+    if (io) {
+      const roomName = message[0].chat_type === 'private' 
+        ? `private_${message[0].chat_id}` 
+        : message[0].chat_type === 'custom' 
+          ? `custom_${message[0].chat_id}` 
+          : `group_${message[0].chat_id}`;
+      
+      io.to(roomName).emit('message_unpinned', { message_id: messageId });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Ошибка открепления:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============= ПОЛУЧИТЬ ЗАКРЕПЛЕННЫЕ СООБЩЕНИЯ =============
+router.get('/messages/pinned', async (req, res) => {
+  const { chat_type, chat_id } = req.query;
+  
+  try {
+    const [messages] = await db.query(
+      `SELECT cm.*, 
+              e.last_name, e.first_name, e.avatar_url as sender_avatar_url
+       FROM chat_messages cm
+       JOIN employees e ON cm.sender_id = e.employee_id
+       WHERE cm.chat_type = ? 
+         AND cm.chat_id = ? 
+         AND cm.is_pinned = TRUE 
+         AND cm.is_deleted = FALSE
+       ORDER BY cm.pinned_at DESC`,
+      [chat_type, chat_id]
+    );
+    
+    res.json(messages);
+  } catch (error) {
+    console.error('Ошибка получения закрепленных:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 export default router;
