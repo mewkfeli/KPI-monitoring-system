@@ -221,69 +221,100 @@ io.on("connection", (socket) => {
 });
 
 // Отправка сообщения
-// Отправка сообщения
 socket.on("send_message", async (data) => {
-    const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id, reply_to_id } = data;
+  const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id, reply_to_id } = data;
+  
+  console.log('📨 send_message:', { chat_type, chat_id, sender: user.full_name, tempId: _tempId, reply_to_id });
+  
+  try {
+    let queryResult;
+    let groupId = null;
     
-    console.log('📨 send_message:', { chat_type, chat_id, sender: user.full_name, tempId: _tempId, reply_to_id });
-    
-    try {
-        let result;
-        
-        if (chat_type === 'group') {
-            [result] = await db.query(
-                `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [chat_type, chat_id, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
-            );
-        } else {
-            [result] = await db.query(
-                `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
-                [chat_type, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
-            );
-        }
-        
-        const [senderInfo] = await db.query(
-            `SELECT avatar_url FROM employees WHERE employee_id = ?`, 
-            [user.employee_id]
-        );
-        
-        const messageData = {
-            message_id: result.insertId,
-            chat_type, 
-            chat_id,
-            sender_id: user.employee_id,
-            sender_name: user.full_name,
-            sender_role: user.role,
-            sender_avatar_url: senderInfo[0]?.avatar_url || null,
-            message: message || '',
-            created_at: new Date().toISOString(),
-            attachment_url: attachment_url || null,
-            attachment_type: attachment_type || null,
-            reply_to_id: reply_to_id || null,  // ← ДОБАВИТЬ ЭТУ СТРОЧКУ!
-            is_image: is_image || false,
-            read_count: 0, 
-            reactions: {},
-            status: 'sent',
-            _tempId: _tempId || null,
-        };
-        
-        let roomName;
-        if (chat_type === 'private') roomName = `private_${chat_id}`;
-        else if (chat_type === 'custom') roomName = `custom_${chat_id}`;
-        else roomName = `group_${chat_id}`;
-        
-        console.log(`📨 Отправка в комнату: ${roomName}, msg_id: ${messageData.message_id}, reply_to: ${reply_to_id}`);
-        
-        // ✅ Отправляем ВСЕМ в комнате (включая отправителя)
-        io.to(roomName).emit("new_message", messageData);
-        
-        // ✅ Отправляем подтверждение ТОЛЬКО отправителю
-        socket.emit("message_sent", messageData);
-        
-    } catch (error) {
-        console.error("Ошибка сохранения сообщения:", error);
-        socket.emit("message_error", { error: "Ошибка при отправке", _tempId });
+    // Определяем group_id для сообщения
+    if (chat_type === 'group') {
+      groupId = chat_id;
     }
+    
+    // Сохраняем сообщение в БД
+    if (chat_type === 'group') {
+      [queryResult] = await db.query(
+        `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [chat_type, chat_id, groupId, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
+      );
+    } else {
+      [queryResult] = await db.query(
+        `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
+         VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
+        [chat_type, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
+      );
+    }
+    
+    const [senderInfo] = await db.query(
+      `SELECT avatar_url FROM employees WHERE employee_id = ?`, 
+      [user.employee_id]
+    );
+    
+    const messageData = {
+      message_id: queryResult.insertId,
+      chat_type, 
+      chat_id,
+      sender_id: user.employee_id,
+      sender_name: user.full_name,
+      sender_role: user.role,
+      sender_avatar_url: senderInfo[0]?.avatar_url || null,
+      message: message || '',
+      created_at: new Date().toISOString(),
+      attachment_url: attachment_url || null,
+      attachment_type: attachment_type || null,
+      reply_to_id: reply_to_id || null,
+      is_image: is_image || false,
+      read_count: 0, 
+      reactions: {},
+      status: 'sent',
+      _tempId: _tempId || null,
+    };
+    
+    // ✅ ОПРЕДЕЛЯЕМ КОМНАТЫ ДЛЯ ОТПРАВКИ
+    if (chat_type === 'private') {
+      // Для личных чатов: находим второго участника и отправляем ему в его персональную комнату
+      const [participants] = await db.query(
+        `SELECT user_id FROM private_chat_participants WHERE chat_id = ? AND user_id != ?`,
+        [chat_id, user.employee_id]
+      );
+      
+      if (participants.length > 0) {
+        const otherUserId = participants[0].user_id;
+        const otherUserRoom = `user_${otherUserId}`;
+        
+        console.log(`📨 Отправляем в личную комнату пользователя ${otherUserId}: ${otherUserRoom}`);
+        
+        // Отправляем другому пользователю в его персональную комнату
+        io.to(otherUserRoom).emit("new_message", messageData);
+      }
+      
+      // Отправляем отправителю подтверждение
+      socket.emit("message_sent", messageData);
+      
+    } else if (chat_type === 'custom') {
+      const roomName = `custom_${chat_id}`;
+      // Отправляем всем в комнате группы
+      io.to(roomName).emit("new_message", messageData);
+      socket.emit("message_sent", messageData);
+      
+    } else {
+      const roomName = `group_${chat_id}`;
+      // Отправляем всем в комнате группы
+      io.to(roomName).emit("new_message", messageData);
+      socket.emit("message_sent", messageData);
+    }
+    
+    console.log(`📨 Отправлено, msg_id: ${messageData.message_id}`);
+    
+  } catch (error) {
+    console.error("Ошибка сохранения сообщения:", error);
+    socket.emit("message_error", { error: "Ошибка при отправке", _tempId });
+  }
 });
 
   // Подключение к чату
@@ -321,19 +352,53 @@ socket.on("leave_chat", ({ chat_type, chat_id }) => {
 });
 
   // Редактирование
-  socket.on("edit_message", async (data) => {
-    const { message_id, message } = data;
+  // Редактирование
+socket.on("edit_message", async (data) => {
+  const { message_id, message } = data;
+  
+  console.log(`✏️ Редактирование сообщения ${message_id} пользователем ${user.employee_id}`);
+  
+  try {
+    // Обновляем сообщение
     await db.query(
       `UPDATE chat_messages SET message = ?, edited_at = NOW() WHERE message_id = ? AND sender_id = ?`,
       [message, message_id, user.employee_id]
     );
     
-    const [msgInfo] = await db.query(`SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`, [message_id]);
+    // Получаем информацию о чате
+    const [msgInfo] = await db.query(
+      `SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`,
+      [message_id]
+    );
+    
     if (msgInfo.length > 0) {
-      const roomName = msgInfo[0].chat_type === 'private' ? `private_${msgInfo[0].chat_id}` : `group_${msgInfo[0].chat_id}`;
-      io.to(roomName).emit("message_edited", { message_id, message, edited_at: new Date() });
+      // Правильно определяем комнату для всех типов чатов
+      let roomName;
+      const chatType = msgInfo[0].chat_type;
+      const chatId = msgInfo[0].chat_id;
+      
+      if (chatType === 'private') {
+        roomName = `private_${chatId}`;
+      } else if (chatType === 'custom') {
+        roomName = `custom_${chatId}`;
+      } else {
+        roomName = `group_${chatId}`;
+      }
+      
+      console.log(`✏️ Отправляем обновление в комнату: ${roomName}`);
+      
+      // Отправляем событие ВСЕМ в комнате
+      io.to(roomName).emit("message_edited", { 
+        message_id, 
+        message, 
+        edited_at: new Date().toISOString() 
+      });
     }
-  });
+  } catch (error) {
+    console.error("Ошибка редактирования сообщения:", error);
+    socket.emit("error", { message: "Ошибка при редактировании" });
+  }
+});
 
   // Удаление сообщения
 socket.on("delete_message", async (data) => {
@@ -388,22 +453,35 @@ socket.on("delete_message", async (data) => {
 });
 
   // Реакции
-  socket.on("add_reaction", async (data) => {
-    const { message_id, reaction } = data;
-    
+socket.on("add_reaction", async (data) => {
+  const { message_id, reaction } = data;
+  
+  console.log(`😊 Реакция ${reaction} на сообщение ${message_id} от пользователя ${user.employee_id}`);
+  
+  try {
+    // Проверяем, есть ли уже такая реакция от пользователя
     const [existing] = await db.query(
       `SELECT * FROM chat_reactions WHERE message_id = ? AND user_id = ? AND reaction = ?`,
       [message_id, user.employee_id, reaction]
     );
     
     if (existing.length > 0) {
-      await db.query(`DELETE FROM chat_reactions WHERE message_id = ? AND user_id = ? AND reaction = ?`,
-        [message_id, user.employee_id, reaction]);
+      // Удаляем реакцию
+      await db.query(
+        `DELETE FROM chat_reactions WHERE message_id = ? AND user_id = ? AND reaction = ?`,
+        [message_id, user.employee_id, reaction]
+      );
+      console.log(`😊 Реакция ${reaction} удалена`);
     } else {
-      await db.query(`INSERT INTO chat_reactions (message_id, user_id, reaction) VALUES (?, ?, ?)`,
-        [message_id, user.employee_id, reaction]);
+      // Добавляем реакцию
+      await db.query(
+        `INSERT INTO chat_reactions (message_id, user_id, reaction) VALUES (?, ?, ?)`,
+        [message_id, user.employee_id, reaction]
+      );
+      console.log(`😊 Реакция ${reaction} добавлена`);
     }
     
+    // Получаем все реакции на сообщение
     const [reactions] = await db.query(
       `SELECT reaction, COUNT(*) as count FROM chat_reactions WHERE message_id = ? GROUP BY reaction`,
       [message_id]
@@ -412,12 +490,39 @@ socket.on("delete_message", async (data) => {
     const reactionMap = {};
     reactions.forEach(r => { reactionMap[r.reaction] = parseInt(r.count); });
     
-    const [msgInfo] = await db.query(`SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`, [message_id]);
+    // Получаем информацию о чате
+    const [msgInfo] = await db.query(
+      `SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`,
+      [message_id]
+    );
+    
     if (msgInfo.length > 0) {
-      const roomName = msgInfo[0].chat_type === 'private' ? `private_${msgInfo[0].chat_id}` : `group_${msgInfo[0].chat_id}`;
-      io.to(roomName).emit("reaction_update", { message_id, reactions: reactionMap });
+      // Правильно определяем комнату для всех типов чатов
+      let roomName;
+      const chatType = msgInfo[0].chat_type;
+      const chatId = msgInfo[0].chat_id;
+      
+      if (chatType === 'private') {
+        roomName = `private_${chatId}`;
+      } else if (chatType === 'custom') {
+        roomName = `custom_${chatId}`;
+      } else {
+        roomName = `group_${chatId}`;
+      }
+      
+      console.log(`😊 Отправляем обновление реакций в комнату: ${roomName}`);
+      
+      // Отправляем событие ВСЕМ в комнате
+      io.to(roomName).emit("reaction_update", { 
+        message_id, 
+        reactions: reactionMap 
+      });
     }
-  });
+  } catch (error) {
+    console.error("❌ Ошибка при работе с реакциями:", error);
+    socket.emit("error", { message: "Ошибка при добавлении реакции" });
+  }
+});
 
   // Прочтение
  socket.on("mark_read", async (data) => {
