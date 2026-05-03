@@ -1,21 +1,1000 @@
+/* frontend/src/index.css */
+
+/* Светлая тема (по умолчанию) */
+:root {
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #e8e8e8;
+  --bg-sidebar: #ffffff;
+  --bg-content: #fafafa;
+  --bg-message-mine: #2b527c;
+  --bg-message-other: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-title: #1a1a1a;
+  --border-color: #d9d9d9;
+  --header-bg: #ffffff;
+  --card-bg: #ffffff;
+  --hover-bg: #f0f0f0;
+  --input-bg: #ffffff;
+  --shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  --menu-active-bg: #e6f7ff;
+  --menu-active-color: #1890ff;
+}
+
+/* Тёмная тема */
+[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-sidebar: #1e1e1e;
+  --bg-content: #1e1e1e;
+  --bg-message-mine: #2b527c;
+  --bg-message-other: #2d2d2d;
+  --text-primary: #e8e8e8;
+  --text-secondary: #a0a0a0;
+  --text-title: #e8e8e8;
+  --border-color: #3d3d3d;
+  --header-bg: #1e1e1e;
+  --card-bg: #252525;
+  --hover-bg: #3a3a3a;
+  --input-bg: #2d2d2d;
+  --shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --menu-active-bg: #3a3a3a;
+  --menu-active-color: #1890ff;
+}
+
+/* Применяем переменные ко всем элементам */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-        sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background: #f0f2f5;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
-#root {
-    min-height: 100vh;
+/* Layout компоненты */
+.ant-layout {
+  background-color: var(--bg-secondary) !important;
+}
+
+.ant-layout-content {
+  background-color: var(--bg-content) !important;
+}
+
+.ant-layout-header {
+  background-color: var(--header-bg) !important;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ant-layout-sider {
+  background-color: var(--bg-sidebar) !important;
+  border-right: 1px solid var(--border-color);
+}
+
+/* Заголовки страниц */
+h1, h2, h3, h4, h5, h6,
+.ant-typography h1,
+.ant-typography h2,
+.ant-typography h3,
+.ant-typography h4,
+.ant-typography h5,
+.ant-typography h6 {
+  color: var(--text-title) !important;
+}
+
+.ant-typography {
+  color: var(--text-primary);
+}
+
+.ant-typography-secondary,
+.ant-typography.ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* Карточки */
+.ant-card {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.ant-card-head {
+  background-color: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.ant-card-head-title {
+  color: var(--text-title) !important;
+}
+
+.ant-card-bordered {
+  border-color: var(--border-color) !important;
+}
+
+.ant-card-body {
+  background-color: var(--card-bg) !important;
+}
+
+/* Меню */
+.ant-menu {
+  background-color: transparent !important;
+}
+
+.ant-menu-item {
+  color: var(--text-primary) !important;
+}
+
+.ant-menu-item:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+.ant-menu-item-selected {
+  background-color: var(--menu-active-bg) !important;
+  color: var(--menu-active-color) !important;
+}
+
+.ant-menu-item-selected a {
+  color: var(--menu-active-color) !important;
+}
+
+.ant-menu-item-active {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Инпуты */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker,
+.ant-picker-input input,
+.ant-input-number,
+.ant-input-number-input {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder {
+  color: var(--text-secondary) !important;
+}
+
+.ant-input-prefix {
+  color: var(--text-secondary) !important;
+}
+
+.ant-input-group-addon {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Кнопки */
+.ant-btn-default {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.ant-btn-default:hover {
+  background-color: var(--hover-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.ant-btn-text {
+  color: var(--text-primary) !important;
+}
+
+.ant-btn-text:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+.ant-btn-primary {
+  background-color: #1890ff !important;
+}
+
+/* Выпадающие списки */
+.ant-select-dropdown {
+  background-color: var(--card-bg) !important;
+}
+
+.ant-select-item {
+  color: var(--text-primary) !important;
+}
+
+.ant-select-item-option-active {
+  background-color: var(--hover-bg) !important;
+}
+
+.ant-select-arrow {
+  color: var(--text-secondary) !important;
+}
+
+/* Таблицы */
+.ant-table {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.ant-table-container {
+  background-color: var(--card-bg) !important;
+}
+
+.ant-table-thead > tr > th {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+  background-color: var(--card-bg) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Модальные окна */
+.ant-modal-content {
+  background-color: var(--card-bg) !important;
+}
+
+.ant-modal-header {
+  background-color: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.ant-modal-title {
+  color: var(--text-title) !important;
+}
+
+.ant-modal-close {
+  color: var(--text-secondary) !important;
+}
+
+.ant-modal-close:hover {
+  color: var(--text-primary) !important;
+}
+
+.ant-modal-body {
+  background-color: var(--card-bg) !important;
+}
+
+/* Drawer */
+.ant-drawer-content {
+  background-color: var(--bg-sidebar) !important;
+}
+
+.ant-drawer-header {
+  background-color: var(--bg-sidebar) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.ant-drawer-title {
+  color: var(--text-title) !important;
+}
+
+.ant-drawer-close {
+  color: var(--text-secondary) !important;
+}
+
+.ant-drawer-body {
+  background-color: var(--bg-sidebar) !important;
+}
+
+/* Tabs */
+.ant-tabs-tab {
+  color: var(--text-secondary) !important;
+}
+
+.ant-tabs-tab-active {
+  color: #1890ff !important;
+}
+
+.ant-tabs-ink-bar {
+  background-color: #1890ff !important;
+}
+
+.ant-tabs-nav::before {
+  border-bottom-color: var(--border-color) !important;
+}
+
+.ant-tabs-nav-list {
+  background-color: transparent !important;
+}
+
+/* Теги */
+.ant-tag {
+  background-color: var(--hover-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Статистика */
+.ant-statistic-title {
+  color: var(--text-secondary) !important;
+}
+
+.ant-statistic-content {
+  color: var(--text-primary) !important;
+}
+
+/* Divider */
+.ant-divider {
+  border-color: var(--border-color) !important;
+}
+
+.ant-divider-inner-text {
+  color: var(--text-primary) !important;
+}
+
+/* Пагинация */
+.ant-pagination-item {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.ant-pagination-item a {
+  color: var(--text-primary) !important;
+}
+
+.ant-pagination-item-active {
+  border-color: #1890ff !important;
+}
+
+.ant-pagination-item-active a {
+  color: #1890ff !important;
+}
+
+.ant-pagination-prev button,
+.ant-pagination-next button {
+  color: var(--text-primary) !important;
+}
+
+.ant-pagination-disabled button {
+  color: var(--text-secondary) !important;
+}
+
+/* Popover */
+.ant-popover-inner {
+  background-color: var(--card-bg) !important;
+}
+
+.ant-popover-title {
+  color: var(--text-title) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.ant-popover-inner-content {
+  color: var(--text-primary) !important;
+}
+
+/* Progress */
+.ant-progress-text {
+  color: var(--text-primary) !important;
+}
+
+/* Steps */
+.ant-steps-item-title {
+  color: var(--text-primary) !important;
+}
+
+.ant-steps-item-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Alert */
+.ant-alert {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.ant-alert-message {
+  color: var(--text-primary) !important;
+}
+
+.ant-alert-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Empty */
+.ant-empty-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Badge */
+.ant-badge-status-text {
+  color: var(--text-primary) !important;
+}
+
+/* Collapse */
+.ant-collapse {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.ant-collapse-header {
+  color: var(--text-primary) !important;
+}
+
+.ant-collapse-content {
+  background-color: var(--card-bg) !important;
+  border-top-color: var(--border-color) !important;
+}
+
+.ant-collapse-content-box {
+  background-color: var(--card-bg) !important;
+}
+
+/* List */
+.ant-list,
+.ant-list-item {
+  background-color: transparent;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.ant-list-item-meta-title {
+  color: var(--text-primary) !important;
+}
+
+.ant-list-item-meta-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Descriptions */
+.ant-descriptions-item-label {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.ant-descriptions-item-content {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Upload */
+.ant-upload {
+  color: var(--text-primary) !important;
+}
+
+.ant-upload-list-item-name {
+  color: var(--text-primary) !important;
+}
+
+/* Dropdown */
+.ant-dropdown-menu {
+  background-color: var(--card-bg) !important;
+}
+
+.ant-dropdown-menu-item {
+  color: var(--text-primary) !important;
+}
+
+.ant-dropdown-menu-item:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Spin */
+.ant-spin-text {
+  color: var(--text-primary) !important;
+}
+
+/* Switch */
+.ant-switch {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Alert в темной теме */
+[data-theme="dark"] .ant-alert {
+  background-color: #2d2d2d !important;
+  border-color: #3d3d3d !important;
+}
+
+[data-theme="dark"] .ant-alert-info {
+  background-color: #1e3a5f !important;
+  border-color: #2b527c !important;
+}
+
+[data-theme="dark"] .ant-alert-success {
+  background-color: #1a4a2a !important;
+  border-color: #2d6a4f !important;
+}
+
+[data-theme="dark"] .ant-alert-warning {
+  background-color: #4a3a1a !important;
+  border-color: #6a5a2d !important;
+}
+
+[data-theme="dark"] .ant-alert-error {
+  background-color: #4a1a1a !important;
+  border-color: #6a2d2d !important;
+}
+
+[data-theme="dark"] .ant-alert-message {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-alert-description {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-alert-close-icon {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-alert-close-icon:hover {
+  color: var(--text-primary) !important;
+}
+
+/* frontend/src/index.css - добавьте эти стили */
+
+/* ============ РАДИО КНОПКИ (периоды в рейтинге) ============ */
+[data-theme="dark"] .ant-radio-group-solid .ant-radio-button-wrapper {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-radio-group-solid .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked) {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-radio-group-solid .ant-radio-button-wrapper:hover {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-radio-button-wrapper-checked {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #fff !important;
+}
+
+/* ============ КАРТОЧКИ С ФОРМУЛАМИ В БАЗЕ ЗНАНИЙ ============ */
+[data-theme="dark"] .ant-card {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-card-body {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-card-head {
+  background-color: var(--card-bg) !important;
+}
+
+/* Блоки с формулами */
+[data-theme="dark"] div[style*="background: #f5f5f5"] {
+  background-color: var(--hover-bg) !important;
+}
+
+[data-theme="dark"] div[style*="background:#f5f5f5"] {
+  background-color: var(--hover-bg) !important;
+}
+
+/* ============ LIST ИКОНКИ В ПОЛЕЗНЫХ РЕСУРСАХ ============ */
+[data-theme="dark"] .ant-list-item-meta-avatar {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-list-item-meta-avatar .anticon {
+  color: var(--text-secondary) !important;
+}
+
+/* Ссылки в списке */
+[data-theme="dark"] .ant-list-item-meta-title a {
+  color: #58a6ff !important;
+}
+
+[data-theme="dark"] .ant-list-item-meta-title a:hover {
+  color: #79c0ff !important;
+}
+
+/* ============ ИКОНКИ В ПРОФИЛЕ И ДРУГИХ МЕСТАХ ============ */
+[data-theme="dark"] .anticon {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .anticon:hover {
+  color: var(--text-primary) !important;
+}
+
+/* Специально для иконок с классом text-secondary */
+[data-theme="dark"] .anticon[style*="color: #1890ff"],
+[data-theme="dark"] .anticon[style*="color:#1890ff"] {
+  color: #1890ff !important;
+}
+
+/* ============ ПОЛЕ ПОИСКА В ЧАТЕ ============ */
+[data-theme="dark"] .ant-input-affix-wrapper {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper input {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper .ant-input-prefix {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ КНОПКИ В ЧАТЕ (Создать группу, Присоединиться) ============ */
+[data-theme="dark"] .ant-btn-default {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-btn-default:hover {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-btn-primary {
+  background-color: #1890ff !important;
+}
+
+/* ============ ТАБЛИЦЫ В БАЗЕ ЗНАНИЙ ============ */
+[data-theme="dark"] .ant-table {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-table-thead > tr > th {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-table-tbody > tr > td {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-table-tbody > tr:hover > td {
+  background-color: var(--hover-bg) !important;
+}
+
+/* ============ ТЕКСТ В ПОЛЕЗНЫХ РЕСУРСАХ ============ */
+[data-theme="dark"] .ant-typography,
+[data-theme="dark"] .ant-typography p,
+[data-theme="dark"] .ant-typography-secondary {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ UL/LI СПИСКИ ============ */
+[data-theme="dark"] ul,
+[data-theme="dark"] li,
+[data-theme="dark"] .ant-list-item {
+  color: var(--text-primary) !important;
+}
+
+/* ============ ЗАГОЛОВКИ В КАРТОЧКАХ ============ */
+[data-theme="dark"] .ant-card-head-title {
+  color: var(--text-title) !important;
+}
+
+/* ============ БЛОКИ С ФОНОМ (#f6ffed) ============ */
+[data-theme="dark"] div[style*="background: #f6ffed"],
+[data-theme="dark"] div[style*="background:#f6ffed"] {
+  background-color: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* ============ DIV С БЕЛЫМ ФОНОМ ============ */
+[data-theme="dark"] div[style*="background: #fff"],
+[data-theme="dark"] div[style*="background:#fff"],
+[data-theme="dark"] div[style*="background: white"] {
+  background-color: var(--card-bg) !important;
+}
+
+/* ============ КАРТОЧКА С ФОРМУЛОЙ В БАЗЕ ЗНАНИЙ ============ */
+[data-theme="dark"] .ant-card-bordered {
+  border-color: var(--border-color) !important;
+}
+
+/* Блок с формулой (серый фон) */
+[data-theme="dark"] div[style*="background: #f5f5f5"],
+[data-theme="dark"] div[style*="background:#f5f5f5"] {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============ ТЕКСТ В ТЕГАХ (CODE) ============ */
+[data-theme="dark"] .ant-typography code,
+[data-theme="dark"] code {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============ КНОПКИ В ТАБЛИЦАХ ============ */
+[data-theme="dark"] .ant-btn-link {
+  color: #58a6ff !important;
+}
+
+[data-theme="dark"] .ant-btn-link:hover {
+  color: #79c0ff !important;
+}
+
+/* Принудительные стили для Input в темной теме */
+[data-theme="dark"] .ant-input,
+[data-theme="dark"] .ant-input-affix-wrapper,
+[data-theme="dark"] .ant-input-affix-wrapper-focused,
+[data-theme="dark"] .ant-input-affix-wrapper:focus,
+[data-theme="dark"] .ant-input-affix-wrapper:hover {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper input {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper .ant-input-prefix {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper .ant-input-clear-icon {
+  color: var(--text-secondary) !important;
+  background-color: transparent !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper .ant-input-clear-icon:hover {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input::placeholder,
+[data-theme="dark"] .ant-input-affix-wrapper input::placeholder {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ МОДАЛЬНЫЕ ОКНА И ТЕКСТ В НИХ ============ */
+[data-theme="dark"] .ant-modal-content {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-modal-header {
+  background-color: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-modal-title {
+  color: var(--text-title) !important;
+}
+
+[data-theme="dark"] .ant-modal-body {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-confirm-title {
+  color: var(--text-title) !important;
+}
+
+[data-theme="dark"] .ant-modal-confirm-content {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-confirm-btns .ant-btn {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-confirm-btns .ant-btn-primary {
+  background-color: #ff4d4f !important;
+  color: white !important;
+}
+
+[data-theme="dark"] .ant-modal-close {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-modal-close:hover {
+  color: var(--text-primary) !important;
+}
+
+/* ============ FORM ЛЕЙБЛЫ ============ */
+[data-theme="dark"] .ant-form-item-label > label {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-form-item-explain,
+[data-theme="dark"] .ant-form-item-extra {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ SELECT В МОДАЛЬНЫХ ОКНАХ ============ */
+[data-theme="dark"] .ant-select-selector {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-select-selection-placeholder {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-select-selection-item {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-select-arrow {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ INPUT В МОДАЛЬНЫХ ОКНАХ ============ */
+[data-theme="dark"] .ant-input {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input::placeholder {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-input-group-addon {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============ ALERT В МОДАЛЬНЫХ ОКНАХ ============ */
+[data-theme="dark"] .ant-alert {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-alert-description {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ DIVIDER ============ */
+[data-theme="dark"] .ant-divider {
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-divider-inner-text {
+  color: var(--text-primary) !important;
+}
+
+/* ============ ТЕКСТ В КАРТОЧКАХ МОДАЛЬНЫХ ОКОН ============ */
+[data-theme="dark"] .ant-card {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-card-body {
+  color: var(--text-primary) !important;
+}
+
+/* ============ TAG В ВЫПАДАЮЩИХ СПИСКАХ ============ */
+[data-theme="dark"] .ant-tag {
+  background-color: var(--hover-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============ СКРОЛЛБАР (темная тема) ============ */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #3d3d3d;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #4d4d4d;
+}
+
+/* Для Firefox */
+[data-theme="dark"] * {
+  scrollbar-width: thin;
+  scrollbar-color: #3d3d3d var(--bg-secondary);
+}
+
+/* ============ ПОДСВЕТКА ПРИ КЛИКЕ НА СООБЩЕНИЕ ============ */
+[data-theme="dark"] .message-highlight {
+  background-color: var(--hover-bg) !important;
+  transition: background-color 0.3s ease;
+}
+
+/* Вместо ярко-белого используем легкую подсветку */
+[data-theme="dark"] .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Подсветка при клике на закрепленное сообщение */
+[data-theme="dark"] div[style*="backgroundColor: #fffbe6"],
+[data-theme="dark"] div[style*="background-color: #fffbe6"] {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Общие стили для подсветки в темной теме */
+[data-theme="dark"] .ant-btn-link:hover,
+[data-theme="dark"] a:hover,
+[data-theme="dark"] .ant-typography a:hover {
+  color: #58a6ff !important;
+}
+
+[data-theme="dark"] .ant-picker-cell-selected .ant-picker-cell-inner {
+  background-color: var(--hover-bg) !important;
+}
+
+[data-theme="dark"] .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: #58a6ff !important;
+}
+
+[data-theme="dark"] .ant-picker-cell:hover .ant-picker-cell-inner {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Кнопка Отправить - более светлый текст */
+[data-theme="dark"] .ant-btn-primary {
+  color: rgba(255, 255, 255, 0.95) !important;
+  background-color: #1890ff !important;
+}
+
+[data-theme="dark"] .ant-btn-primary:hover {
+  color: #ffffff !important;
+  background-color: #40a9ff !important;
+}
+
+[data-theme="dark"] .ant-btn-primary:disabled {
+  color: rgba(255, 255, 255, 0.5) !important;
+  background-color: #69c0ff !important;
+}
+
+/* Тёмная тема - неактивная кнопка Отправить (текст темнее) */
+[data-theme="dark"] .ant-btn-primary[disabled],
+[data-theme="dark"] .ant-btn-primary:disabled {
+  background-color: #1a1a1a !important;
+  color: #5c5c5c !important;
+}
+
+/* Активная кнопка в тёмной теме */
+[data-theme="dark"] .ant-btn-primary {
+  background-color: #1890ff !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-btn-primary:hover {
+  background-color: #40a9ff !important;
+  color: #ffffff !important;
+}
+/* Светлая тема - неактивная кнопка Отправить (средний серый) */
+.ant-btn-primary[disabled],
+.ant-btn-primary:disabled {
+  background-color: #f0f0f0 !important;
+  color: #bfbfbf !important;
+}
+
+/* Активная кнопка в светлой теме */
+.ant-btn-primary {
+  background-color: #1890ff !important;
+  color: #ffffff !important;
+}
+
+.ant-btn-primary:hover {
+  background-color: #40a9ff !important;
+  color: #ffffff !important;
 }

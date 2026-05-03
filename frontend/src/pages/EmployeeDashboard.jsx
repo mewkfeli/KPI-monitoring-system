@@ -561,7 +561,7 @@ const EmployeeDashboard = () => {
           style={{
             margin: "24px",
             padding: "24px",
-            background: "#fff",
+           background: "var(--bg-content)",
             borderRadius: "8px",
             minHeight: "calc(100vh - 112px)",
           }}

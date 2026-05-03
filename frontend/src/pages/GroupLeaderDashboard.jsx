@@ -698,7 +698,7 @@ const GroupLeaderDashboard = () => {
         <Layout>
           <Header
             style={{
-              background: "#fff",
+            background: "var(--bg-content)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -735,7 +735,7 @@ const GroupLeaderDashboard = () => {
             </Space>
           </Header>
           <Content
-            style={{ margin: "24px", padding: "24px", background: "#fff" }}
+            style={{ margin: "24px", padding: "24px",background: "var(--bg-content)" }}
           >
             <div
               style={{
@@ -763,7 +763,7 @@ const GroupLeaderDashboard = () => {
       <Layout>
         <Header
           style={{
-            background: "#fff",
+          background: "var(--bg-content)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -803,7 +803,7 @@ const GroupLeaderDashboard = () => {
           style={{
             margin: "24px",
             padding: "24px",
-            background: "#fff",
+           background: "var(--bg-content)",
             borderRadius: "8px",
             minHeight: "calc(100vh - 112px)",
           }}

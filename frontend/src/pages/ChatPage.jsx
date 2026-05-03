@@ -14,6 +14,7 @@ import {
   CopyOutlined, SettingOutlined, PushpinOutlined, CameraOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
+import { useTheme } from "../contexts/ThemeContext";
 import NotificationBell from "../components/NotificationBell";
 import Sidebar from "../components/Sidebar";
 import dayjs from "dayjs";
@@ -42,6 +43,7 @@ const getRoleColor = (role) => {
 
 const ChatPage = () => {
   const { user, logout } = useAuth();
+  const { isDark } = useTheme();
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [chats, setChats] = useState([]);
@@ -103,19 +105,20 @@ const ChatPage = () => {
     }
   }, []);
 
-  const scrollToMessage = useCallback((messageId) => {
-    setTimeout(() => {
-      const messageElement = document.getElementById(`message-${messageId}`);
-      if (messageElement) {
-        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        messageElement.style.transition = 'background-color 0.3s';
-        messageElement.style.backgroundColor = '#fffbe6';
-        setTimeout(() => {
-          messageElement.style.backgroundColor = '';
-        }, 2000);
-      }
-    }, 100);
-  }, []);
+const scrollToMessage = useCallback((messageId) => {
+  setTimeout(() => {
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      messageElement.style.transition = 'background-color 0.3s';
+      // Вместо белого используем цвет из темы
+      messageElement.style.backgroundColor = 'var(--hover-bg)';
+      setTimeout(() => {
+        messageElement.style.backgroundColor = '';
+      }, 2000);
+    }
+  }, 100);
+}, []);
   
   const loadChatsList = useCallback(async () => {
     if (!user?.employee_id) return;
@@ -413,88 +416,86 @@ const ChatPage = () => {
   };
 
   const uploadFile = async (file, messageText = null) => {
-  if (uploadingRef.current || !socket || !currentChat) return null;
-  uploadingRef.current = true;
-  setUploading(true);
-  setUploadProgress(0);
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('sender_id', user.employee_id);
-  formData.append('chat_type', currentChat.type);
-  formData.append('chat_id', currentChat.id);
-  
-  try {
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) { clearInterval(progressInterval); return prev; }
-        return (prev || 0) + 10;
-      });
-    }, 100);
+    if (uploadingRef.current || !socket || !currentChat) return null;
+    uploadingRef.current = true;
+    setUploading(true);
+    setUploadProgress(0);
     
-    const response = await fetch('http://localhost:5000/api/chat/upload', { method: 'POST', body: formData });
-    clearInterval(progressInterval);
-    setUploadProgress(100);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('sender_id', user.employee_id);
+    formData.append('chat_type', currentChat.type);
+    formData.append('chat_id', currentChat.id);
     
-    if (response.ok) {
-      const data = await response.json();
-      const isImg = data.is_image;
-      let finalMessage = messageText || '';
-      if (!finalMessage && !isImg) finalMessage = `📎 Файл: ${file.name}`;
+    try {
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) { clearInterval(progressInterval); return prev; }
+          return (prev || 0) + 10;
+        });
+      }, 100);
       
-      const tempId = `temp_${Date.now()}_${Math.random()}`;
-      pendingMessagesRef.current.add(tempId);
+      const response = await fetch('http://localhost:5000/api/chat/upload', { method: 'POST', body: formData });
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
-      // ✅ ДОБАВЛЯЕМ ОПТИМИСТИЧНОЕ СООБЩЕНИЕ СРАЗУ!
-      const optimisticMessage = {
-        message_id: tempId,
-        chat_type: currentChat.type,
-        chat_id: currentChat.id,
-        sender_id: user.employee_id,
-        sender_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
-        sender_role: user.role,
-        sender_avatar_url: user.avatar_url,
-        message: finalMessage,
-        attachment_url: data.fileUrl,
-        attachment_type: file.type,
-        is_image: isImg,
-        created_at: new Date().toISOString(),
-        read_count: 0,
-        reactions: {},
-        status: 'sending',
-        _tempId: tempId,
-      };
-      
-      setMessages(prev => [...prev, optimisticMessage]);
-      setTimeout(() => scrollToBottom(), 100);
-      
-      // Отправляем на сервер
-      socket.emit("send_message", {
-        message: finalMessage,
-        chat_type: currentChat.type,
-        chat_id: currentChat.id,
-        attachment_url: data.fileUrl,
-        attachment_type: file.type,
-        is_image: isImg,
-        _tempId: tempId,
-      });
-      
-      message.success(isImg ? "Изображение отправлено" : "Файл загружен");
-      return data;
-    } else {
+      if (response.ok) {
+        const data = await response.json();
+        const isImg = data.is_image;
+        let finalMessage = messageText || '';
+        if (!finalMessage && !isImg) finalMessage = `📎 Файл: ${file.name}`;
+        
+        const tempId = `temp_${Date.now()}_${Math.random()}`;
+        pendingMessagesRef.current.add(tempId);
+        
+        const optimisticMessage = {
+          message_id: tempId,
+          chat_type: currentChat.type,
+          chat_id: currentChat.id,
+          sender_id: user.employee_id,
+          sender_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+          sender_role: user.role,
+          sender_avatar_url: user.avatar_url,
+          message: finalMessage,
+          attachment_url: data.fileUrl,
+          attachment_type: file.type,
+          is_image: isImg,
+          created_at: new Date().toISOString(),
+          read_count: 0,
+          reactions: {},
+          status: 'sending',
+          _tempId: tempId,
+        };
+        
+        setMessages(prev => [...prev, optimisticMessage]);
+        setTimeout(() => scrollToBottom(), 100);
+        
+        socket.emit("send_message", {
+          message: finalMessage,
+          chat_type: currentChat.type,
+          chat_id: currentChat.id,
+          attachment_url: data.fileUrl,
+          attachment_type: file.type,
+          is_image: isImg,
+          _tempId: tempId,
+        });
+        
+        message.success(isImg ? "Изображение отправлено" : "Файл загружен");
+        return data;
+      } else {
+        message.error("Ошибка загрузки файла");
+        return null;
+      }
+    } catch (error) {
+      console.error("Ошибка:", error);
       message.error("Ошибка загрузки файла");
       return null;
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
+      uploadingRef.current = false;
     }
-  } catch (error) {
-    console.error("Ошибка:", error);
-    message.error("Ошибка загрузки файла");
-    return null;
-  } finally {
-    setUploading(false);
-    setUploadProgress(null);
-    uploadingRef.current = false;
-  }
-};
+  };
 
   const startPrivateChat = async (employee) => {
     try {
@@ -802,56 +803,41 @@ const ChatPage = () => {
       setConnected(false); 
     });
     
-    // ✅ НОВОЕ СООБЩЕНИЕ
-newSocket.on("new_message", (message) => {
-  console.log("📨 new_message получен:", message.message_id, "tempId:", message._tempId);
-  
-  if (!currentChatRef.current) return;
-  
-  if (message.chat_type !== currentChatRef.current.type || 
-      message.chat_id !== currentChatRef.current.id) {
-      return;
-  }
-  
-  setMessages(prev => {
-    // Проверяем на дубликаты по message_id
-    const existsById = prev.some(m => m.message_id === message.message_id);
-    if (existsById) {
-      console.log("⚠️ Сообщение уже существует (по ID)");
-      return prev;
-    }
-    
-    // Ищем временное сообщение с таким же _tempId
-    const tempIndex = prev.findIndex(m => m._tempId === message._tempId);
-    
-    if (tempIndex !== -1) {
-      // Заменяем временное сообщение на настоящее
-      console.log("🔄 Заменяем временное сообщение, ID:", message.message_id);
-      const newMessages = [...prev];
-      newMessages[tempIndex] = { 
-        ...message, 
-        status: 'sent', 
-        _tempId: undefined,
-        attachment_url: message.attachment_url,
-        attachment_type: message.attachment_type,
-        is_image: message.is_image
-      };
-      setTimeout(() => scrollToBottom(), 100);
-      return newMessages;
-    }
-    
-    // Добавляем новое сообщение от других пользователей
-    console.log("➕ Добавлено новое сообщение от", message.sender_name);
-    setTimeout(() => scrollToBottom(), 100);
-    return [...prev, { ...message, status: 'sent', _tempId: undefined }];
-  });
-  
-  if (message.sender_id !== user?.employee_id) {
-    newSocket.emit("mark_read", { message_id: message.message_id });
-  }
-  
-  loadChatsList();
-});
+    newSocket.on("new_message", (message) => {
+      if (!currentChatRef.current) return;
+      
+      if (message.chat_type !== currentChatRef.current.type || 
+          message.chat_id !== currentChatRef.current.id) {
+          return;
+      }
+      
+      if (message.sender_id === user?.employee_id && message._tempId) {
+          return;
+      }
+      
+      setMessages(prev => {
+          const existsById = prev.some(m => m.message_id === message.message_id);
+          if (existsById) return prev;
+          
+          const tempIndex = prev.findIndex(m => m._tempId === message._tempId);
+          
+          if (tempIndex !== -1) {
+            const newMessages = [...prev];
+            newMessages[tempIndex] = { ...message, status: 'sent', _tempId: undefined };
+            setTimeout(() => scrollToBottom(), 100);
+            return newMessages;
+          }
+          
+          setTimeout(() => scrollToBottom(), 100);
+          return [...prev, { ...message, status: 'sent', _tempId: undefined }];
+      });
+      
+      if (message.sender_id !== user?.employee_id) {
+        newSocket.emit("mark_read", { message_id: message.message_id });
+      }
+      
+      loadChatsList();
+    });
     
     newSocket.on("message_sent", (message) => {
       if (message._tempId) {
@@ -863,19 +849,15 @@ newSocket.on("new_message", (message) => {
           message.chat_id === currentChatRef.current.id) {
         
         setMessages(prev => {
-          const filtered = prev.map(msg => {
-            if (msg._tempId && msg._tempId === message._tempId) {
-              return { ...message, status: 'sent', _tempId: undefined };
-            }
-            return msg;
-          });
-          
-          const hasMessage = filtered.some(m => m.message_id === message.message_id);
-          if (!hasMessage) {
-            return [...filtered, { ...message, status: 'sent', _tempId: undefined }];
+          const hasTemp = prev.some(m => m._tempId === message._tempId);
+          if (hasTemp) {
+            return prev.map(msg => 
+              msg._tempId === message._tempId 
+                ? { ...msg, status: 'sent', _tempId: undefined, message_id: message.message_id }
+                : msg
+            );
           }
-          
-          return filtered;
+          return prev;
         });
       }
     });
@@ -895,18 +877,16 @@ newSocket.on("new_message", (message) => {
     });
     
     newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
-  console.log(`✏️ Сообщение ${message_id} отредактировано`);
-  setMessages(prev => prev.map(msg => 
-    msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
-  ));
-});
+      setMessages(prev => prev.map(msg => 
+        msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
+      ));
+    });
     
     newSocket.on("reaction_update", ({ message_id, reactions }) => {
-  console.log(`😊 Обновление реакций для сообщения ${message_id}:`, reactions);
-  setMessages(prev => prev.map(msg => 
-    msg?.message_id === message_id ? { ...msg, reactions } : msg
-  ));
-});
+      setMessages(prev => prev.map(msg => 
+        msg?.message_id === message_id ? { ...msg, reactions } : msg
+      ));
+    });
     
     newSocket.on("message_pinned", (pinnedMessage) => {
       if (currentChatRef.current && 
@@ -1065,10 +1045,10 @@ newSocket.on("new_message", (message) => {
     <Layout style={{ minHeight: "100vh" }}>
       <Sidebar />
       <Layout>
-        <Header style={{ background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
+        <Header style={{ background: "var(--header-bg)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px", borderBottom: "1px solid var(--border-color)" }}>
           <Space>
             <MessageOutlined style={{ fontSize: 20, color: "#1890ff" }} />
-            <Title level={4} style={{ margin: 0 }}>Мессенджер</Title>
+            <Title level={4} style={{ margin: 0, color: "var(--text-title)" }}>Мессенджер</Title>
             {connected ? <Badge status="success" text="Подключено" /> : <Badge status="error" text="Отключено" />}
           </Space>
           <Space>
@@ -1080,21 +1060,40 @@ newSocket.on("new_message", (message) => {
         
         <Layout style={{ flexDirection: "row", height: "calc(100vh - 64px)" }}>
           {/* Левая панель */}
-          <div style={{ width: 350, minWidth: 350, flexShrink: 0, background: "#fafafa", borderRight: "1px solid #e8e8e8", overflowY: "auto", display: "flex", flexDirection: "column", height: "100%" }}>
-            <div style={{ padding: "16px", borderBottom: "1px solid #e8e8e8", background: "#fff", flexShrink: 0 }}>
+          <div style={{ width: 350, minWidth: 350, flexShrink: 0, background: "var(--bg-sidebar)", borderRight: "1px solid var(--border-color)", overflowY: "auto", display: "flex", flexDirection: "column", height: "100%" }}>
+            <div style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-sidebar)", flexShrink: 0 }}>
               <Space direction="vertical" style={{ width: "100%" }} size={12}>
-                <Input placeholder="Поиск чатов..." prefix={<SearchOutlined />} value={chatSearch} onChange={(e) => setChatSearch(e.target.value)} allowClear />
+                <Input 
+                  placeholder="Поиск чатов..." 
+                  prefix={<SearchOutlined />} 
+                  value={chatSearch} 
+                  onChange={(e) => setChatSearch(e.target.value)} 
+                  allowClear 
+                  style={{ 
+                    backgroundColor: "var(--input-bg)", 
+                    color: "var(--text-primary)",
+                    borderColor: "var(--border-color)"
+                  }}
+                />
                 <div style={{ display: "flex", gap: 8 }}>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)} style={{ flex: 1 }}>Создать группу</Button>
-                  <Button icon={<UserAddOutlined />} onClick={() => setJoinCodeVisible(true)} style={{ flex: 1 }}>Присоединиться</Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)} style={{ flex: 1 }}>
+                    Создать группу
+                  </Button>
+                  <Button 
+                    icon={<UserAddOutlined />} 
+                    onClick={() => setJoinCodeVisible(true)} 
+                    style={{ flex: 1, backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}
+                  >
+                    Присоединиться
+                  </Button>
                 </div>
               </Space>
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               <List dataSource={filteredChats} renderItem={(chat) => (
                 <div onClick={() => handleSelectChat(chat)}
-                  style={{ padding: "12px 16px", cursor: "pointer", background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent", borderBottom: "1px solid #f0f0f0", transition: "background 0.2s" }}
-                  onMouseEnter={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "#f5f5f5"; }}
+                  style={{ padding: "12px 16px", cursor: "pointer", background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "var(--menu-active-bg)" : "transparent", borderBottom: "1px solid var(--border-color)", transition: "background 0.2s" }}
+                  onMouseEnter={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "var(--hover-bg)"; }}
                   onMouseLeave={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "transparent"; }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <span 
@@ -1112,10 +1111,10 @@ newSocket.on("new_message", (message) => {
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.name || "Без названия"}</Text>
+                        <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>{chat.name || "Без названия"}</Text>
                         {chat.unread_count > 0 && <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />}
                       </div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}</Text>
+                      <Text type="secondary" style={{ fontSize: 12, color: "var(--text-secondary)" }}>{chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}</Text>
                     </div>
                   </div>
                 </div>
@@ -1124,15 +1123,15 @@ newSocket.on("new_message", (message) => {
           </div>
           
           {/* Правая панель */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", height: "100%", overflow: "hidden" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "var(--bg-content)", height: "100%", overflow: "hidden" }}>
             {currentChat ? (
               <>
-                <div style={{ padding: "16px 24px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", flexShrink: 0 }}>
+                <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-sidebar)", flexShrink: 0 }}>
                   <Space>
                     {renderChatAvatar(currentChat)}
                     <div>
-                      <Text strong style={{ fontSize: 16 }}>{currentChat.name}</Text>
-                      <div><Text type="secondary" style={{ fontSize: 12 }}>{currentChat.type === "group" ? "Рабочая группа" : currentChat.type === "custom" ? "Пользовательская группа" : "Личный чат"}</Text></div>
+                      <Text strong style={{ fontSize: 16, color: "var(--text-primary)" }}>{currentChat.name}</Text>
+                      <div><Text type="secondary" style={{ fontSize: 12, color: "var(--text-secondary)" }}>{currentChat.type === "group" ? "Рабочая группа" : currentChat.type === "custom" ? "Пользовательская группа" : "Личный чат"}</Text></div>
                     </div>
                   </Space>
                   {(currentChat.type === "custom" || currentChat.type === "group") && (
@@ -1144,17 +1143,28 @@ newSocket.on("new_message", (message) => {
                 
                 {/* Закрепленные сообщения */}
                 {pinnedMessages.length > 0 && (
-                  <div style={{ background: '#fffbe6', borderBottom: '1px solid #ffe58f', padding: '8px 16px', maxHeight: 150, overflowY: 'auto', flexShrink: 0 }}>
-                    <Text type="secondary" style={{ fontSize: 11, marginBottom: 4, display: 'block' }}><PushpinOutlined /> Закрепленные сообщения ({pinnedMessages.length})</Text>
+                  <div style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-color)", padding: "8px 16px", maxHeight: 150, overflowY: 'auto', flexShrink: 0 }}>
+                    <Text type="secondary" style={{ fontSize: 11, marginBottom: 4, display: 'block', color: "var(--text-secondary)" }}><PushpinOutlined /> Закрепленные сообщения ({pinnedMessages.length})</Text>
                     {pinnedMessages.map(msg => (
-                      <div key={msg.message_id} onClick={() => scrollToMessage(msg.message_id)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: pinnedMessages.indexOf(msg) < pinnedMessages.length - 1 ? '1px solid #ffe58f' : 'none', cursor: 'pointer', transition: 'background-color 0.2s', borderRadius: 4 }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fff3cd'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                      <div   key={msg.message_id} 
+  onClick={() => scrollToMessage(msg.message_id)}
+  style={{ 
+    display: 'flex', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: '6px 0', 
+    borderBottom: pinnedMessages.indexOf(msg) < pinnedMessages.length - 1 ? '1px solid var(--border-color)' : 'none', 
+    cursor: 'pointer', 
+    transition: 'background-color 0.2s', 
+    borderRadius: 4 
+  }}
+  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--hover-bg)'; }}
+  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+>
                         <Space style={{ flex: 1, minWidth: 0 }}>
                           <PushpinOutlined style={{ color: '#faad14', flexShrink: 0 }} />
-                          <Text strong style={{ fontSize: 12, flexShrink: 0 }}>{msg.first_name} {msg.last_name}:</Text>
-                          <Text style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#666' }}>{msg.message?.substring(0, 100)}</Text>
+                          <Text strong style={{ fontSize: 12, flexShrink: 0, color: "var(--text-primary)" }}>{msg.first_name} {msg.last_name}:</Text>
+                          <Text style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: "var(--text-secondary)" }}>{msg.message?.substring(0, 100)}</Text>
                         </Space>
                         {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
                           (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
@@ -1168,7 +1178,7 @@ newSocket.on("new_message", (message) => {
                 )}
                 
                 {/* Сообщения */}
-                <div style={{ flex: 1, overflowY: "auto", padding: "24px", background: "#fafafa", display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <div style={{ flex: 1, overflowY: "auto", padding: "24px", background: "var(--bg-secondary)", display: "flex", flexDirection: "column", minHeight: 0 }}>
                   {messages.length === 0 ? (
                     <Empty description="Нет сообщений. Напишите что-нибудь!" style={{ marginTop: 100 }} />
                   ) : (
@@ -1216,7 +1226,7 @@ newSocket.on("new_message", (message) => {
                                   </Avatar>
                                   <Text 
                                     strong 
-                                    style={{ fontSize: 12, cursor: 'pointer', color: '#333' }}
+                                    style={{ fontSize: 12, cursor: 'pointer', color: "var(--text-primary)" }}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       navigate(`/employee/${msg.sender_id}`);
@@ -1236,58 +1246,52 @@ newSocket.on("new_message", (message) => {
                                 borderRadius: 16,
                                 maxWidth: "100%",
                                 wordBreak: "break-word",
-                                backgroundColor: isMine ? "#2b527c" : "#f5f5f5",
-                                color: isMine ? "#ffffff" : "#000000",
+                                backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#2b527c") : (isDark ? "#2d2d2d" : "#f5f5f5"),
+                                color: isMine ? "#ffffff" : "var(--text-primary)",
                                 boxShadow: !isMine ? "0 1px 2px rgba(0, 0, 0, 0.1)" : "none",
                                 border: msg.is_pinned ? "1px solid #ffe58f" : "none",
                               }}
                             >
-                              {/* Цитата исходного сообщения (если это ответ) */}
-{msg.reply_to_id && (() => {
-  const repliedMsg = messages.find(m => m.message_id === msg.reply_to_id);
-  if (repliedMsg && !repliedMsg.is_deleted) {
-    return (
-      <div 
-        style={{ 
-          marginBottom: 8,
-          paddingLeft: 10,
-          borderLeft: `3px solid ${isMine ? "#ffffff80" : "#e0e0e0"}`,
-          cursor: "pointer"
-        }}
-        onClick={() => {
-          const element = document.getElementById(`message-${repliedMsg.message_id}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            element.style.transition = 'background-color 0.3s';
-            element.style.backgroundColor = 'rgba(24, 144, 255, 0.15)';
-            setTimeout(() => {
-              element.style.backgroundColor = '';
-            }, 2000);
-          }
-        }}
-      >
-        <div style={{ 
-          fontSize: 12, 
-          fontWeight: 500,
-          color: isMine ? "rgba(255,255,255,0.8)" : "#65676b",
-          marginBottom: 2
-        }}>
-          {repliedMsg.sender_name}
-        </div>
-        <div style={{ 
-          fontSize: 12, 
-          color: isMine ? "rgba(255,255,255,0.6)" : "#999",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap"
-        }}>
-          {repliedMsg.message?.length > 80 ? repliedMsg.message.substring(0, 80) + "..." : repliedMsg.message || "📎 Медиа"}
-        </div>
-      </div>
-    );
-  }
-  return null;
-})()}
+                              {/* Цитата исходного сообщения */}
+                              {repliedMsg && !repliedMsg.is_deleted && (
+                                <div 
+                                  style={{ 
+                                    marginBottom: 8,
+                                    paddingLeft: 10,
+                                    borderLeft: `3px solid ${isMine ? "#ffffff80" : "#e0e0e0"}`,
+                                    cursor: "pointer"
+                                  }}
+                                  onClick={() => {
+                                    const element = document.getElementById(`message-${repliedMsg.message_id}`);
+                                    if (element) {
+                                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      element.style.transition = 'background-color 0.3s';
+                                      element.style.backgroundColor = 'rgba(24, 144, 255, 0.15)';
+                                      setTimeout(() => {
+                                        element.style.backgroundColor = '';
+                                      }, 2000);
+                                    }
+                                  }}
+                                >
+                                  <div style={{ 
+                                    fontSize: 12, 
+                                    fontWeight: 500,
+                                    color: isMine ? "rgba(255,255,255,0.8)" : "var(--text-secondary)",
+                                    marginBottom: 2
+                                  }}>
+                                    {repliedMsg.sender_name}
+                                  </div>
+                                  <div style={{ 
+                                    fontSize: 12, 
+                                    color: isMine ? "rgba(255,255,255,0.6)" : "var(--text-secondary)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap"
+                                  }}>
+                                    {repliedMsg.message?.length > 80 ? repliedMsg.message.substring(0, 80) + "..." : repliedMsg.message || "📎 Медиа"}
+                                  </div>
+                                </div>
+                              )}
                               
                               {/* Изображение или текст */}
                               {isImage && imageUrl ? (
@@ -1304,20 +1308,20 @@ newSocket.on("new_message", (message) => {
                                     }} 
                                     onClick={() => setPreviewImage(imageUrl)} 
                                   />
-                                  {msg.message && msg.message.trim() !== "" && (
-                                    <div style={{ marginTop: 8, fontSize: 13, marginRight: 50 }}>
-                                      {msg.message}
-                                    </div>
-                                  )}
+{msg.message && msg.message.trim() !== "" && (
+  <div style={{ marginTop: 8, fontSize: 13, paddingRight: 60, color: isMine ? "#ffffff" : "var(--text-primary)" }}>
+    {msg.message}
+  </div>
+)}
                                 </div>
                               ) : (
                                 <Text style={{ 
-                                  color: isMine ? "#ffffff" : "#000000", 
+                                  color: isMine ? "#ffffff" : "var(--text-primary)", 
                                   fontSize: 14, 
                                   whiteSpace: "pre-wrap",
                                   margin: 0,
                                   lineHeight: 1.4,
-                                  marginRight: 50
+                                  paddingRight: 70
                                 }}>
                                   {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}
                                   {msg.message}
@@ -1331,7 +1335,11 @@ newSocket.on("new_message", (message) => {
                                     size="small" 
                                     icon={<FileTextOutlined />} 
                                     onClick={() => window.open(`http://localhost:5000${msg.attachment_url}`, "_blank")}
-                                    style={{ backgroundColor: isMine ? "#3a6b8c" : "#f0f0f0", border: "none" }}
+                                    style={{ 
+                                      backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#e6f7ff") : (isDark ? "#3d3d3d" : "#f0f0f0"),
+                                      border: "none",
+                                      color: isMine ? "#ffffff" : "var(--text-primary)"
+                                    }}
                                   >
                                     Скачать файл
                                   </Button>
@@ -1345,7 +1353,7 @@ newSocket.on("new_message", (message) => {
                                   bottom: 4,
                                   right: 8,
                                   fontSize: 11,
-                                  color: isMine ? "rgba(255, 255, 255, 0.7)" : "#999",
+                                  color: isMine ? "rgba(255, 255, 255, 0.7)" : "var(--text-secondary)",
                                   lineHeight: 1.2,
                                   display: "flex",
                                   alignItems: "center",
@@ -1378,7 +1386,10 @@ newSocket.on("new_message", (message) => {
                                         cursor: "pointer", 
                                         borderRadius: 12,
                                         fontSize: 12,
-                                        padding: "0 6px"
+                                        padding: "0 6px",
+                                        backgroundColor: "var(--hover-bg)",
+                                        borderColor: "var(--border-color)",
+                                        color: "var(--text-primary)"
                                       }} 
                                       onClick={() => handleAddReaction(msg.message_id, emoji)}
                                     >
@@ -1390,7 +1401,7 @@ newSocket.on("new_message", (message) => {
                               
                               <Space size={4}>
                                 <Popover content={getReactionButtons(msg.message_id, msg.reactions)} trigger="click" placement="top">
-                                  <Button size="small" type="text" icon={<SmileOutlined />} style={{ fontSize: 12 }} />
+                                  <Button size="small" type="text" icon={<SmileOutlined />} style={{ fontSize: 12, color: "var(--text-secondary)" }} />
                                 </Popover>
                                 <Tooltip title="Ответить">
                                   <Button 
@@ -1404,7 +1415,8 @@ newSocket.on("new_message", (message) => {
                                         if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                       }, 100);
                                       setTimeout(() => inputRef.current?.focus(), 200);
-                                    }} 
+                                    }}
+                                    style={{ color: "var(--text-secondary)" }}
                                   />
                                 </Tooltip>
                                 {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
@@ -1415,7 +1427,7 @@ newSocket.on("new_message", (message) => {
                                       type="text" 
                                       icon={<PushpinOutlined style={{ color: msg.is_pinned ? '#faad14' : undefined }} />} 
                                       onClick={() => handlePinMessage(msg.message_id, msg.is_pinned)} 
-                                      style={{ fontSize: 12 }}
+                                      style={{ fontSize: 12, color: "var(--text-secondary)" }}
                                     />
                                   </Tooltip>
                                 )}
@@ -1431,7 +1443,7 @@ newSocket.on("new_message", (message) => {
                                           message: msg.message,
                                           newMessage: msg.message 
                                         })} 
-                                        style={{ fontSize: 12 }}
+                                        style={{ fontSize: 12, color: "var(--text-secondary)" }}
                                       />
                                     </Tooltip>
                                     <Tooltip title="Удалить">
@@ -1457,15 +1469,15 @@ newSocket.on("new_message", (message) => {
                 </div>
                 
                 {typingUsers.size > 0 && (
-                  <div style={{ padding: "6px 24px", background: "#fff", borderTop: "1px solid #f0f0f0", fontSize: 12, color: "#999", fontStyle: "italic", flexShrink: 0 }}>
+                  <div style={{ padding: "6px 24px", background: "var(--bg-sidebar)", borderTop: "1px solid var(--border-color)", fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", flexShrink: 0 }}>
                     <Space><WifiOutlined style={{ fontSize: 12, color: "#52c41a" }} /><span>{Array.from(typingUsers).join(", ")} печатает...</span></Space>
                   </div>
                 )}
                 
-                <div style={{ padding: "16px 24px", borderTop: "1px solid #f0f0f0", background: "#fff", flexShrink: 0 }}>
+                <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-color)", background: "var(--bg-sidebar)", flexShrink: 0 }}>
                   {replyTo && (
                     <div style={{ 
-                      background: "#f0f2f5",
+                      background: "var(--bg-secondary)",
                       borderRadius: 12,
                       marginBottom: 8,
                       overflow: "hidden",
@@ -1489,14 +1501,14 @@ newSocket.on("new_message", (message) => {
                           <div style={{ 
                             fontSize: 13, 
                             fontWeight: 500,
-                            color: "#111",
+                            color: "var(--text-primary)",
                             marginBottom: 2
                           }}>
                             {replyTo.sender_id === user?.employee_id ? "Вы" : replyTo.sender_name}
                           </div>
                           <div style={{ 
                             fontSize: 13, 
-                            color: "#65676b",
+                            color: "var(--text-secondary)",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap"
@@ -1516,19 +1528,19 @@ newSocket.on("new_message", (message) => {
                           icon={<CloseOutlined />} 
                           onClick={() => setReplyTo(null)}
                           size="small"
-                          style={{ flexShrink: 0, color: "#65676b" }}
+                          style={{ flexShrink: 0, color: "var(--text-secondary)" }}
                         />
                       </div>
                     </div>
                   )}
                   
                   {editMessage && (
-                    <div style={{ background: "#fff7e6", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ background: "var(--bg-secondary)", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", gap: 8, alignItems: "center", border: "1px solid var(--border-color)" }}>
                       <TextArea 
                         value={editMessage.newMessage} 
                         onChange={(e) => setEditMessage({ ...editMessage, newMessage: e.target.value })} 
                         autoSize={{ minRows: 1, maxRows: 3 }} 
-                        style={{ flex: 1 }} 
+                        style={{ flex: 1, backgroundColor: "var(--input-bg)", color: "var(--text-primary)", borderColor: "var(--border-color)" }} 
                         placeholder="Редактировать сообщение..."
                       />
                       <Button size="small" type="primary" icon={<CheckOutlined />} onClick={handleEditMessage} />
@@ -1540,10 +1552,10 @@ newSocket.on("new_message", (message) => {
                   
                   <div style={{ display: "flex", gap: 8 }}>
                     <Upload beforeUpload={(file) => uploadFile(file)} showUploadList={false} accept="image/*,.pdf,.doc,.docx,.txt">
-                      <Button icon={<PaperClipOutlined />} loading={uploading}>Файл</Button>
+                      <Button icon={<PaperClipOutlined />} loading={uploading} style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>Файл</Button>
                     </Upload>
                     <Popover content={<Picker onEmojiClick={(emoji) => setNewMessage(prev => prev + emoji.emoji)} />} trigger="click" placement="top" open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-                      <Button icon={<SmileOutlined />} />
+                      <Button icon={<SmileOutlined />} style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }} />
                     </Popover>
                     <TextArea 
                       ref={inputRef} 
@@ -1553,20 +1565,20 @@ newSocket.on("new_message", (message) => {
                       placeholder="Введите сообщение..." 
                       autoSize={{ minRows: 1, maxRows: 4 }} 
                       disabled={sending || !connected} 
-                      style={{ flex: 1, resize: "none" }} 
+                      style={{ flex: 1, resize: "none", backgroundColor: "var(--input-bg)", color: "var(--text-primary)", borderColor: "var(--border-color)" }} 
                     />
                     <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={sending} disabled={!newMessage.trim() && !replyTo && !uploading}>Отправить</Button>
                   </div>
                 </div>
               </>
             ) : (
-              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", flexDirection: "column" }}>
-                <MessageOutlined style={{ fontSize: 64, color: "#d9d9d9", marginBottom: 16 }} />
-                <Title level={4} type="secondary">Выберите чат</Title>
-                <Text type="secondary">Начните диалог или создайте новую группу</Text>
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", flexDirection: "column", background: "var(--bg-content)" }}>
+                <MessageOutlined style={{ fontSize: 64, color: "var(--text-secondary)", marginBottom: 16 }} />
+                <Title level={4} type="secondary" style={{ color: "var(--text-secondary)" }}>Выберите чат</Title>
+                <Text type="secondary" style={{ color: "var(--text-secondary)" }}>Начните диалог или создайте новую группу</Text>
                 <Space style={{ marginTop: 24 }}>
                   <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)}>Создать группу</Button>
-                  <Button icon={<UserAddOutlined />} onClick={() => setJoinCodeVisible(true)}>Присоединиться по коду</Button>
+                  <Button icon={<UserAddOutlined />} onClick={() => setJoinCodeVisible(true)} style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>Присоединиться по коду</Button>
                 </Space>
               </div>
             )}
@@ -1580,8 +1592,8 @@ newSocket.on("new_message", (message) => {
         <div style={{ marginTop: 16, maxHeight: 400, overflowY: "auto" }}>
           {searching ? <div style={{ textAlign: "center", padding: 20 }}><Spin /></div> :
            searchResults.length > 0 ? searchResults.map((emp) => (
-            <Card key={emp.employee_id} size="small" style={{ marginBottom: 8, cursor: "pointer" }} hoverable onClick={() => startPrivateChat(emp)}>
-              <Space><Avatar src={emp.avatar_url ? `http://localhost:5000${emp.avatar_url}` : null} icon={<UserOutlined />} /><div><Text strong>{emp.last_name} {emp.first_name}</Text><br /><Tag color={getRoleColor(emp.role)}>{emp.role}</Tag></div></Space>
+            <Card key={emp.employee_id} size="small" style={{ marginBottom: 8, cursor: "pointer", backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }} hoverable onClick={() => startPrivateChat(emp)}>
+              <Space><Avatar src={emp.avatar_url ? `http://localhost:5000${emp.avatar_url}` : null} icon={<UserOutlined />} /><div><Text strong style={{ color: "var(--text-primary)" }}>{emp.last_name} {emp.first_name}</Text><br /><Tag color={getRoleColor(emp.role)}>{emp.role}</Tag></div></Space>
             </Card>
           )) : searchQuery.trim() ? <Empty description="Ничего не найдено" /> : <Empty description="Начните вводить имя для поиска" />}
         </div>

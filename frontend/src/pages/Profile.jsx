@@ -268,10 +268,10 @@ const Profile = () => {
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Header style={{ background: "#fff", padding: "0 24px" }}>
+          <Header style={{ background: "var(--bg-content)", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>Личный профиль</Title>
           </Header>
-          <Content style={{ margin: "24px", padding: "24px", background: "#fff" }}>
+          <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)" }}>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
               <Spin size="large" />
               <div style={{ marginLeft: 16 }}>Загрузка профиля...</div>
@@ -287,7 +287,7 @@ const Profile = () => {
       <Sidebar />
       
       <Layout>
-        <Header style={{ background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
+        <Header style={{background: "var(--bg-content)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
           <Title level={4} style={{ margin: 0 }}>Личный профиль</Title>
           <Space>
             <NotificationBell userId={user?.employee_id} />
@@ -295,7 +295,7 @@ const Profile = () => {
           </Space>
         </Header>
 
-        <Content style={{ margin: "24px", padding: "24px", background: "#fff", borderRadius: "8px", minHeight: "calc(100vh - 112px)" }}>
+        <Content style={{ margin: "24px", padding: "24px",background: "var(--bg-content)", borderRadius: "8px", minHeight: "calc(100vh - 112px)" }}>
           {/* Аватарка */}
           <Row gutter={[24, 24]}>
             <Col span={24} style={{ textAlign: "center" }}>
@@ -453,11 +453,11 @@ const Profile = () => {
                   )}
                 />
                 <Divider />
-                <div style={{ padding: "12px", background: "#f6ffed", borderRadius: "6px" }}>
-                  <Text type="secondary" style={{ fontSize: "12px" }}>
-                    <SafetyCertificateOutlined /> Ваш профиль обновляется автоматически на основе рабочей активности.
-                  </Text>
-                </div>
+<div style={{ padding: "12px", background: "var(--hover-bg)", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
+  <Text type="secondary" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+    <SafetyCertificateOutlined /> Ваш профиль обновляется автоматически на основе рабочей активности.
+  </Text>
+</div>
               </Card>
             </Col>
           </Row>

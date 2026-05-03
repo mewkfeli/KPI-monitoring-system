@@ -98,7 +98,7 @@ const EmployeeProfile = () => {
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Content style={{ margin: "24px", padding: "24px", background: "#fff" }}>
+          <Content style={{ margin: "24px", padding: "24px",background: "var(--bg-content)" }}>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
               <Spin size="large" />
             </div>
@@ -113,7 +113,7 @@ const EmployeeProfile = () => {
       <Sidebar />
       
       <Layout>
-        <Header style={{ background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
+        <Header style={{background: "var(--bg-content)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
           <Space>
             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Назад</Button>
             <Title level={4} style={{ margin: 0 }}>Профиль сотрудника</Title>
@@ -124,7 +124,7 @@ const EmployeeProfile = () => {
           </Space>
         </Header>
 
-        <Content style={{ margin: "24px", padding: "24px", background: "#fff", borderRadius: "8px" }}>
+        <Content style={{ margin: "24px", padding: "24px",background: "var(--bg-content)", borderRadius: "8px" }}>
           {employeeData && (
             <>
               <Row gutter={[24, 24]}>
