@@ -221,23 +221,24 @@ io.on("connection", (socket) => {
 });
 
 // Отправка сообщения
+// Отправка сообщения
 socket.on("send_message", async (data) => {
-    const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id } = data;
+    const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id, reply_to_id } = data;
     
-    console.log('📨 send_message:', { chat_type, chat_id, sender: user.full_name, tempId: _tempId });
+    console.log('📨 send_message:', { chat_type, chat_id, sender: user.full_name, tempId: _tempId, reply_to_id });
     
     try {
         let result;
         
         if (chat_type === 'group') {
             [result] = await db.query(
-                `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [chat_type, chat_id, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null]
+                `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [chat_type, chat_id, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
             );
         } else {
             [result] = await db.query(
-                `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type) VALUES (?, ?, NULL, ?, ?, ?, ?)`,
-                [chat_type, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null]
+                `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
+                [chat_type, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
             );
         }
         
@@ -258,6 +259,7 @@ socket.on("send_message", async (data) => {
             created_at: new Date().toISOString(),
             attachment_url: attachment_url || null,
             attachment_type: attachment_type || null,
+            reply_to_id: reply_to_id || null,  // ← ДОБАВИТЬ ЭТУ СТРОЧКУ!
             is_image: is_image || false,
             read_count: 0, 
             reactions: {},
@@ -270,7 +272,7 @@ socket.on("send_message", async (data) => {
         else if (chat_type === 'custom') roomName = `custom_${chat_id}`;
         else roomName = `group_${chat_id}`;
         
-        console.log(`📨 Отправка в комнату: ${roomName}, msg_id: ${messageData.message_id}`);
+        console.log(`📨 Отправка в комнату: ${roomName}, msg_id: ${messageData.message_id}, reply_to: ${reply_to_id}`);
         
         // ✅ Отправляем ВСЕМ в комнате (включая отправителя)
         io.to(roomName).emit("new_message", messageData);

@@ -282,11 +282,7 @@ const ChatPage = () => {
       chat_id: currentChat.id 
     });
   };
-const navigateToProfile = (employeeId) => {
-  if (employeeId) {
-    navigate(`/employee/${employeeId}`);
-  }
-};
+
   const handleGroupAvatarUpload = async (file) => {
     const formData = new FormData();
     formData.append('avatar', file);
@@ -359,9 +355,6 @@ const navigateToProfile = (employeeId) => {
     if (!socket || !currentChat) return;
     
     let messageText = newMessage.trim();
-    if (replyTo) {
-      messageText = `> ${replyTo.sender_name}: ${replyTo.message.substring(0, 50)}${replyTo.message.length > 50 ? '...' : ''}\n\n${messageText}`;
-    }
     
     if (messageText) {
       setSending(true);
@@ -377,6 +370,7 @@ const navigateToProfile = (employeeId) => {
         sender_role: user.role,
         sender_avatar_url: user.avatar_url,
         message: messageText,
+        reply_to_id: replyTo?.message_id,
         created_at: new Date().toISOString(),
         attachment_url: null,
         attachment_type: null,
@@ -393,15 +387,12 @@ const navigateToProfile = (employeeId) => {
         message: messageText,
         chat_type: currentChat.type,
         chat_id: currentChat.id,
+        reply_to_id: replyTo?.message_id,
         _tempId: tempId,
       });
       
-      // ✅ ЕСЛИ ЭТО ПЕРВОЕ СООБЩЕНИЕ В ЛИЧНОМ ЧАТЕ - ПОКАЗЫВАЕМ ЧАТ В СПИСКЕ
       if (currentChat.type === 'private' && currentChat.is_new) {
-        // Убираем флаг is_new
         setCurrentChat(prev => ({ ...prev, is_new: false }));
-        
-        // Добавляем чат в список
         setChats(prev => {
           const exists = prev.some(c => c.id === currentChat.id && c.type === currentChat.type);
           if (!exists) {
@@ -489,16 +480,12 @@ const navigateToProfile = (employeeId) => {
           name: `${employee.first_name} ${employee.last_name}`,
           avatar: employee.avatar_url, 
           unread_count: 0,
-          is_new: data.is_new // true если чат только создан
+          is_new: data.is_new
         };
         
-        // Открываем чат
         setCurrentChat(newChat);
-        
-        // ПЕРЕЗАГРУЖАЕМ список чатов (чтобы получить все существующие)
         await loadChatsList();
         
-        // Если чат новый - добавляем его в список
         if (data.is_new) {
           setChats(prev => {
             const exists = prev.some(c => c.id === newChat.id && c.type === newChat.type);
@@ -662,7 +649,12 @@ const navigateToProfile = (employeeId) => {
 
   const handleEditMessage = async () => {
     if (!editMessage || !editMessage.newMessage?.trim() || !socket) return;
-    socket.emit("edit_message", { message_id: editMessage.id, message: editMessage.newMessage.trim() });
+    
+    socket.emit("edit_message", { 
+      message_id: editMessage.id, 
+      message: editMessage.newMessage.trim() 
+    });
+    
     setEditMessage(null);
   };
 
@@ -732,21 +724,19 @@ const navigateToProfile = (employeeId) => {
     }
   }, [currentChat?.id, currentChat?.type]);
 
-useEffect(() => {
+  useEffect(() => {
     const openChat = sessionStorage.getItem('openChat');
     if (openChat) {
         try {
             const chat = JSON.parse(openChat);
             sessionStorage.removeItem('openChat');
             
-            // Добавляем чат в список
             setChats(prev => {
                 const exists = prev.some(c => c.id === chat.id && c.type === chat.type);
                 if (!exists) return [chat, ...prev];
                 return prev;
             });
             
-            // Устанавливаем текущий чат с небольшой задержкой (ждем инициализации сокета)
             setTimeout(() => {
                 setCurrentChat(chat);
             }, 500);
@@ -755,7 +745,7 @@ useEffect(() => {
             sessionStorage.removeItem('openChat');
         }
     }
-}, []);
+  }, []);
 
   useEffect(() => {
     if (createGroupVisible || addMemberVisible) {
@@ -781,101 +771,68 @@ useEffect(() => {
       setConnected(false); 
     });
     
-    // ✅ НОВОЕ СООБЩЕНИЕ (для всех в комнате, кроме отправителя)
     newSocket.on("new_message", (message) => {
-    console.log("📨 new_message получен:", {
-        message_id: message.message_id,
-        chat_type: message.chat_type,
-        chat_id: message.chat_id,
-        sender: message.sender_name,
-        currentChatType: currentChatRef.current?.type,
-        currentChatId: currentChatRef.current?.id
-    });
-    
-    // Проверяем, что это сообщение для текущего открытого чата
-    if (!currentChatRef.current) {
-        console.log("❌ currentChatRef.current is null");
-        return;
-    }
-    
-    if (message.chat_type !== currentChatRef.current.type || 
-        message.chat_id !== currentChatRef.current.id) {
-        console.log("❌ Сообщение для другого чата");
-        return;
-    }
-    
-    // ✅ ВАЖНО: НЕ игнорируем сообщения от других пользователей
-    // Игнорируем ТОЛЬКО если это подтверждение нашего сообщения (у нас есть message_sent)
-    if (message.sender_id === user?.employee_id && message._tempId) {
-        console.log("Игнорируем свое сообщение с _tempId (ждем message_sent)");
-        return;
-    }
-    
-    setMessages(prev => {
-        // Проверяем на дубликаты по message_id
-        const existsById = prev.some(m => m.message_id === message.message_id);
-        if (existsById) {
-            console.log("⚠️ Сообщение уже существует (по ID)");
-            return prev;
-        }
-        
-        // Проверяем, нет ли временного сообщения с таким же _tempId
-        const hasTemp = prev.some(m => m._tempId && m._tempId === message._tempId);
-        
-        let newMessages;
-        if (hasTemp) {
-            // Заменяем временное сообщение
-            newMessages = prev.map(m => 
-                (m._tempId && m._tempId === message._tempId) 
-                    ? { ...message, status: 'sent', _tempId: undefined } 
-                    : m
-            );
-            console.log("🔄 Заменено временное сообщение");
-        } else {
-            // Добавляем новое сообщение
-            newMessages = [...prev, { ...message, status: 'sent', _tempId: undefined }];
-            console.log("➕ Добавлено новое сообщение");
-        }
-        
-        setTimeout(() => scrollToBottom(), 100);
-        return newMessages;
-    });
-    
-    // Отмечаем как прочитанное, если сообщение от другого пользователя
-    if (message.sender_id !== user?.employee_id) {
-        newSocket.emit("mark_read", { message_id: message.message_id });
-    }
-     // ✅ Если это личный чат и его нет в списке - добавляем
-    if (message.chat_type === 'private') {
-        setChats(prev => {
-            const exists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
-            if (!exists) {
-                // Загружаем информацию о чате
-                fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        const newChat = data.find(c => c.type === 'private' && c.id === message.chat_id);
-                        if (newChat) {
-                            setChats(prev => {
-                                const stillExists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
-                                if (!stillExists) return [newChat, ...prev];
-                                return prev;
-                            });
-                        }
-                    });
-            }
-            return prev;
-        });
-    }
-    
-    // Обновляем список чатов
-    loadChatsList();
-});
-    
-    // ✅ ПОДТВЕРЖДЕНИЕ ОТПРАВКИ (только для отправителя)
-    newSocket.on("message_sent", (message) => {
-      console.log("✅ message_sent:", message.message_id, "tempId:", message._tempId);
+      if (!currentChatRef.current) return;
       
+      if (message.chat_type !== currentChatRef.current.type || 
+          message.chat_id !== currentChatRef.current.id) {
+          return;
+      }
+      
+      if (message.sender_id === user?.employee_id && message._tempId) {
+          return;
+      }
+      
+      setMessages(prev => {
+          const existsById = prev.some(m => m.message_id === message.message_id);
+          if (existsById) return prev;
+          
+          const hasTemp = prev.some(m => m._tempId && m._tempId === message._tempId);
+          
+          let newMessages;
+          if (hasTemp) {
+              newMessages = prev.map(m => 
+                  (m._tempId && m._tempId === message._tempId) 
+                      ? { ...message, status: 'sent', _tempId: undefined } 
+                      : m
+              );
+          } else {
+              newMessages = [...prev, { ...message, status: 'sent', _tempId: undefined }];
+          }
+          
+          setTimeout(() => scrollToBottom(), 100);
+          return newMessages;
+      });
+      
+      if (message.sender_id !== user?.employee_id) {
+          newSocket.emit("mark_read", { message_id: message.message_id });
+      }
+      
+      if (message.chat_type === 'private') {
+          setChats(prev => {
+              const exists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
+              if (!exists) {
+                  fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`)
+                      .then(res => res.json())
+                      .then(data => {
+                          const newChat = data.find(c => c.type === 'private' && c.id === message.chat_id);
+                          if (newChat) {
+                              setChats(prev => {
+                                  const stillExists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
+                                  if (!stillExists) return [newChat, ...prev];
+                                  return prev;
+                              });
+                          }
+                      });
+              }
+              return prev;
+          });
+      }
+      
+      loadChatsList();
+    });
+    
+    newSocket.on("message_sent", (message) => {
       if (message._tempId) {
         pendingMessagesRef.current.delete(message._tempId);
       }
@@ -902,14 +859,12 @@ useEffect(() => {
       }
     });
     
-    // ✅ ПОДТВЕРЖДЕНИЕ ПРОЧТЕНИЯ
     newSocket.on("read_update", ({ message_id, read_count }) => {
       setMessages(prev => prev.map(msg =>
         msg?.message_id === message_id ? { ...msg, read_count } : msg
       ));
     });
     
-    // ✅ УДАЛЕНИЕ СООБЩЕНИЯ
     newSocket.on("message_deleted", ({ message_id, deleted }) => {
       if (deleted) {
         setMessages(prev => prev.filter(msg => msg.message_id !== message_id));
@@ -918,24 +873,19 @@ useEffect(() => {
       }
     });
     
-    // ✅ РЕДАКТИРОВАНИЕ СООБЩЕНИЯ
     newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
       setMessages(prev => prev.map(msg => 
         msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
       ));
     });
     
-    // ✅ ОБНОВЛЕНИЕ РЕАКЦИЙ
     newSocket.on("reaction_update", ({ message_id, reactions }) => {
       setMessages(prev => prev.map(msg => 
         msg?.message_id === message_id ? { ...msg, reactions } : msg
       ));
     });
     
-    // ✅ ЗАКРЕПЛЕНИЕ СООБЩЕНИЯ
     newSocket.on("message_pinned", (pinnedMessage) => {
-      console.log("📌 message_pinned:", pinnedMessage.message_id);
-      
       if (currentChatRef.current && 
           pinnedMessage.chat_type === currentChatRef.current.type && 
           pinnedMessage.chat_id === currentChatRef.current.id) {
@@ -955,10 +905,7 @@ useEffect(() => {
       }
     });
     
-    // ✅ ОТКРЕПЛЕНИЕ СООБЩЕНИЯ
     newSocket.on("message_unpinned", ({ message_id }) => {
-      console.log("📌 message_unpinned:", message_id);
-      
       if (currentChatRef.current) {
         setPinnedMessages(prev => prev.filter(m => m.message_id !== message_id));
         setMessages(prev => prev.map(msg => 
@@ -969,17 +916,13 @@ useEffect(() => {
       }
     });
     
-    // ✅ ОШИБКА ОТПРАВКИ
     newSocket.on("message_error", ({ error, _tempId }) => {
-      console.error("❌ message_error:", error);
       message.error(error);
-      
       if (_tempId) {
         setMessages(prev => prev.filter(msg => msg._tempId !== _tempId));
       }
     });
     
-    // ✅ НОВЫЙ ЧАТ СОЗДАН
     newSocket.on("new_chat_created", (newChat) => {
       setChats(prev => {
         if (prev.some(c => c.id === newChat.id && c.type === newChat.type)) return prev;
@@ -988,22 +931,17 @@ useEffect(() => {
       message.info(`Вас добавили в группу: ${newChat.name}`);
     });
     
-    // ✅ ГРУППА УДАЛЕНА
     newSocket.on("group_deleted", ({ group_id, chat_type }) => {
       setChats(prev => prev.filter(chat => !(chat.id === group_id && chat.type === chat_type)));
       if (currentChat?.id === group_id && currentChat?.type === chat_type) setCurrentChat(null);
     });
     
-    // ✅ ЧАТ УДАЛЕН ИЗ СПИСКА
     newSocket.on("chat_removed", ({ chat_id, chat_type }) => {
       setChats(prev => prev.filter(chat => !(chat.id === chat_id && chat.type === chat_type)));
       if (currentChat?.id === chat_id && currentChat?.type === chat_type) setCurrentChat(null);
     });
     
-    // ✅ ОБНОВЛЕНИЕ СЧЕТЧИКА НЕПРОЧИТАННЫХ
     newSocket.on("unread_count_update", () => loadChatsList());
-    
-    // ✅ ОШИБКА
     newSocket.on("error", ({ message: errorMsg }) => message.error(errorMsg));
     
     setSocket(newSocket);
@@ -1050,26 +988,21 @@ useEffect(() => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-   // ✅ Подписка на комнату при смене чата
   useEffect(() => {
     if (currentChat && socket) {
         socket.emit("join_chat", { 
             chat_type: currentChat.type, 
             chat_id: currentChat.id 
         });
-        console.log(`🔄 Подписался на комнату: ${currentChat.type}_${currentChat.id}`);
     }
   }, [currentChat?.id, currentChat?.type, socket]);
 
-  // ✅ Функция выбора чата
   const handleSelectChat = (chat) => {
     setCurrentChat(chat);
     
-    // Присоединяемся к комнате через сокет
     if (socket) {
         const rooms = socket.rooms || new Set();
         
-        // Покидаем предыдущие комнаты чатов
         rooms.forEach(room => {
             if (room.startsWith('private_') || room.startsWith('custom_') || room.startsWith('group_')) {
                 const parts = room.split('_');
@@ -1079,15 +1012,13 @@ useEffect(() => {
             }
         });
         
-        // Присоединяемся к новой комнате
         socket.emit("join_chat", { 
             chat_type: chat.type, 
             chat_id: chat.id 
         });
-        
-        console.log(`✅ Присоединился к комнате: ${chat.type}_${chat.id}`);
     }
   };
+  
   if (loading && chats.length === 0) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
@@ -1138,34 +1069,33 @@ useEffect(() => {
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               <List dataSource={filteredChats} renderItem={(chat) => (
-               <div onClick={() => handleSelectChat(chat)}
-  style={{ padding: "12px 16px", cursor: "pointer", background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent", borderBottom: "1px solid #f0f0f0", transition: "background 0.2s" }}
-  onMouseEnter={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "#f5f5f5"; }}
-  onMouseLeave={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "transparent"; }}>
-  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-    {/* Аватарка кликабельна только для личных чатов */}
-    <span 
-      onClick={(e) => {
-        e.stopPropagation(); // Не выбираем чат
-        if (chat.type === 'private') {
-          navigate(`/employee/${chat.id}`);
-        }
-      }}
-      style={{ cursor: chat.type === 'private' ? 'pointer' : 'default' }}
-    >
-      <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
-        {renderChatAvatar(chat)}
-      </Badge>
-    </span>
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.name || "Без названия"}</Text>
-        {chat.unread_count > 0 && <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />}
-      </div>
-      <Text type="secondary" style={{ fontSize: 12 }}>{chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}</Text>
-    </div>
-  </div>
-</div>
+                <div onClick={() => handleSelectChat(chat)}
+                  style={{ padding: "12px 16px", cursor: "pointer", background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent", borderBottom: "1px solid #f0f0f0", transition: "background 0.2s" }}
+                  onMouseEnter={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "#f5f5f5"; }}
+                  onMouseLeave={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "transparent"; }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (chat.type === 'private') {
+                          navigate(`/employee/${chat.id}`);
+                        }
+                      }}
+                      style={{ cursor: chat.type === 'private' ? 'pointer' : 'default' }}
+                    >
+                      <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
+                        {renderChatAvatar(chat)}
+                      </Badge>
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.name || "Без названия"}</Text>
+                        {chat.unread_count > 0 && <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}</Text>
+                    </div>
+                  </div>
+                </div>
               )} />
             </div>
           </div>
@@ -1223,102 +1153,274 @@ useEffect(() => {
                       const isMine = msg.sender_id === user?.employee_id;
                       const isImage = isMessageImage(msg);
                       const imageUrl = msg.attachment_url ? `http://localhost:5000${msg.attachment_url}` : null;
+                      const repliedMsg = msg.reply_to_id ? messages.find(m => m.message_id === msg.reply_to_id) : null;
                       
                       return (
                         <div key={msg.message_id} id={`message-${msg.message_id}`}
-                          style={{ display: "flex", justifyContent: isMine ? "flex-end" : "flex-start", marginBottom: 16, transition: 'background-color 0.3s' }}
+                          style={{ 
+                            display: "flex", 
+                            justifyContent: isMine ? "flex-end" : "flex-start", 
+                            marginBottom: 16,
+                            transition: 'background-color 0.3s',
+                            backgroundColor: replyTo?.message_id === msg.message_id ? "rgba(24, 144, 255, 0.1)" : "transparent",
+                            borderRadius: 12,
+                            padding: "4px 0",
+                            margin: replyTo?.message_id === msg.message_id ? "0 -8px 8px -8px" : "0",
+                          }}
                           onMouseEnter={() => { if (socket && !isMine && !msg.is_deleted) socket.emit("mark_read", { message_id: msg.message_id }); }}>
-                          <div style={{ maxWidth: isImage ? "60%" : "70%", display: "flex", flexDirection: "column", alignItems: isMine ? "flex-end" : "flex-start" }}>
+                          <div style={{ 
+                            maxWidth: "70%", 
+                            display: "flex", 
+                            flexDirection: "column", 
+                            alignItems: isMine ? "flex-end" : "flex-start" 
+                          }}>
                             {!isMine && (
-  <div style={{ marginBottom: 4, fontSize: 12 }}>
-    <Space size={4}>
-      <Avatar 
-        size="small" 
-        src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} 
-        style={{ 
-          backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
-          cursor: 'pointer'
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          navigate(`/employee/${msg.sender_id}`);
-        }}
-      >
-        {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
-      </Avatar>
-      <Text 
-        strong 
-        style={{ fontSize: 12, cursor: 'pointer' }}
-        onClick={(e) => {
-          e.stopPropagation();
-          navigate(`/employee/${msg.sender_id}`);
-        }}
-      >
-        {msg.sender_name}
-      </Text>
-    </Space>
-  </div>
-)}
-                            <div style={{
-                              background: msg.is_pinned ? "#fffbe6" : 
-                                msg.status === 'sending' ? "#91d5ff" :
-                                isMine ? "#1890ff" : "#f5f5f5",
-                              color: msg.is_pinned ? "#333" : 
-                                msg.status === 'sending' ? "#333" :
-                                isMine ? "white" : "#333",
-                              opacity: msg.status === 'sending' ? 0.7 : 1,
-                              padding: isImage ? "8px" : "10px 14px",
-                              borderRadius: 12,
-                              borderBottomRightRadius: isMine ? 4 : 12,
-                              borderBottomLeftRadius: isMine ? 12 : 4,
-                              wordBreak: "break-word",
-                              maxWidth: "100%",
-                              border: msg.is_pinned ? "1px solid #ffe58f" : "none",
-                              boxShadow: msg.is_pinned ? '0 2px 4px rgba(250, 173, 20, 0.2)' : 'none',
-                            }}>
-                              {isImage && imageUrl ? (
-                                <div>
-                                  <img src={imageUrl} alt="Изображение" style={{ maxWidth: "100%", maxHeight: 300, borderRadius: 8, cursor: "pointer" }} onClick={() => setPreviewImage(imageUrl)} />
-                                  {msg.message && msg.message.trim() !== "" && <div style={{ marginTop: 8, color: isMine ? "white" : "#333", fontSize: 13 }}>{msg.message}</div>}
-                                </div>
-                              ) : (
-                                <Text style={{ color: isMine ? "white" : "#333", fontSize: 14, whiteSpace: "pre-wrap" }}>
-                                  {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}{msg.message}
-                                </Text>
-                              )}
-                              {msg.attachment_url && !isImage && (
-                                <div style={{ marginTop: 8 }}><Button size="small" icon={<FileTextOutlined />} onClick={() => window.open(`http://localhost:5000${msg.attachment_url}`, "_blank")}>Скачать файл</Button></div>
-                              )}
-                            </div>
-                            {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                              <div style={{ marginTop: 4, fontSize: 12 }}>
-                                {Object.entries(msg.reactions).map(([emoji, count]) => (
-                                  <Tag key={emoji} style={{ margin: 0, marginRight: 4, cursor: "pointer" }} onClick={() => handleAddReaction(msg.message_id, emoji)}>{emoji} {count}</Tag>
-                                ))}
+                              <div style={{ marginBottom: 4, fontSize: 12, marginLeft: 12 }}>
+                                <Space size={4}>
+                                  <Avatar 
+                                    size="small" 
+                                    src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} 
+                                    style={{ 
+                                      backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
+                                      cursor: 'pointer'
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/employee/${msg.sender_id}`);
+                                    }}
+                                  >
+                                    {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
+                                  </Avatar>
+                                  <Text 
+                                    strong 
+                                    style={{ fontSize: 12, cursor: 'pointer', color: '#333' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/employee/${msg.sender_id}`);
+                                    }}
+                                  >
+                                    {msg.sender_name}
+                                  </Text>
+                                </Space>
                               </div>
                             )}
-                            <div style={{ fontSize: 11, marginTop: 4, color: "#999" }}>
-                              <Space size={4}>
-                                <ClockCircleOutlined style={{ fontSize: 10 }} />
+                            
+                            {/* Блок сообщения */}
+                            <div
+                              style={{
+                                position: "relative",
+                                padding: "8px 12px 6px 12px",
+                                borderRadius: 16,
+                                maxWidth: "100%",
+                                wordBreak: "break-word",
+                                backgroundColor: isMine ? "#2b527c" : "#f5f5f5",
+                                color: isMine ? "#ffffff" : "#000000",
+                                boxShadow: !isMine ? "0 1px 2px rgba(0, 0, 0, 0.1)" : "none",
+                                border: msg.is_pinned ? "1px solid #ffe58f" : "none",
+                              }}
+                            >
+                              {/* Цитата исходного сообщения (если это ответ) */}
+{msg.reply_to_id && (() => {
+  const repliedMsg = messages.find(m => m.message_id === msg.reply_to_id);
+  if (repliedMsg && !repliedMsg.is_deleted) {
+    return (
+      <div 
+        style={{ 
+          marginBottom: 8,
+          paddingLeft: 10,
+          borderLeft: `3px solid ${isMine ? "#ffffff80" : "#e0e0e0"}`,
+          cursor: "pointer"
+        }}
+        onClick={() => {
+          const element = document.getElementById(`message-${repliedMsg.message_id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.style.transition = 'background-color 0.3s';
+            element.style.backgroundColor = 'rgba(24, 144, 255, 0.15)';
+            setTimeout(() => {
+              element.style.backgroundColor = '';
+            }, 2000);
+          }
+        }}
+      >
+        <div style={{ 
+          fontSize: 12, 
+          fontWeight: 500,
+          color: isMine ? "rgba(255,255,255,0.8)" : "#65676b",
+          marginBottom: 2
+        }}>
+          {repliedMsg.sender_name}
+        </div>
+        <div style={{ 
+          fontSize: 12, 
+          color: isMine ? "rgba(255,255,255,0.6)" : "#999",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap"
+        }}>
+          {repliedMsg.message?.length > 80 ? repliedMsg.message.substring(0, 80) + "..." : repliedMsg.message || "📎 Медиа"}
+        </div>
+      </div>
+    );
+  }
+  return null;
+})()}
+                              
+                              {/* Изображение или текст */}
+                              {isImage && imageUrl ? (
+                                <div>
+                                  <img 
+                                    src={imageUrl} 
+                                    alt="Изображение" 
+                                    style={{ 
+                                      maxWidth: "100%", 
+                                      maxHeight: 300, 
+                                      borderRadius: 12, 
+                                      cursor: "pointer",
+                                      display: "block"
+                                    }} 
+                                    onClick={() => setPreviewImage(imageUrl)} 
+                                  />
+                                  {msg.message && msg.message.trim() !== "" && (
+                                    <div style={{ marginTop: 8, fontSize: 13, marginRight: 50 }}>
+                                      {msg.message}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <Text style={{ 
+                                  color: isMine ? "#ffffff" : "#000000", 
+                                  fontSize: 14, 
+                                  whiteSpace: "pre-wrap",
+                                  margin: 0,
+                                  lineHeight: 1.4,
+                                  marginRight: 50
+                                }}>
+                                  {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}
+                                  {msg.message}
+                                </Text>
+                              )}
+                              
+                              {/* Вложения */}
+                              {msg.attachment_url && !isImage && (
+                                <div style={{ marginTop: 8 }}>
+                                  <Button 
+                                    size="small" 
+                                    icon={<FileTextOutlined />} 
+                                    onClick={() => window.open(`http://localhost:5000${msg.attachment_url}`, "_blank")}
+                                    style={{ backgroundColor: isMine ? "#3a6b8c" : "#f0f0f0", border: "none" }}
+                                  >
+                                    Скачать файл
+                                  </Button>
+                                </div>
+                              )}
+                              
+                              {/* Время */}
+                              <div 
+                                style={{ 
+                                  position: "absolute",
+                                  bottom: 4,
+                                  right: 8,
+                                  fontSize: 11,
+                                  color: isMine ? "rgba(255, 255, 255, 0.7)" : "#999",
+                                  lineHeight: 1.2,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4
+                                }}
+                              >
                                 <span>{formatTime(msg.created_at)}</span>
-                                {msg.edited_at && <Tooltip title={`Отредактировано ${dayjs(msg.edited_at).format("DD.MM.YY HH:mm")}`}><Text type="secondary" style={{ fontSize: 10 }}>(ред.)</Text></Tooltip>}
-                                {msg.is_pinned && <Tooltip title="Это сообщение закреплено"><Tag color="gold" style={{ fontSize: 10, margin: 0 }}><PushpinOutlined /> закреплено</Tag></Tooltip>}
-                              </Space>
+                                {msg.edited_at && (
+                                  <Tooltip title={`Отредактировано ${dayjs(msg.edited_at).format("DD.MM.YY HH:mm")}`}>
+                                    <span style={{ fontSize: 10 }}>ред.</span>
+                                  </Tooltip>
+                                )}
+                                {isMine && msg.read_count > 0 && (
+                                  <Tooltip title={`Прочитано ${msg.read_count} участниками`}>
+                                    <CheckOutlined style={{ fontSize: 10 }} />
+                                  </Tooltip>
+                                )}
+                              </div>
                             </div>
-                            <div style={{ marginTop: 4 }}>
+                            
+                            {/* Реакции и действия */}
+                            <div style={{ marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                              {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  {Object.entries(msg.reactions).map(([emoji, count]) => (
+                                    <Tag 
+                                      key={emoji} 
+                                      style={{ 
+                                        margin: 0, 
+                                        cursor: "pointer", 
+                                        borderRadius: 12,
+                                        fontSize: 12,
+                                        padding: "0 6px"
+                                      }} 
+                                      onClick={() => handleAddReaction(msg.message_id, emoji)}
+                                    >
+                                      {emoji} {count}
+                                    </Tag>
+                                  ))}
+                                </div>
+                              )}
+                              
                               <Space size={4}>
-                                <Popover content={getReactionButtons(msg.message_id, msg.reactions)} trigger="click" placement="top"><Button size="small" type="text" icon={<SmileOutlined />} /></Popover>
-                                <Tooltip title="Ответить"><Button size="small" type="text" icon={<ArrowLeftOutlined />} onClick={() => setReplyTo(msg)} /></Tooltip>
+                                <Popover content={getReactionButtons(msg.message_id, msg.reactions)} trigger="click" placement="top">
+                                  <Button size="small" type="text" icon={<SmileOutlined />} style={{ fontSize: 12 }} />
+                                </Popover>
+                                <Tooltip title="Ответить">
+                                  <Button 
+                                    size="small" 
+                                    type="text" 
+                                    icon={<ArrowLeftOutlined style={{ transform: "rotate(180deg)" }} />} 
+                                    onClick={() => {
+                                      setReplyTo(msg);
+                                      setTimeout(() => {
+                                        const element = document.getElementById(`message-${msg.message_id}`);
+                                        if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      }, 100);
+                                      setTimeout(() => inputRef.current?.focus(), 200);
+                                    }} 
+                                  />
+                                </Tooltip>
                                 {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
                                   (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
                                   <Tooltip title={msg.is_pinned ? "Открепить" : "Закрепить"}>
-                                    <Button size="small" type="text" icon={<PushpinOutlined style={{ color: msg.is_pinned ? '#faad14' : undefined }} />} onClick={() => handlePinMessage(msg.message_id, msg.is_pinned)} />
+                                    <Button 
+                                      size="small" 
+                                      type="text" 
+                                      icon={<PushpinOutlined style={{ color: msg.is_pinned ? '#faad14' : undefined }} />} 
+                                      onClick={() => handlePinMessage(msg.message_id, msg.is_pinned)} 
+                                      style={{ fontSize: 12 }}
+                                    />
                                   </Tooltip>
                                 )}
                                 {isMine && !msg.is_deleted && (
                                   <>
-                                    <Tooltip title="Редактировать"><Button size="small" type="text" icon={<EditOutlined />} onClick={() => setEditMessage({ id: msg.message_id, message: msg.message, newMessage: msg.message })} /></Tooltip>
-                                    <Tooltip title="Удалить"><Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.message_id); }} /></Tooltip>
+                                    <Tooltip title="Редактировать">
+                                      <Button 
+                                        size="small" 
+                                        type="text" 
+                                        icon={<EditOutlined />} 
+                                        onClick={() => setEditMessage({ 
+                                          id: msg.message_id, 
+                                          message: msg.message,
+                                          newMessage: msg.message 
+                                        })} 
+                                        style={{ fontSize: 12 }}
+                                      />
+                                    </Tooltip>
+                                    <Tooltip title="Удалить">
+                                      <Button 
+                                        size="small" 
+                                        type="text" 
+                                        danger 
+                                        icon={<DeleteOutlined />} 
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.message_id); }} 
+                                        style={{ fontSize: 12 }}
+                                      />
+                                    </Tooltip>
                                   </>
                                 )}
                               </Space>
@@ -1339,23 +1441,97 @@ useEffect(() => {
                 
                 <div style={{ padding: "16px 24px", borderTop: "1px solid #f0f0f0", background: "#fff", flexShrink: 0 }}>
                   {replyTo && (
-                    <div style={{ background: "#e6f7ff", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Space><ArrowLeftOutlined /><Text strong>Ответ для {replyTo.sender_name}:</Text><Text type="secondary" style={{ maxWidth: 300 }} ellipsis>{replyTo.message?.substring(0, 100) || ""}...</Text></Space>
-                      <Button size="small" icon={<CloseOutlined />} onClick={() => setReplyTo(null)} />
+                    <div style={{ 
+                      background: "#f0f2f5",
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      overflow: "hidden",
+                      flexShrink: 0
+                    }}>
+                      <div style={{ 
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "8px 12px",
+                        gap: 10
+                      }}>
+                        <div style={{
+                          width: 4,
+                          height: 32,
+                          backgroundColor: replyTo.sender_id === user?.employee_id ? "#1890ff" : "#52c41a",
+                          borderRadius: 2,
+                          flexShrink: 0
+                        }} />
+                        
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ 
+                            fontSize: 13, 
+                            fontWeight: 500,
+                            color: "#111",
+                            marginBottom: 2
+                          }}>
+                            {replyTo.sender_id === user?.employee_id ? "Вы" : replyTo.sender_name}
+                          </div>
+                          <div style={{ 
+                            fontSize: 13, 
+                            color: "#65676b",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap"
+                          }}>
+                            {replyTo.is_deleted ? "⚠️ Сообщение удалено" : (
+                              replyTo.attachment_url && !replyTo.message ? (
+                                replyTo.attachment_type?.startsWith('image/') ? "📷 Фото" :
+                                replyTo.attachment_type?.startsWith('video/') ? "🎥 Видео" :
+                                replyTo.attachment_type?.startsWith('audio/') ? "🎵 Аудио" : "📎 Файл"
+                              ) : (replyTo.message?.length > 50 ? replyTo.message.substring(0, 50) + "..." : replyTo.message || "📎 Медиа")
+                            )}
+                          </div>
+                        </div>
+                        
+                        <Button 
+                          type="text" 
+                          icon={<CloseOutlined />} 
+                          onClick={() => setReplyTo(null)}
+                          size="small"
+                          style={{ flexShrink: 0, color: "#65676b" }}
+                        />
+                      </div>
                     </div>
                   )}
+                  
                   {editMessage && (
                     <div style={{ background: "#fff7e6", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
-                      <TextArea value={editMessage.newMessage} onChange={(e) => setEditMessage({ ...editMessage, newMessage: e.target.value })} autoSize={{ minRows: 1, maxRows: 3 }} style={{ flex: 1 }} />
+                      <TextArea 
+                        value={editMessage.newMessage} 
+                        onChange={(e) => setEditMessage({ ...editMessage, newMessage: e.target.value })} 
+                        autoSize={{ minRows: 1, maxRows: 3 }} 
+                        style={{ flex: 1 }} 
+                        placeholder="Редактировать сообщение..."
+                      />
                       <Button size="small" type="primary" icon={<CheckOutlined />} onClick={handleEditMessage} />
                       <Button size="small" icon={<CloseOutlined />} onClick={() => setEditMessage(null)} />
                     </div>
                   )}
+                  
                   {uploading && uploadProgress !== null && <div style={{ marginBottom: 8 }}><AntProgress percent={uploadProgress} status="active" size="small" /></div>}
+                  
                   <div style={{ display: "flex", gap: 8 }}>
-                    <Upload beforeUpload={(file) => uploadFile(file)} showUploadList={false} accept="image/*,.pdf,.doc,.docx,.txt"><Button icon={<PaperClipOutlined />} loading={uploading}>Файл</Button></Upload>
-                    <Popover content={<Picker onEmojiClick={(emoji) => setNewMessage(prev => prev + emoji.emoji)} />} trigger="click" placement="top" open={showEmojiPicker} onOpenChange={setShowEmojiPicker}><Button icon={<SmileOutlined />} /></Popover>
-                    <TextArea ref={inputRef} value={newMessage} onChange={handleTyping} onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Введите сообщение..." autoSize={{ minRows: 1, maxRows: 4 }} disabled={sending || !connected} style={{ flex: 1, resize: "none" }} />
+                    <Upload beforeUpload={(file) => uploadFile(file)} showUploadList={false} accept="image/*,.pdf,.doc,.docx,.txt">
+                      <Button icon={<PaperClipOutlined />} loading={uploading}>Файл</Button>
+                    </Upload>
+                    <Popover content={<Picker onEmojiClick={(emoji) => setNewMessage(prev => prev + emoji.emoji)} />} trigger="click" placement="top" open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                      <Button icon={<SmileOutlined />} />
+                    </Popover>
+                    <TextArea 
+                      ref={inputRef} 
+                      value={newMessage} 
+                      onChange={handleTyping} 
+                      onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }} 
+                      placeholder="Введите сообщение..." 
+                      autoSize={{ minRows: 1, maxRows: 4 }} 
+                      disabled={sending || !connected} 
+                      style={{ flex: 1, resize: "none" }} 
+                    />
                     <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={sending} disabled={!newMessage.trim() && !replyTo && !uploading}>Отправить</Button>
                   </div>
                 </div>
