@@ -413,57 +413,88 @@ const ChatPage = () => {
   };
 
   const uploadFile = async (file, messageText = null) => {
-    if (uploadingRef.current || !socket || !currentChat) return null;
-    uploadingRef.current = true;
-    setUploading(true);
-    setUploadProgress(0);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('sender_id', user.employee_id);
-    formData.append('chat_type', currentChat.type);
-    formData.append('chat_id', currentChat.id);
-    try {
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) { clearInterval(progressInterval); return prev; }
-          return (prev || 0) + 10;
-        });
-      }, 100);
-      const response = await fetch('http://localhost:5000/api/chat/upload', { method: 'POST', body: formData });
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      if (response.ok) {
-        const data = await response.json();
-        const isImg = data.is_image;
-        let finalMessage = messageText || '';
-        if (!finalMessage && !isImg) finalMessage = `📎 Файл: ${file.name}`;
-        const tempId = `temp_${Date.now()}_${Math.random()}`;
-        pendingMessagesRef.current.add(tempId);
-        socket.emit("send_message", {
-          message: finalMessage,
-          chat_type: currentChat.type,
-          chat_id: currentChat.id,
-          attachment_url: data.fileUrl,
-          attachment_type: file.type,
-          is_image: isImg,
-          _tempId: tempId,
-        });
-        message.success(isImg ? "Изображение отправлено" : "Файл загружен");
-        return data;
-      } else {
-        message.error("Ошибка загрузки файла");
-        return null;
-      }
-    } catch (error) {
-      console.error("Ошибка:", error);
+  if (uploadingRef.current || !socket || !currentChat) return null;
+  uploadingRef.current = true;
+  setUploading(true);
+  setUploadProgress(0);
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('sender_id', user.employee_id);
+  formData.append('chat_type', currentChat.type);
+  formData.append('chat_id', currentChat.id);
+  
+  try {
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) { clearInterval(progressInterval); return prev; }
+        return (prev || 0) + 10;
+      });
+    }, 100);
+    
+    const response = await fetch('http://localhost:5000/api/chat/upload', { method: 'POST', body: formData });
+    clearInterval(progressInterval);
+    setUploadProgress(100);
+    
+    if (response.ok) {
+      const data = await response.json();
+      const isImg = data.is_image;
+      let finalMessage = messageText || '';
+      if (!finalMessage && !isImg) finalMessage = `📎 Файл: ${file.name}`;
+      
+      const tempId = `temp_${Date.now()}_${Math.random()}`;
+      pendingMessagesRef.current.add(tempId);
+      
+      // ✅ ДОБАВЛЯЕМ ОПТИМИСТИЧНОЕ СООБЩЕНИЕ СРАЗУ!
+      const optimisticMessage = {
+        message_id: tempId,
+        chat_type: currentChat.type,
+        chat_id: currentChat.id,
+        sender_id: user.employee_id,
+        sender_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+        sender_role: user.role,
+        sender_avatar_url: user.avatar_url,
+        message: finalMessage,
+        attachment_url: data.fileUrl,
+        attachment_type: file.type,
+        is_image: isImg,
+        created_at: new Date().toISOString(),
+        read_count: 0,
+        reactions: {},
+        status: 'sending',
+        _tempId: tempId,
+      };
+      
+      setMessages(prev => [...prev, optimisticMessage]);
+      setTimeout(() => scrollToBottom(), 100);
+      
+      // Отправляем на сервер
+      socket.emit("send_message", {
+        message: finalMessage,
+        chat_type: currentChat.type,
+        chat_id: currentChat.id,
+        attachment_url: data.fileUrl,
+        attachment_type: file.type,
+        is_image: isImg,
+        _tempId: tempId,
+      });
+      
+      message.success(isImg ? "Изображение отправлено" : "Файл загружен");
+      return data;
+    } else {
       message.error("Ошибка загрузки файла");
       return null;
-    } finally {
-      setUploading(false);
-      setUploadProgress(null);
-      uploadingRef.current = false;
     }
-  };
+  } catch (error) {
+    console.error("Ошибка:", error);
+    message.error("Ошибка загрузки файла");
+    return null;
+  } finally {
+    setUploading(false);
+    setUploadProgress(null);
+    uploadingRef.current = false;
+  }
+};
 
   const startPrivateChat = async (employee) => {
     try {
@@ -771,66 +802,56 @@ const ChatPage = () => {
       setConnected(false); 
     });
     
-    newSocket.on("new_message", (message) => {
-      if (!currentChatRef.current) return;
-      
-      if (message.chat_type !== currentChatRef.current.type || 
-          message.chat_id !== currentChatRef.current.id) {
-          return;
-      }
-      
-      if (message.sender_id === user?.employee_id && message._tempId) {
-          return;
-      }
-      
-      setMessages(prev => {
-          const existsById = prev.some(m => m.message_id === message.message_id);
-          if (existsById) return prev;
-          
-          const hasTemp = prev.some(m => m._tempId && m._tempId === message._tempId);
-          
-          let newMessages;
-          if (hasTemp) {
-              newMessages = prev.map(m => 
-                  (m._tempId && m._tempId === message._tempId) 
-                      ? { ...message, status: 'sent', _tempId: undefined } 
-                      : m
-              );
-          } else {
-              newMessages = [...prev, { ...message, status: 'sent', _tempId: undefined }];
-          }
-          
-          setTimeout(() => scrollToBottom(), 100);
-          return newMessages;
-      });
-      
-      if (message.sender_id !== user?.employee_id) {
-          newSocket.emit("mark_read", { message_id: message.message_id });
-      }
-      
-      if (message.chat_type === 'private') {
-          setChats(prev => {
-              const exists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
-              if (!exists) {
-                  fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`)
-                      .then(res => res.json())
-                      .then(data => {
-                          const newChat = data.find(c => c.type === 'private' && c.id === message.chat_id);
-                          if (newChat) {
-                              setChats(prev => {
-                                  const stillExists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
-                                  if (!stillExists) return [newChat, ...prev];
-                                  return prev;
-                              });
-                          }
-                      });
-              }
-              return prev;
-          });
-      }
-      
-      loadChatsList();
-    });
+    // ✅ НОВОЕ СООБЩЕНИЕ
+newSocket.on("new_message", (message) => {
+  console.log("📨 new_message получен:", message.message_id, "tempId:", message._tempId);
+  
+  if (!currentChatRef.current) return;
+  
+  if (message.chat_type !== currentChatRef.current.type || 
+      message.chat_id !== currentChatRef.current.id) {
+      return;
+  }
+  
+  setMessages(prev => {
+    // Проверяем на дубликаты по message_id
+    const existsById = prev.some(m => m.message_id === message.message_id);
+    if (existsById) {
+      console.log("⚠️ Сообщение уже существует (по ID)");
+      return prev;
+    }
+    
+    // Ищем временное сообщение с таким же _tempId
+    const tempIndex = prev.findIndex(m => m._tempId === message._tempId);
+    
+    if (tempIndex !== -1) {
+      // Заменяем временное сообщение на настоящее
+      console.log("🔄 Заменяем временное сообщение, ID:", message.message_id);
+      const newMessages = [...prev];
+      newMessages[tempIndex] = { 
+        ...message, 
+        status: 'sent', 
+        _tempId: undefined,
+        attachment_url: message.attachment_url,
+        attachment_type: message.attachment_type,
+        is_image: message.is_image
+      };
+      setTimeout(() => scrollToBottom(), 100);
+      return newMessages;
+    }
+    
+    // Добавляем новое сообщение от других пользователей
+    console.log("➕ Добавлено новое сообщение от", message.sender_name);
+    setTimeout(() => scrollToBottom(), 100);
+    return [...prev, { ...message, status: 'sent', _tempId: undefined }];
+  });
+  
+  if (message.sender_id !== user?.employee_id) {
+    newSocket.emit("mark_read", { message_id: message.message_id });
+  }
+  
+  loadChatsList();
+});
     
     newSocket.on("message_sent", (message) => {
       if (message._tempId) {
@@ -874,16 +895,18 @@ const ChatPage = () => {
     });
     
     newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
-      setMessages(prev => prev.map(msg => 
-        msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
-      ));
-    });
+  console.log(`✏️ Сообщение ${message_id} отредактировано`);
+  setMessages(prev => prev.map(msg => 
+    msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
+  ));
+});
     
     newSocket.on("reaction_update", ({ message_id, reactions }) => {
-      setMessages(prev => prev.map(msg => 
-        msg?.message_id === message_id ? { ...msg, reactions } : msg
-      ));
-    });
+  console.log(`😊 Обновление реакций для сообщения ${message_id}:`, reactions);
+  setMessages(prev => prev.map(msg => 
+    msg?.message_id === message_id ? { ...msg, reactions } : msg
+  ));
+});
     
     newSocket.on("message_pinned", (pinnedMessage) => {
       if (currentChatRef.current && 
