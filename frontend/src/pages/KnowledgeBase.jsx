@@ -82,8 +82,7 @@ const MetricCard = ({ title, value, description, formula, example, target, icon,
       {description}
     </Paragraph>
     {formula && (
-      <div style={{ background: "#f5f5f5", padding: 8, borderRadius: 6, marginTop: 8 }}>
-        <Text strong>📐 Формула:</Text>
+<div style={{ background: "var(--hover-bg)", padding: 8, borderRadius: 6, marginTop: 8 }}>        <Text strong>📐 Формула:</Text>
         <Text code style={{ display: "block", marginTop: 4 }}>
           {formula}
         </Text>
@@ -216,7 +215,7 @@ const KnowledgeBase = () => {
       <Layout>
         <Header
           style={{
-            background: "#fff",
+           background: "var(--bg-content)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -242,7 +241,7 @@ const KnowledgeBase = () => {
           style={{
             margin: "24px",
             padding: "24px",
-            background: "#fff",
+           background: "var(--bg-content)",
             borderRadius: "8px",
             minHeight: "calc(100vh - 112px)",
           }}
@@ -458,7 +457,7 @@ const KnowledgeBase = () => {
               <Card title="Как интерпретировать результаты" style={{ marginTop: 24 }}>
                 <Row gutter={16}>
                   <Col span={8}>
-                    <Card size="small" style={{ textAlign: "center", background: "#f6ffed" }}>
+                    <Card size="small" style={{ textAlign: "center", background: "var(--card-bg)" }}>
                       <StarOutlined style={{ fontSize: 24, color: "#faad14" }} />
                       <Title level={4}>85%+</Title>
                       <Text>Отличный результат</Text>

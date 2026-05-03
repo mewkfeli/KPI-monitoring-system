@@ -357,13 +357,13 @@ const Leaderboard = () => {
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Header style={{ background: "#fff", padding: "0 24px" }}>
+          <Header style={{background: "var(--bg-content)", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
               Рейтинг сотрудников
             </Title>
           </Header>
           <Content
-            style={{ margin: "24px", padding: "24px", background: "#fff" }}
+            style={{ margin: "24px", padding: "24px",background: "var(--bg-content)"}}
           >
             <div
               style={{
@@ -389,7 +389,7 @@ const Leaderboard = () => {
       <Layout>
         <Header
           style={{
-            background: "#fff",
+           background: "var(--bg-content)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -420,7 +420,7 @@ const Leaderboard = () => {
           style={{
             margin: "24px",
             padding: "24px",
-            background: "#fff",
+           background: "var(--bg-content)",
             borderRadius: "8px",
             minHeight: "calc(100vh - 112px)",
           }}
