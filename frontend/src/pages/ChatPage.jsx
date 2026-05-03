@@ -374,7 +374,41 @@ const ChatPage = () => {
     newSocket.on("error", ({ message: errorMsg }) => {
       message.error(errorMsg);
     });
-    
+      newSocket.on("member_removed", ({ group_id, member_id }) => {
+    console.log(`👤 Участник ${member_id} удален из группы ${group_id}`);
+    // Если мы в информации о группе и это та же группа - обновляем
+    if (currentGroupInfo?.group_id === group_id) {
+      fetchGroupInfo(group_id);
+    }
+  });
+  newSocket.on("group_deleted", ({ group_id, group_name, chat_type }) => {
+  console.log(`🗑 Группа ${group_name} (${chat_type}_${group_id}) удалена`);
+  
+  // Удаляем чат из списка
+  setChats(prev => prev.filter(chat => !(chat.id === group_id && chat.type === chat_type)));
+  
+  // Если текущий открытый чат - это удаленная группа, закрываем его
+  if (currentChat?.id === group_id && currentChat?.type === chat_type) {
+    setCurrentChat(null);
+    message.warning(`Группа "${group_name}" была удалена администратором`);
+  } else {
+    message.info(`Группа "${group_name}" была удалена`);
+  }
+});
+  newSocket.on("chat_removed", ({ chat_id, chat_type, group_name }) => {
+  console.log(`🗑 Чат удален: ${chat_type}_${chat_id}, вы исключены из группы ${group_name}`);
+  
+  // Удаляем чат из списка
+  setChats(prev => prev.filter(chat => !(chat.id === chat_id && chat.type === chat_type)));
+  
+  // Если текущий открытый чат - это удаленный, закрываем его
+  if (currentChat?.id === chat_id && currentChat?.type === chat_type) {
+    setCurrentChat(null);
+    message.warning(`Вас исключили из группы "${group_name}"`);
+  } else {
+    message.info(`Вас исключили из группы "${group_name}"`);
+  }
+});
     setSocket(newSocket);
     
     return () => {
@@ -543,27 +577,43 @@ const ChatPage = () => {
   };
 
   // Удаление участника (только для админа)
-  const handleRemoveMember = async (memberId) => {
-    if (!currentGroupInfo) return;
-    try {
-      const response = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo.group_id}/remove-member`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ admin_id: user.employee_id, member_id: memberId }),
-      });
-      if (response.ok) {
-        message.success("Участник удалён");
-        fetchGroupInfo(currentGroupInfo.group_id);
-        loadChats();
-      } else {
-        const err = await response.json();
-        message.error(err.error || "Не удалось удалить участника");
+ const handleRemoveMember = async (memberId) => {
+  if (!currentGroupInfo) return;
+  
+  Modal.confirm({
+    title: 'Подтвердите удаление',
+    content: `Вы уверены, что хотите удалить этого участника?`,
+    okText: 'Удалить',
+    okType: 'danger',
+    cancelText: 'Отмена',
+    onOk: async () => {
+      try {
+        const response = await fetch(
+          `http://localhost:5000/api/chat/group/${currentGroupInfo.group_id}/member/${memberId}`,
+          {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_id: user.employee_id }),
+          }
+        );
+        
+        if (response.ok) {
+          message.success("Участник удалён");
+          // Обновляем информацию о группе
+          fetchGroupInfo(currentGroupInfo.group_id);
+          // Обновляем список чатов
+          loadChats();
+        } else {
+          const err = await response.json();
+          message.error(err.error || "Не удалось удалить участника");
+        }
+      } catch (error) {
+        console.error("Ошибка удаления участника:", error);
+        message.error("Не удалось удалить участника");
       }
-    } catch (error) {
-      console.error("Ошибка удаления участника:", error);
-      message.error("Не удалось удалить участника");
     }
-  };
+  });
+};
   
   // Копировать код приглашения
   const copyInviteCode = () => {
@@ -819,13 +869,58 @@ const ChatPage = () => {
     key: "invite",
     icon: <LinkOutlined />,
     label: "Пригласить участников",
+    onClick: () => fetchInviteCode(currentChat?.id)
+  },
+  {
+    key: "delete",
+    icon: <DeleteOutlined />,
+    label: "Удалить группу",
+    danger: true,
     onClick: () => {
-      // Нужно получить код приглашения для текущей группы
-      fetchInviteCode(currentChat?.id);
+      Modal.confirm({
+        title: "Удалить группу?",
+        content: `Вы уверены, что хотите удалить группу "${currentChat?.name}"? Это действие нельзя отменить. Все сообщения будут потеряны.`,
+        okText: "Удалить",
+        okType: "danger",
+        cancelText: "Отмена",
+        onOk: () => handleDeleteGroup()
+      });
     }
   }
 ];
-
+const handleDeleteGroup = async () => {
+  if (!currentChat || currentChat.type !== 'custom') return;
+  
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/chat/group/${currentChat.id}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_id: user.employee_id }),
+      }
+    );
+    
+    if (response.ok) {
+      message.success("Группа удалена");
+      
+      // Удаляем группу из списка чатов
+      setChats(prev => prev.filter(chat => !(chat.id === currentChat.id && chat.type === 'custom')));
+      
+      // Закрываем текущий чат
+      setCurrentChat(null);
+      
+      // Перезагружаем список чатов для синхронизации
+      loadChats();
+    } else {
+      const err = await response.json();
+      message.error(err.error || "Не удалось удалить группу");
+    }
+  } catch (error) {
+    console.error("Ошибка удаления группы:", error);
+    message.error("Не удалось удалить группу");
+  }
+};
 // Функция получения кода приглашения
 const fetchInviteCode = async (groupId) => {
   try {
@@ -1539,7 +1634,11 @@ const fetchInviteCode = async (groupId) => {
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <Avatar size={80} icon={<TeamOutlined />} style={{ backgroundColor: "#1890ff" }} />
               <Title level={4} style={{ marginTop: 12 }}>{currentGroupInfo.group_name}</Title>
-              <Text type="secondary">Создана {dayjs(currentGroupInfo.created_at).format("DD.MM.YYYY")}</Text>
+              <Text type="secondary">
+          Создана {currentGroupInfo.created_at 
+            ? dayjs(currentGroupInfo.created_at).format("DD.MM.YYYY") 
+            : "Неизвестно"}
+        </Text>
             </div>
             
             {currentGroupInfo.can_edit && (
