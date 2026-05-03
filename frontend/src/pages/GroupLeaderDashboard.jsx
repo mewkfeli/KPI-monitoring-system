@@ -95,7 +95,19 @@ const GroupLeaderDashboard = () => {
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
   const [profileData, setProfileData] = useState(null);
+ const [kpiTargets, setKpiTargets] = useState({ 
+    csat: 85, 
+    fcr: 75, 
+    contacts_per_hour: 8, 
+    quality_score: 90 
+  });
 
+  useEffect(() => {
+    fetch('http://localhost:5000/api/kpi/targets')
+      .then(res => res.json())
+      .then(data => setKpiTargets(data))
+      .catch(err => console.error('Ошибка загрузки KPI норм:', err));
+  }, []);
   // Функция экспорта в Excel
   const exportGroupToExcel = () => {
     if (!groupData?.todayKpi || groupData.todayKpi.length === 0) {
@@ -355,30 +367,36 @@ const GroupLeaderDashboard = () => {
   // Колонки для таблицы сотрудников
   const employeeColumns = [
     {
-      title: "Сотрудник",
-      dataIndex: "full_name",
-      key: "full_name",
-      render: (text, record) => (
-        <Space>
-          <Avatar
-            size="small"
-            style={{
-              backgroundColor: record.role === "Руководитель группы" ? "#1890ff" : "#52c41a",
-              cursor: 'pointer'
-            }}
-            onClick={() => navigate(`/employee/${record.employee_id}`)}
-          >
-            {record.last_name[0]}
-          </Avatar>
-          <a onClick={() => navigate(`/employee/${record.employee_id}`)}>
-            {`${record.last_name} ${record.first_name} ${record.middle_name || ""}`}
-          </a>
-          {record.role === "Руководитель группы" && (
-            <Tag color="blue">Руководитель</Tag>
-          )}
-        </Space>
-      )
-    },
+  title: "Сотрудник",
+  dataIndex: "full_name",
+  key: "full_name",
+  render: (text, record) => {
+    // Получаем URL аватарки, если она есть
+    const avatarUrl = record.avatar_url ? `http://localhost:5000${record.avatar_url}` : null;
+    
+    return (
+      <Space>
+        <Avatar
+          size="small"
+          src={avatarUrl}
+          style={{
+            backgroundColor: !avatarUrl ? (record.role === "Руководитель группы" ? "#1890ff" : "#52c41a") : "transparent",
+            cursor: 'pointer'
+          }}
+          onClick={() => navigate(`/employee/${record.employee_id}`)}
+        >
+          {!avatarUrl && (record.last_name?.[0] || record.first_name?.[0])}
+        </Avatar>
+        <a onClick={() => navigate(`/employee/${record.employee_id}`)}>
+          {`${record.last_name} ${record.first_name} ${record.middle_name || ""}`}
+        </a>
+        {record.role === "Руководитель группы" && (
+          <Tag color="blue">Руководитель</Tag>
+        )}
+      </Space>
+    );
+  }
+},
     {
       title: "Должность",
       dataIndex: "role",
@@ -464,11 +482,7 @@ const GroupLeaderDashboard = () => {
               percent={actualValue}
               size="small"
               status={
-                actualValue >= 85
-                  ? "success"
-                  : actualValue >= 70
-                    ? "normal"
-                    : "exception"
+                actualValue >= kpiTargets.csat ? "success" : actualValue >= kpiTargets.csat * 0.8 ? "normal" : "exception"
               }
               style={{ margin: "4px 0" }}
             />
@@ -496,11 +510,7 @@ const GroupLeaderDashboard = () => {
               percent={actualValue}
               size="small"
               status={
-                actualValue >= 75
-                  ? "success"
-                  : actualValue >= 60
-                    ? "normal"
-                    : "exception"
+                actualValue >= kpiTargets.fcr ? "success" : actualValue >= kpiTargets.fcr * 0.8 ? "normal" : "exception"
               }
               style={{ margin: "4px 0" }}
             />
@@ -556,7 +566,7 @@ const GroupLeaderDashboard = () => {
         return (
           <Tag
             color={
-              actualValue >= 8 ? "green" : actualValue >= 5 ? "orange" : "red"
+              actualValue >= kpiTargets.contacts_per_hour ? "green" : actualValue >= kpiTargets.contacts_per_hour * 0.6 ? "orange" : "red"
             }
           >
             {actualValue} обраб/час
@@ -709,7 +719,6 @@ const GroupLeaderDashboard = () => {
             <Title level={4} style={{ margin: 0 }}>
               {groupData?.groupInfo ? (
                 <Space>
-                  <TeamOutlined />
                   <span>Группа: {groupData.groupInfo.group_name}</span>
                   <Tag color="blue">{groupData.groupInfo.direction_name}</Tag>
                   <Tag color="geekblue">
@@ -774,7 +783,6 @@ const GroupLeaderDashboard = () => {
           <Title level={4} style={{ margin: 0 }}>
             {groupData?.groupInfo ? (
               <Space>
-                <TeamOutlined />
                 <span>Группа: {groupData.groupInfo.group_name}</span>
                 <Tag color="blue">{groupData.groupInfo.direction_name}</Tag>
                 <Tag color="geekblue">

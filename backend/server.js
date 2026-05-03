@@ -13,6 +13,7 @@ import groupRoutes from "./group.routes.js";
 import chatRoutes, { setIo } from "./chat.routes.js";
 import { db } from "./db.js";
 import { KPICollector } from "./services/kpiCollector.service.js";
+import adminRoutes from "./admin.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,7 +83,11 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
-
+app.use("/api/auth", authRoutes);
+app.use("/api/metrics", metricsRoutes);
+app.use("/api/group", groupRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/admin", adminRoutes);
 const server = http.createServer(app);
 
 // Socket.IO
@@ -610,6 +615,20 @@ setTimeout(async () => {
   console.log('🔄 Проверка данных за сегодня...');
   await KPICollector.collectForAllEmployees(new Date());
 }, 5000);
+// Получить все KPI нормы
+app.get("/api/kpi/targets", async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM kpi_targets');
+    const targets = {};
+    rows.forEach(row => {
+      targets[row.metric_name] = parseFloat(row.target_value);
+    });
+    res.json(targets);
+  } catch (error) {
+    res.json({ csat: 85, fcr: 75, contacts_per_hour: 8, quality_score: 90 });
+  }
+});
+
 
 const PORT = 5000;
 server.listen(PORT, () => {

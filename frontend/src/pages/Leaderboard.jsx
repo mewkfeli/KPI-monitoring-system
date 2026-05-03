@@ -69,7 +69,19 @@ const Leaderboard = () => {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("week");
   const [groupInfo, setGroupInfo] = useState(null);
+ const [kpiTargets, setKpiTargets] = useState({ 
+    csat: 85, 
+    fcr: 75, 
+    contacts_per_hour: 8, 
+    quality_score: 90 
+  });
 
+  useEffect(() => {
+    fetch('http://localhost:5000/api/kpi/targets')
+      .then(res => res.json())
+      .then(data => setKpiTargets(data))
+      .catch(err => console.error('Ошибка загрузки KPI норм:', err));
+  }, []);
   // Определяем цвет для роли
   const getRoleColor = (role) => {
     switch (role) {
@@ -221,37 +233,43 @@ const Leaderboard = () => {
       sorter: (a, b) => a.rank - b.rank,
     },
     {
-     title: "Сотрудник",
+  title: "Сотрудник",
   key: "employee",
-  render: (_, record) => (
-    <Space>
-      <Avatar 
-        style={{ 
-          backgroundColor: getRoleColor(record.role),
-          cursor: 'pointer'
-        }}
-        onClick={() => navigate(`/employee/${record.employee_id}`)}
-      >
-        {record.first_name?.[0] || record.last_name?.[0]}
-      </Avatar>
-      <div>
-        <Text 
-          strong 
-          style={{ cursor: 'pointer', color: '#1890ff' }}
+  render: (_, record) => {
+    // Получаем URL аватарки, если она есть
+    const avatarUrl = record.avatar_url ? `http://localhost:5000${record.avatar_url}` : null;
+    
+    return (
+      <Space>
+        <Avatar 
+          src={avatarUrl}
+          style={{ 
+            backgroundColor: !avatarUrl ? getRoleColor(record.role) : "transparent",
+            cursor: 'pointer'
+          }}
           onClick={() => navigate(`/employee/${record.employee_id}`)}
         >
-          {record.full_name}
-        </Text>
-        <br />
-        <Tag color={getRoleColor(record.role)} style={{ fontSize: 10 }}>
-          {record.role}
-        </Tag>
-      </div>
-    </Space>
-  ),
-      sorter: (a, b) => a.last_name.localeCompare(b.last_name),
-    },
-    {
+          {!avatarUrl && (record.first_name?.[0] || record.last_name?.[0])}
+        </Avatar>
+        <div>
+          <Text 
+            strong 
+            style={{ cursor: 'pointer', color: '#1890ff' }}
+            onClick={() => navigate(`/employee/${record.employee_id}`)}
+          >
+            {record.full_name}
+          </Text>
+          <br />
+          <Tag color={getRoleColor(record.role)} style={{ fontSize: 10 }}>
+            {record.role}
+          </Tag>
+        </div>
+      </Space>
+    );
+  },
+  sorter: (a, b) => a.last_name.localeCompare(b.last_name),
+},
+        {
       title: "Рабочих дней",
       dataIndex: "work_days",
       key: "work_days",
@@ -268,7 +286,7 @@ const Leaderboard = () => {
       width: 100,
       sorter: (a, b) => a.csat - b.csat,
       render: (value) => (
-        <Tag color={value >= 85 ? "green" : value >= 70 ? "orange" : "red"}>
+        <Tag color={value >= kpiTargets.csat ? "green" : value >= kpiTargets.csat * 0.8 ? "orange" : "red"}>
           <StarOutlined /> {value}%
         </Tag>
       ),
@@ -281,7 +299,8 @@ const Leaderboard = () => {
       width: 100,
       sorter: (a, b) => a.fcr - b.fcr,
       render: (value) => (
-        <Tag color={value >= 75 ? "green" : value >= 60 ? "orange" : "red"}>
+        <Tag color={value >= kpiTargets.fcr ? "green" : value >= kpiTargets.fcr * 0.8 ? "orange" : "red"}
+>
           <CheckCircleOutlined /> {value}%
         </Tag>
       ),
@@ -294,7 +313,7 @@ const Leaderboard = () => {
       width: 120,
       sorter: (a, b) => a.contacts_per_hour - b.contacts_per_hour,
       render: (value) => (
-        <Tag color={value >= 8 ? "green" : value >= 5 ? "orange" : "red"}>
+        <Tag color={value >= kpiTargets.contacts_per_hour ? "green" : value >= kpiTargets.contacts_per_hour * 0.6 ? "orange" : "red"}>
           <ClockCircleOutlined /> {value}
         </Tag>
       ),
@@ -399,7 +418,6 @@ const Leaderboard = () => {
         >
           <Title level={4} style={{ margin: 0 }}>
             <Space>
-              <TrophyOutlined style={{ color: "gold" }} />
               <span>Рейтинг сотрудников</span>
               {groupInfo && (
                 <Tag color="blue" style={{ marginLeft: 8 }}>

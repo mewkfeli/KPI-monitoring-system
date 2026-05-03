@@ -32,7 +32,7 @@ router.get('/my-group', async (req, res) => {
 
     // Получаем всех сотрудников группы
     const [employees] = await db.query(
-      `SELECT employee_id, last_name, first_name, middle_name, role, status, hire_date
+      `SELECT employee_id, last_name, first_name, middle_name, role, status, hire_date, avatar_url
        FROM employees 
        WHERE group_id = ? AND status != 'Уволен'
        ORDER BY 
@@ -338,6 +338,7 @@ router.get("/leaderboard", async (req, res) => {
         e.first_name,
         e.middle_name,
         e.role,
+        e.avatar_url,
         COUNT(DISTINCT dm.report_date) as work_days,
         SUM(dm.processed_requests) as total_requests,
         SUM(dm.work_minutes) as total_minutes,
@@ -413,6 +414,7 @@ router.get("/leaderboard/department", async (req, res) => {
         e.first_name,
         e.middle_name,
         e.role,
+        e.avatar_url,
         wg.group_name,
         SUM(dm.processed_requests) as total_requests,
         CASE 

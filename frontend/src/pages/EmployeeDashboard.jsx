@@ -91,7 +91,21 @@ const EmployeeDashboard = () => {
   const [weeklyStats, setWeeklyStats] = useState({});
   // Состояние для фильтра дат
   const [dateRange, setDateRange] = useState(null);
+// 👇 ДОБАВЬТЕ ЭТО
+  const [kpiTargets, setKpiTargets] = useState({ 
+    csat: 85, 
+    fcr: 75, 
+    contacts_per_hour: 8, 
+    quality_score: 90 
+  });
 
+  // 👇 ДОБАВЬТЕ ЭТОТ useEffect
+  useEffect(() => {
+    fetch('http://localhost:5000/api/kpi/targets')
+      .then(res => res.json())
+      .then(data => setKpiTargets(data))
+      .catch(err => console.error('Ошибка загрузки KPI норм:', err));
+  }, []);
   const menuItems = [
     {
       key: "profile",
@@ -508,13 +522,13 @@ const EmployeeDashboard = () => {
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Header style={{ background: "#fff", padding: "0 24px" }}>
+          <Header style={{background: "var(--bg-content)", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
               Показатели
             </Title>
           </Header>
           <Content
-            style={{ margin: "24px", padding: "24px", background: "#fff" }}
+            style={{ margin: "24px", padding: "24px",background: "var(--bg-content)" }}
           >
             <div
               style={{
@@ -540,7 +554,7 @@ const EmployeeDashboard = () => {
       <Layout>
         <Header
           style={{
-            background: "#fff",
+           background: "var(--bg-content)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -834,11 +848,7 @@ const EmployeeDashboard = () => {
                               prefix={<ClockCircleOutlined />}
                               valueStyle={{
                                 color:
-                                  kpis.contactsPerHour >= 8
-                                    ? "#3f8600"
-                                    : kpis.contactsPerHour >= 5
-                                      ? "#faad14"
-                                      : "#cf1322",
+                                  kpis.contactsPerHour >= kpiTargets.contacts_per_hour ? "#3f8600" : contactsPerHour >= kpiTargets.contacts_per_hour * 0.7 ? "#faad14" : "#cf1322"
                               }}
                             />
                             <Text type="secondary">Цель: 8 контактов/час</Text>
@@ -853,21 +863,13 @@ const EmployeeDashboard = () => {
                               prefix={<CheckCircleOutlined />}
                               valueStyle={{
                                 color:
-                                  kpis.fcr >= 75
-                                    ? "#3f8600"
-                                    : kpis.fcr >= 60
-                                      ? "#faad14"
-                                      : "#cf1322",
+                                  kpis.fcr >= kpiTargets.fcr ? "#3f8600" : fcr >= kpiTargets.fcr * 0.8 ? "#faad14" : "#cf1322"
                               }}
                             />
                             <Progress
                               percent={kpis.fcr || 0}
                               status={
-                                kpis.fcr >= 75
-                                  ? "success"
-                                  : kpis.fcr >= 60
-                                    ? "normal"
-                                    : "exception"
+                                kpis.fcr >= kpiTargets.fcr ? "#3f8600" : fcr >= kpiTargets.fcr * 0.8 ? "#faad14" : "#cf1322"
                               }
                               size="small"
                             />

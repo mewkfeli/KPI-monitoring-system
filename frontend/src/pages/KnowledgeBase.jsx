@@ -224,7 +224,6 @@ const KnowledgeBase = () => {
           }}
         >
           <Space>
-            <BookOutlined style={{ fontSize: 20, color: "#1890ff" }} />
             <Title level={4} style={{ margin: 0 }}>
               База знаний
             </Title>

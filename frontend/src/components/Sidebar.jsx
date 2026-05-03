@@ -10,6 +10,8 @@ import {
   BookOutlined,
   LogoutOutlined,
   BulbOutlined,
+    SettingOutlined, 
+  UserSwitchOutlined,
   BulbFilled,
 } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
@@ -79,15 +81,25 @@ const Sidebar = () => {
       {
         key: "/chat",
         icon: <MessageOutlined />,
-        label: <Link to="/chat">Чат группы</Link>,
+        label: <Link to="/chat">Чаты</Link>,
       },
       {
         key: "/knowledge",
         icon: <BookOutlined />,
         label: <Link to="/knowledge">База знаний</Link>,
       },
+      
     ];
-
+if (user?.role === 'Администратор') {
+  return [
+    ...baseItems,
+    {
+      key: "/admin",
+      icon: <SettingOutlined />,
+      label: <Link to="/admin">Администрирование</Link>,
+    },
+  ];
+}
     const leaderItems = [
       {
         key: "/group-leader",
