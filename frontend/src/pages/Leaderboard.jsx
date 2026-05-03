@@ -38,7 +38,7 @@ import {
   BookOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
@@ -64,6 +64,7 @@ const rankIcons = {
 
 const Leaderboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("week");
@@ -220,22 +221,34 @@ const Leaderboard = () => {
       sorter: (a, b) => a.rank - b.rank,
     },
     {
-      title: "Сотрудник",
-      key: "employee",
-      render: (_, record) => (
-        <Space>
-          <Avatar style={{ backgroundColor: getRoleColor(record.role) }}>
-            {record.first_name?.[0] || record.last_name?.[0]}
-          </Avatar>
-          <div>
-            <Text strong>{record.full_name}</Text>
-            <br />
-            <Tag color={getRoleColor(record.role)} style={{ fontSize: 10 }}>
-              {record.role}
-            </Tag>
-          </div>
-        </Space>
-      ),
+     title: "Сотрудник",
+  key: "employee",
+  render: (_, record) => (
+    <Space>
+      <Avatar 
+        style={{ 
+          backgroundColor: getRoleColor(record.role),
+          cursor: 'pointer'
+        }}
+        onClick={() => navigate(`/employee/${record.employee_id}`)}
+      >
+        {record.first_name?.[0] || record.last_name?.[0]}
+      </Avatar>
+      <div>
+        <Text 
+          strong 
+          style={{ cursor: 'pointer', color: '#1890ff' }}
+          onClick={() => navigate(`/employee/${record.employee_id}`)}
+        >
+          {record.full_name}
+        </Text>
+        <br />
+        <Tag color={getRoleColor(record.role)} style={{ fontSize: 10 }}>
+          {record.role}
+        </Tag>
+      </div>
+    </Space>
+  ),
       sorter: (a, b) => a.last_name.localeCompare(b.last_name),
     },
     {

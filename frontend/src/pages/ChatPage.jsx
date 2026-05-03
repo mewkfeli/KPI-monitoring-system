@@ -20,7 +20,7 @@ import dayjs from "dayjs";
 import "dayjs/locale/ru";
 import relativeTime from "dayjs/plugin/relativeTime";
 import Picker from "emoji-picker-react";
-
+import { useNavigate } from "react-router-dom";
 dayjs.extend(relativeTime);
 dayjs.locale("ru");
 
@@ -78,7 +78,7 @@ const ChatPage = () => {
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [addMemberVisible, setAddMemberVisible] = useState(false);
   const [selectedNewMembers, setSelectedNewMembers] = useState([]);
-  
+  const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const pendingMessagesRef = useRef(new Set());
@@ -282,7 +282,11 @@ const ChatPage = () => {
       chat_id: currentChat.id 
     });
   };
-
+const navigateToProfile = (employeeId) => {
+  if (employeeId) {
+    navigate(`/employee/${employeeId}`);
+  }
+};
   const handleGroupAvatarUpload = async (file) => {
     const formData = new FormData();
     formData.append('avatar', file);
@@ -392,6 +396,21 @@ const ChatPage = () => {
         _tempId: tempId,
       });
       
+      // ✅ ЕСЛИ ЭТО ПЕРВОЕ СООБЩЕНИЕ В ЛИЧНОМ ЧАТЕ - ПОКАЗЫВАЕМ ЧАТ В СПИСКЕ
+      if (currentChat.type === 'private' && currentChat.is_new) {
+        // Убираем флаг is_new
+        setCurrentChat(prev => ({ ...prev, is_new: false }));
+        
+        // Добавляем чат в список
+        setChats(prev => {
+          const exists = prev.some(c => c.id === currentChat.id && c.type === currentChat.type);
+          if (!exists) {
+            return [currentChat, ...prev];
+          }
+          return prev;
+        });
+      }
+      
       setNewMessage("");
       setReplyTo(null);
       setSending(false);
@@ -465,19 +484,34 @@ const ChatPage = () => {
       if (response.ok) {
         const data = await response.json();
         const newChat = {
-          id: data.chat_id, type: "private",
+          id: data.chat_id, 
+          type: "private",
           name: `${employee.first_name} ${employee.last_name}`,
-          avatar: employee.avatar_url, unread_count: 0
+          avatar: employee.avatar_url, 
+          unread_count: 0,
+          is_new: data.is_new // true если чат только создан
         };
-        setChats(prev => {
-          const exists = prev.some(c => c.id === newChat.id && c.type === newChat.type);
-          if (exists) return prev;
-          return [newChat, ...prev];
-        });
+        
+        // Открываем чат
         setCurrentChat(newChat);
+        
+        // ПЕРЕЗАГРУЖАЕМ список чатов (чтобы получить все существующие)
+        await loadChatsList();
+        
+        // Если чат новый - добавляем его в список
+        if (data.is_new) {
+          setChats(prev => {
+            const exists = prev.some(c => c.id === newChat.id && c.type === newChat.type);
+            if (!exists) {
+              return [newChat, ...prev];
+            }
+            return prev;
+          });
+        }
+        
         setSearchModalVisible(false);
         setSearchQuery("");
-        loadChatsList();
+        setSearchResults([]);
       }
     } catch (error) {
       console.error("Ошибка создания чата:", error);
@@ -811,6 +845,28 @@ useEffect(() => {
     if (message.sender_id !== user?.employee_id) {
         newSocket.emit("mark_read", { message_id: message.message_id });
     }
+     // ✅ Если это личный чат и его нет в списке - добавляем
+    if (message.chat_type === 'private') {
+        setChats(prev => {
+            const exists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
+            if (!exists) {
+                // Загружаем информацию о чате
+                fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const newChat = data.find(c => c.type === 'private' && c.id === message.chat_id);
+                        if (newChat) {
+                            setChats(prev => {
+                                const stillExists = prev.some(c => c.type === 'private' && c.id === message.chat_id);
+                                if (!stillExists) return [newChat, ...prev];
+                                return prev;
+                            });
+                        }
+                    });
+            }
+            return prev;
+        });
+    }
     
     // Обновляем список чатов
     loadChatsList();
@@ -1082,21 +1138,34 @@ useEffect(() => {
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               <List dataSource={filteredChats} renderItem={(chat) => (
-                <div onClick={() => handleSelectChat(chat)}
-                  style={{ padding: "12px 16px", cursor: "pointer", background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent", borderBottom: "1px solid #f0f0f0", transition: "background 0.2s" }}
-                  onMouseEnter={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "#f5f5f5"; }}
-                  onMouseLeave={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "transparent"; }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">{renderChatAvatar(chat)}</Badge>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.name || "Без названия"}</Text>
-                        {chat.unread_count > 0 && <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />}
-                      </div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}</Text>
-                    </div>
-                  </div>
-                </div>
+               <div onClick={() => handleSelectChat(chat)}
+  style={{ padding: "12px 16px", cursor: "pointer", background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "#e6f7ff" : "transparent", borderBottom: "1px solid #f0f0f0", transition: "background 0.2s" }}
+  onMouseEnter={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "#f5f5f5"; }}
+  onMouseLeave={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "transparent"; }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    {/* Аватарка кликабельна только для личных чатов */}
+    <span 
+      onClick={(e) => {
+        e.stopPropagation(); // Не выбираем чат
+        if (chat.type === 'private') {
+          navigate(`/employee/${chat.id}`);
+        }
+      }}
+      style={{ cursor: chat.type === 'private' ? 'pointer' : 'default' }}
+    >
+      <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
+        {renderChatAvatar(chat)}
+      </Badge>
+    </span>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.name || "Без названия"}</Text>
+        {chat.unread_count > 0 && <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />}
+      </div>
+      <Text type="secondary" style={{ fontSize: 12 }}>{chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}</Text>
+    </div>
+  </div>
+</div>
               )} />
             </div>
           </div>
@@ -1161,15 +1230,35 @@ useEffect(() => {
                           onMouseEnter={() => { if (socket && !isMine && !msg.is_deleted) socket.emit("mark_read", { message_id: msg.message_id }); }}>
                           <div style={{ maxWidth: isImage ? "60%" : "70%", display: "flex", flexDirection: "column", alignItems: isMine ? "flex-end" : "flex-start" }}>
                             {!isMine && (
-                              <div style={{ marginBottom: 4, fontSize: 12 }}>
-                                <Space size={4}>
-                                  <Avatar size="small" src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} style={{ backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent" }}>
-                                    {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
-                                  </Avatar>
-                                  <Text strong style={{ fontSize: 12 }}>{msg.sender_name}</Text>
-                                </Space>
-                              </div>
-                            )}
+  <div style={{ marginBottom: 4, fontSize: 12 }}>
+    <Space size={4}>
+      <Avatar 
+        size="small" 
+        src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} 
+        style={{ 
+          backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
+          cursor: 'pointer'
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate(`/employee/${msg.sender_id}`);
+        }}
+      >
+        {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
+      </Avatar>
+      <Text 
+        strong 
+        style={{ fontSize: 12, cursor: 'pointer' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate(`/employee/${msg.sender_id}`);
+        }}
+      >
+        {msg.sender_name}
+      </Text>
+    </Space>
+  </div>
+)}
                             <div style={{
                               background: msg.is_pinned ? "#fffbe6" : 
                                 msg.status === 'sending' ? "#91d5ff" :

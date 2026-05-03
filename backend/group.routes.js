@@ -48,46 +48,31 @@ router.get('/my-group', async (req, res) => {
     // Получаем сегодняшние KPI для сотрудников группы
     const today = new Date().toISOString().split('T')[0];
     const [todayKpi] = await db.query(
-      `SELECT 
-         dm.record_id,
-         dm.employee_id,
-         dm.report_date,
-         dm.processed_requests,
-         dm.work_minutes,
-         dm.positive_feedbacks,
-         dm.total_feedbacks,
-         dm.first_contact_resolved,
-         dm.total_requests,
-         dm.quality_score,
-         dm.checked_requests,
-         dm.verification_status,
-         dm.reviewer_comment,
-         CASE 
-           WHEN dm.total_feedbacks > 0 THEN ROUND((dm.positive_feedbacks / dm.total_feedbacks) * 100, 2)
-           ELSE 0 
-         END as csat_percentage,
-         CASE 
-           WHEN dm.total_requests > 0 THEN ROUND((dm.first_contact_resolved / dm.total_requests) * 100, 2)
-           ELSE 0 
-         END as fcr_percentage,
-         CASE 
-           WHEN dm.work_minutes > 0 THEN ROUND(dm.processed_requests / (dm.work_minutes / 60), 2)
-           ELSE 0 
-         END as productivity,
-         CASE 
-           WHEN dm.checked_requests > 0 THEN ROUND(dm.quality_score / dm.checked_requests, 2)
-           ELSE 0 
-         END as avg_quality
-       FROM daily_metrics dm
-       WHERE dm.report_date = ? 
-         AND dm.employee_id IN (
-           SELECT employee_id 
-           FROM employees 
-           WHERE group_id = ?
-         )
-       ORDER BY dm.employee_id`,
-      [today, groupId]
-    );
+  `SELECT 
+     dm.record_id,
+     dm.employee_id,
+     dm.report_date,
+     dm.processed_requests,
+     dm.work_minutes,
+     dm.positive_feedbacks,
+     dm.total_feedbacks,
+     dm.first_contact_resolved,
+     dm.total_requests,
+     dm.quality_score,
+     dm.checked_requests,
+     dm.verification_status,
+     dm.reviewer_comment
+   FROM daily_metrics dm
+   WHERE dm.report_date = ? 
+     AND dm.employee_id IN (
+       SELECT employee_id 
+       FROM employees 
+       WHERE group_id = ?
+         AND status != 'В отпуске'
+     )
+   ORDER BY dm.employee_id`,
+  [today, groupId]
+);
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -466,5 +451,178 @@ router.get("/leaderboard/department", async (req, res) => {
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
+// ============ УПРАВЛЕНИЕ ОТПУСКАМИ ============
 
+// Отправить сотрудника в отпуск
+router.post("/vacation/create", async (req, res) => {
+  const { leader_id, employee_id, start_date, end_date } = req.body;
+
+  if (!leader_id || !employee_id || !start_date || !end_date) {
+    return res.status(400).json({ error: "Не указаны обязательные параметры" });
+  }
+
+  try {
+    // Проверяем, что руководитель имеет право управлять этим сотрудником
+    const [leaderCheck] = await db.query(
+      `SELECT e1.employee_id, e1.group_id, e1.role
+       FROM employees e1
+       JOIN employees e2 ON e2.employee_id = ?
+       WHERE e1.employee_id = ? 
+         AND e1.role IN ('Руководитель группы', 'Руководитель отдела')
+         AND (e1.group_id = e2.group_id OR e1.role = 'Руководитель отдела')
+         AND e1.status = 'Активен'`,
+      [employee_id, leader_id]
+    );
+
+    if (leaderCheck.length === 0) {
+      return res.status(403).json({ error: "У вас нет прав для управления отпуском этого сотрудника" });
+    }
+
+    // Проверяем, что сотрудник активен
+    const [employeeCheck] = await db.query(
+      `SELECT status, last_name, first_name FROM employees WHERE employee_id = ?`,
+      [employee_id]
+    );
+
+    if (employeeCheck.length === 0) {
+      return res.status(404).json({ error: "Сотрудник не найден" });
+    }
+
+    if (employeeCheck[0].status === 'В отпуске') {
+      return res.status(400).json({ error: "Сотрудник уже находится в отпуске" });
+    }
+
+    // Создаем запись об отпуске
+    await db.query(
+      `INSERT INTO vacations (employee_id, start_date, end_date, created_by) 
+       VALUES (?, ?, ?, ?)`,
+      [employee_id, start_date, end_date, leader_id]
+    );
+
+    // Меняем статус сотрудника
+    await db.query(
+      `UPDATE employees SET status = 'В отпуске' WHERE employee_id = ?`,
+      [employee_id]
+    );
+
+    // Получаем информацию о руководителе
+    const [leaderInfo] = await db.query(
+      `SELECT first_name, last_name FROM employees WHERE employee_id = ?`,
+      [leader_id]
+    );
+
+    const leaderName = `${leaderInfo[0].first_name} ${leaderInfo[0].last_name}`;
+    const startDateFormatted = new Date(start_date).toLocaleDateString('ru-RU');
+    const endDateFormatted = new Date(end_date).toLocaleDateString('ru-RU');
+
+    // Уведомление сотруднику
+    await NotificationService.createNotification(
+      employee_id,
+      "🏖 Отправление в отпуск",
+      `Вы отправлены в отпуск руководителем ${leaderName}.\n\n📅 Период: ${startDateFormatted} - ${endDateFormatted}\n\nХорошего отдыха!`,
+      "info",
+      "vacation",
+      null
+    );
+
+    res.json({ 
+      success: true, 
+      message: `${employeeCheck[0].last_name} ${employeeCheck[0].first_name} отправлен в отпуск с ${startDateFormatted} по ${endDateFormatted}` 
+    });
+
+  } catch (error) {
+    console.error("Ошибка создания отпуска:", error);
+    res.status(500).json({ error: "Ошибка сервера", details: error.message });
+  }
+});
+
+// Вернуть сотрудника из отпуска
+router.post("/vacation/return", async (req, res) => {
+  const { leader_id, employee_id } = req.body;
+
+  if (!leader_id || !employee_id) {
+    return res.status(400).json({ error: "Не указаны обязательные параметры" });
+  }
+
+  try {
+    // Проверяем права
+    const [leaderCheck] = await db.query(
+      `SELECT e1.employee_id, e1.group_id
+       FROM employees e1
+       JOIN employees e2 ON e2.employee_id = ?
+       WHERE e1.employee_id = ? 
+         AND e1.role IN ('Руководитель группы', 'Руководитель отдела')
+         AND (e1.group_id = e2.group_id OR e1.role = 'Руководитель отдела')
+         AND e1.status = 'Активен'`,
+      [employee_id, leader_id]
+    );
+
+    if (leaderCheck.length === 0) {
+      return res.status(403).json({ error: "Нет прав" });
+    }
+
+    // Находим активный отпуск
+    const [activeVacation] = await db.query(
+      `SELECT vacation_id FROM vacations 
+       WHERE employee_id = ? AND status = 'active'`,
+      [employee_id]
+    );
+
+    if (activeVacation.length === 0) {
+      return res.status(400).json({ error: "У сотрудника нет активного отпуска" });
+    }
+
+    // Завершаем отпуск
+    await db.query(
+      `UPDATE vacations SET status = 'completed' WHERE vacation_id = ?`,
+      [activeVacation[0].vacation_id]
+    );
+
+    // Меняем статус сотрудника
+    await db.query(
+      `UPDATE employees SET status = 'Активен' WHERE employee_id = ?`,
+      [employee_id]
+    );
+
+    // Уведомление
+    await NotificationService.createNotification(
+      employee_id,
+      "🔄 Возвращение из отпуска",
+      "Вы возвращены из отпуска. Добро пожаловать на работу!",
+      "info",
+      "vacation",
+      null
+    );
+
+    res.json({ success: true, message: "Сотрудник возвращен из отпуска" });
+
+  } catch (error) {
+    console.error("Ошибка возврата из отпуска:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Получить информацию об отпуске сотрудника
+router.get("/vacation/status", async (req, res) => {
+  const { employee_id } = req.query;
+
+  try {
+    const [vacation] = await db.query(
+      `SELECT v.*, 
+              creator.first_name as creator_first_name,
+              creator.last_name as creator_last_name
+       FROM vacations v
+       JOIN employees creator ON v.created_by = creator.employee_id
+       WHERE v.employee_id = ? AND v.status = 'active'
+       ORDER BY v.created_at DESC 
+       LIMIT 1`,
+      [employee_id]
+    );
+
+    res.json(vacation[0] || null);
+  } catch (error) {
+    console.error("Ошибка получения статуса отпуска:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
 export default router;

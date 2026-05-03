@@ -5,6 +5,7 @@ import { DownloadOutlined } from "@ant-design/icons";
 import UserAvatar from "../components/UserAvatar";
 import NotificationBell from "../components/NotificationBell";
 import ChatButton from "../components/ChatButton";
+import VacationManager from "../components/VacationManager";
 
 import {
   LineChart,
@@ -83,6 +84,7 @@ const { TextArea } = Input;
 
 const GroupLeaderDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [groupData, setGroupData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
@@ -361,20 +363,21 @@ const GroupLeaderDashboard = () => {
           <Avatar
             size="small"
             style={{
-              backgroundColor:
-                record.role === "Руководитель группы" ? "#1890ff" : "#52c41a",
+              backgroundColor: record.role === "Руководитель группы" ? "#1890ff" : "#52c41a",
+              cursor: 'pointer'
             }}
+            onClick={() => navigate(`/employee/${record.employee_id}`)}
           >
             {record.last_name[0]}
           </Avatar>
-          <span>{`${record.last_name} ${record.first_name} ${
-            record.middle_name || ""
-          }`}</span>
+          <a onClick={() => navigate(`/employee/${record.employee_id}`)}>
+            {`${record.last_name} ${record.first_name} ${record.middle_name || ""}`}
+          </a>
           {record.role === "Руководитель группы" && (
             <Tag color="blue">Руководитель</Tag>
           )}
         </Space>
-      ),
+      )
     },
     {
       title: "Должность",
@@ -399,6 +402,19 @@ const GroupLeaderDashboard = () => {
       dataIndex: "hire_date",
       key: "hire_date",
       render: (date) => dayjs(date).format("DD.MM.YYYY"),
+    },
+    // ✅ ДОБАВЬТЕ ЭТУ КОЛОНКУ:
+    {
+      title: "Действия",
+      key: "actions",
+      align: "center",
+      render: (_, record) => (
+        <VacationManager 
+          user={user} 
+          employee={record}
+          onSuccess={fetchGroupData}
+        />
+      ),
     },
   ];
 
@@ -572,6 +588,7 @@ const GroupLeaderDashboard = () => {
       key: "actions",
       align: "center",
       render: (_, record) => (
+        
         <Space>
           <Tooltip title="Просмотреть детали">
             <Button

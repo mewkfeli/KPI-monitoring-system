@@ -12,6 +12,7 @@ import Leaderboard from "./pages/Leaderboard";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import ChatPage from "./pages/ChatPage";
 import JoinInvite from "./pages/JoinInvite";
+import EmployeeProfile from './pages/EmployeeProfile';
 
 
 
@@ -67,6 +68,7 @@ function App() {
           } />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
+<Route path="/employee/:employeeId" element={<EmployeeProfile />} />
 
 
           <Route path="*" element={<Navigate to="/login" replace />} />
