@@ -150,59 +150,107 @@ router.get("/list", async (req, res) => {
   }
 
   try {
-    // 1. Рабочая группа пользователя
-    const [workGroup] = await db.query(
-      `SELECT wg.group_id as id, wg.group_name as name, NULL as avatar, 'group' as type
+    const allChats = [];
+
+    // 1. Рабочая группа пользователя (из work_groups)
+    const [workGroups] = await db.query(
+      `SELECT 
+        wg.group_id as id, 
+        wg.group_name as name, 
+        NULL as avatar, 
+        wg.created_at,
+        'group' as type
        FROM work_groups wg
        JOIN employees e ON e.group_id = wg.group_id
        WHERE e.employee_id = ?`,
       [user_id]
     );
+    
+    if (workGroups.length > 0) {
+      console.log('✅ Найдена рабочая группа:', workGroups[0]);
+      allChats.push(...workGroups);
+    } else {
+      console.log('⚠️ Рабочая группа не найдена для user_id:', user_id);
+    }
 
     // 2. Кастомные группы пользователя
     const [customGroups] = await db.query(
-      `SELECT cg.group_id as id, cg.group_name as name, cg.group_avatar as avatar, 'custom' as type
+      `SELECT 
+        cg.group_id as id, 
+        cg.group_name as name, 
+        cg.group_avatar as avatar, 
+        cg.created_at,
+        'custom' as type
        FROM custom_groups cg
        JOIN custom_group_members cgm ON cg.group_id = cgm.group_id
        WHERE cgm.user_id = ?`,
       [user_id]
     );
+    
+    if (customGroups.length > 0) {
+      console.log('✅ Найдены кастомные группы:', customGroups.length);
+      allChats.push(...customGroups);
+    }
 
     // 3. Личные чаты пользователя
     const [privateChats] = await db.query(
-      `SELECT pc.chat_id as id, 
-              CONCAT(e.first_name, ' ', e.last_name) as name,
-              e.avatar_url as avatar,
-              'private' as type
+      `SELECT 
+        pc.chat_id as id, 
+        CONCAT(e.first_name, ' ', e.last_name) as name,
+        e.avatar_url as avatar,
+        pc.created_at,
+        'private' as type
        FROM private_chats pc
        JOIN private_chat_participants pcp ON pc.chat_id = pcp.chat_id
        JOIN employees e ON pcp.user_id = e.employee_id
-       WHERE pc.chat_id IN (
-         SELECT chat_id FROM private_chat_participants WHERE user_id = ?
-       ) AND pcp.user_id != ?`,
+       WHERE pcp.user_id != ? 
+         AND pc.chat_id IN (
+           SELECT chat_id 
+           FROM private_chat_participants 
+           WHERE user_id = ?
+         )`,
       [user_id, user_id]
     );
-
-    const allChats = [...workGroup, ...customGroups, ...privateChats];
-
-    // Добавляем счетчики непрочитанных
-    for (const chat of allChats) {
-      const [unreadResult] = await db.query(
-        `SELECT COUNT(*) as count
-         FROM chat_messages cm
-         LEFT JOIN chat_read_receipts crr ON cm.message_id = crr.message_id AND crr.user_id = ?
-         WHERE cm.chat_type = ? AND cm.chat_id = ? AND cm.sender_id != ? AND crr.receipt_id IS NULL AND cm.is_deleted = 0`,
-        [user_id, chat.type, chat.id, user_id]
-      );
-      chat.unread_count = unreadResult[0]?.count || 0;
+    
+    if (privateChats.length > 0) {
+      console.log('✅ Найдены личные чаты:', privateChats.length);
+      allChats.push(...privateChats);
     }
 
-    console.log(`📋 Найдено чатов: ${allChats.length}`);
+    // Добавляем счетчики непрочитанных сообщений
+    for (const chat of allChats) {
+      try {
+        const [unreadResult] = await db.query(
+          `SELECT COUNT(*) as count
+           FROM chat_messages cm
+           LEFT JOIN chat_read_receipts crr 
+             ON cm.message_id = crr.message_id 
+             AND crr.user_id = ?
+           WHERE cm.chat_type = ? 
+             AND cm.chat_id = ? 
+             AND cm.sender_id != ? 
+             AND crr.receipt_id IS NULL 
+             AND cm.is_deleted = 0`,
+          [user_id, chat.type, chat.id, user_id]
+        );
+        chat.unread_count = unreadResult[0]?.count || 0;
+      } catch (err) {
+        console.error(`Ошибка подсчета для чата ${chat.type}_${chat.id}:`, err.message);
+        chat.unread_count = 0;
+      }
+    }
+
+    console.log(`📋 Итого чатов: ${allChats.length} (группы: ${workGroups.length}, кастомные: ${customGroups.length}, личные: ${privateChats.length})`);
+    
     res.json(allChats);
 
   } catch (error) {
-    console.error("Ошибка получения списка чатов:", error);
-    res.status(500).json({ error: "Ошибка сервера" });
+    console.error("❌ Критическая ошибка получения списка чатов:", error);
+    res.status(500).json({ 
+      error: "Ошибка сервера", 
+      details: error.message,
+      stack: error.stack
+    });
   }
 });
 
@@ -477,7 +525,11 @@ router.get("/group/:groupId", async (req, res) => {
     if (group.length === 0) {
       isCustomGroup = false;
       [group] = await db.query(
-        `SELECT wg.group_id, wg.group_name, NULL as created_by, NULL as created_at, NULL as is_private
+        `SELECT wg.group_id, 
+                wg.group_name, 
+                wg.created_at,
+                NULL as created_by, 
+                NULL as is_private
          FROM work_groups wg
          WHERE wg.group_id = ?`,
         [groupId]
@@ -507,14 +559,21 @@ router.get("/group/:groupId", async (req, res) => {
         `SELECT e.employee_id as user_id, 
                 'member' as role,
                 e.hire_date as joined_at,
-                e.first_name, e.last_name, e.avatar_url, e.role as employee_role
+                e.first_name, 
+                e.last_name, 
+                e.avatar_url, 
+                e.role as employee_role,
+                e.status
          FROM employees e
          WHERE e.group_id = ?
+           AND e.status != 'Уволен'
          ORDER BY e.last_name`,
         [groupId]
       );
       userRole = 'member';
     }
+
+    console.log('Group created_at:', group[0].created_at);
 
     res.json({
       group_id: group[0].group_id,
@@ -796,6 +855,166 @@ router.get("/group/:groupId/invite-code", async (req, res) => {
     
   } catch (error) {
     console.error("Ошибка получения кода приглашения:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+// ============= УДАЛЕНИЕ УЧАСТНИКА ИЗ ГРУППЫ =============
+router.delete("/group/:groupId/member/:userId", async (req, res) => {
+  const { groupId, userId } = req.params;
+  const { admin_id } = req.body;
+  
+  console.log('🗑 Удаление участника:', { groupId, userId, admin_id });
+  
+  if (!admin_id) {
+    return res.status(400).json({ error: "Не указан ID администратора" });
+  }
+  
+  try {
+    // Проверяем права админа
+    const [adminCheck] = await db.query(
+      `SELECT role FROM custom_group_members WHERE group_id = ? AND user_id = ?`,
+      [groupId, admin_id]
+    );
+    
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') {
+      return res.status(403).json({ error: "Нет прав на удаление участников" });
+    }
+    
+    // Проверяем, что удаляемый не админ
+    const [memberCheck] = await db.query(
+      `SELECT role FROM custom_group_members WHERE group_id = ? AND user_id = ?`,
+      [groupId, userId]
+    );
+    
+    if (memberCheck.length === 0) {
+      return res.status(404).json({ error: "Участник не найден" });
+    }
+    
+    if (memberCheck[0].role === 'admin') {
+      return res.status(403).json({ error: "Нельзя удалить администратора группы" });
+    }
+    
+    // Получаем название группы до удаления
+    const [groupInfo] = await db.query(
+      `SELECT group_name FROM custom_groups WHERE group_id = ?`,
+      [groupId]
+    );
+    const groupName = groupInfo[0]?.group_name || 'группы';
+    
+    // Удаляем участника
+    await db.query(
+      `DELETE FROM custom_group_members WHERE group_id = ? AND user_id = ?`,
+      [groupId, userId]
+    );
+    
+    // Отправляем уведомление удаленному пользователю
+    await NotificationService.createNotification(
+      userId,
+      "⚠️ Исключение из группы",
+      `Вас исключили из группы "${groupName}"`,
+      "warning",
+      "custom_group",
+      groupId
+    );
+    
+    // 👇 ВАЖНО: Отправляем событие через Socket.IO удаленному пользователю
+if (io) {
+      // Событие для удаления чата из списка у пользователя
+      io.to(`user_${userId}`).emit("chat_removed", { 
+        chat_id: parseInt(groupId), 
+        chat_type: "custom",
+        group_name: groupName
+      });
+      
+      // Также отправляем событие для обновления списка участников админу
+      io.to(`user_${admin_id}`).emit("member_removed", {
+        group_id: parseInt(groupId),
+        member_id: parseInt(userId)
+      });
+    }
+    
+    res.json({ success: true, message: "Участник удален" });
+    
+  } catch (error) {
+    console.error("Ошибка удаления участника:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// ============= УДАЛЕНИЕ ГРУППЫ =============
+router.delete("/group/:groupId", async (req, res) => {
+  const { groupId } = req.params;
+  const { admin_id } = req.body;
+  
+  console.log('🗑 Удаление группы:', { groupId, admin_id });
+  
+  if (!admin_id) {
+    return res.status(400).json({ error: "Не указан ID администратора" });
+  }
+  
+  try {
+    // Проверяем, что пользователь является администратором группы
+    const [adminCheck] = await db.query(
+      `SELECT role FROM custom_group_members WHERE group_id = ? AND user_id = ?`,
+      [groupId, admin_id]
+    );
+    
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') {
+      return res.status(403).json({ error: "Нет прав на удаление группы" });
+    }
+    
+    // Получаем всех участников группы для уведомлений
+    const [members] = await db.query(
+      `SELECT user_id FROM custom_group_members WHERE group_id = ?`,
+      [groupId]
+    );
+    
+    // Получаем название группы
+    const [groupInfo] = await db.query(
+      `SELECT group_name FROM custom_groups WHERE group_id = ?`,
+      [groupId]
+    );
+    const groupName = groupInfo[0]?.group_name || 'Группа';
+    
+    // Отправляем уведомления всем участникам перед удалением
+    for (const member of members) {
+      await NotificationService.createNotification(
+        member.user_id,
+        "🗑 Группа удалена",
+        `Группа "${groupName}" была удалена администратором`,
+        "warning",
+        "custom_group",
+        groupId
+      );
+      
+      // Отправляем событие через Socket.IO каждому участнику
+      if (io) {
+        io.to(`user_${member.user_id}`).emit("group_deleted", { 
+          group_id: parseInt(groupId), 
+          group_name: groupName,
+          chat_type: "custom"
+        });
+      }
+    }
+    
+    // Удаляем все приглашения для этой группы
+    await db.query(`DELETE FROM chat_invites WHERE target_type = 'custom' AND target_id = ?`, [groupId]);
+    
+    // Удаляем всех участников группы
+    await db.query(`DELETE FROM custom_group_members WHERE group_id = ?`, [groupId]);
+    
+    // Удаляем сообщения группы
+    await db.query(`DELETE FROM chat_messages WHERE chat_type = 'custom' AND chat_id = ?`, [groupId]);
+    
+    // Удаляем саму группу
+    await db.query(`DELETE FROM custom_groups WHERE group_id = ?`, [groupId]);
+    
+    console.log(`✅ Группа ${groupId} "${groupName}" полностью удалена`);
+    
+    res.json({ success: true, message: "Группа удалена" });
+    
+  } catch (error) {
+    console.error("Ошибка удаления группы:", error);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
