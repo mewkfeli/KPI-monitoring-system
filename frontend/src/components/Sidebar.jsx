@@ -121,8 +121,21 @@ const Sidebar = () => {
   const avatarUrl = getAvatarUrl();
 
   return (
-    <Sider theme="light" width={250} style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: "var(--bg-sidebar)" }}>
-      <div style={{ padding: "16px", textAlign: "center" }}>
+    <Sider 
+      theme="light" 
+      width={250} 
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '100vh',
+        position: 'sticky',
+        top: 0,
+        backgroundColor: "var(--bg-sidebar)",
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      <div style={{ padding: "16px", textAlign: "center", flexShrink: 0 }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
           <Avatar
             size={80}
@@ -155,7 +168,8 @@ const Sidebar = () => {
       <div style={{ 
         padding: "16px",
         borderTop: "1px solid var(--border-color)",
-        marginTop: "auto"
+        marginTop: "auto",
+        flexShrink: 0
       }}>
         <Tooltip title={isDark ? "Светлая тема" : "Тёмная тема"}>
           <Button 

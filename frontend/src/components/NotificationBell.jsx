@@ -139,7 +139,7 @@ const NotificationBell = ({ userId }) => {
             renderItem={(item) => (
               <List.Item
                 style={{
-                  background: item.is_read ? "transparent" : "#f0f7ff",
+                   background: item.is_read ? "transparent" : "var(--hover-bg)",
                   cursor: "pointer",
                   padding: "12px",
                   borderRadius: "4px",
