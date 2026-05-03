@@ -117,9 +117,10 @@ export class KPICollector {
   static async collectForAllEmployees(date = new Date()) {
     console.log(`🚀 Запуск автоматического сбора KPI за ${date.toISOString().split('T')[0]}...`);
     
-    const [employees] = await db.query(
-      `SELECT employee_id FROM employees WHERE status = 'Активен'`
-    );
+const [employees] = await db.query(
+  `SELECT employee_id FROM employees 
+   WHERE status != 'В отпуске' AND status != 'Уволен'`
+);
 
     let successCount = 0;
     for (const emp of employees) {
