@@ -157,7 +157,7 @@ const EmployeeProfile = () => {
                       <Descriptions.Item label="Группа">
                         <Space><TeamOutlined />Группа #{employeeData.group_id}</Space>
                       </Descriptions.Item>
-                      <Descriptions.Item label="ID сотрудника">
+                      <Descriptions.Item label="Номер сотрудника">
                         <Text code>{employeeData.employee_id}</Text>
                       </Descriptions.Item>
                     </Descriptions>

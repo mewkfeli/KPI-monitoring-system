@@ -253,21 +253,13 @@ const Dashboard = () => {
                           prefix={<StarOutlined />}
                           valueStyle={{
                             color:
-                              stats.avg_csat >= 85
-                                ? "#3f8600"
-                                : stats.avg_csat >= 70
-                                  ? "#faad14"
-                                  : "#cf1322",
+                              stats.avg_csat >= kpiTargets.csat ? "#3f8600" : stats.avg_csat >= kpiTargets.csat * 0.8 ? "#faad14" : "#cf1322"
                           }}
                         />
                         <Progress
                           percent={stats.avg_csat || 0}
                           status={
-                            stats.avg_csat >= 85
-                              ? "success"
-                              : stats.avg_csat >= 70
-                                ? "normal"
-                                : "exception"
+                            stats.avg_csat >= kpiTargets.csat ? "#3f8600" : stats.avg_csat >= kpiTargets.csat * 0.8 ? "#faad14" : "#cf1322"
                           }
                           size="small"
                         />
@@ -282,11 +274,7 @@ const Dashboard = () => {
                           prefix={<TrophyOutlined />}
                           valueStyle={{
                             color:
-                              stats.avg_quality >= 85
-                                ? "#3f8600"
-                                : stats.avg_quality >= 70
-                                  ? "#faad14"
-                                  : "#cf1322",
+                              stats.avg_quality >= kpiTargets.quality_score ? "#3f8600" : stats.avg_quality >= kpiTargets.quality_score * 0.8 ? "#faad14" : "#cf1322"
                           }}
                         />
                         <Progress

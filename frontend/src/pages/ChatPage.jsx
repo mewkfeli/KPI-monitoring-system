@@ -1047,8 +1047,7 @@ const scrollToMessage = useCallback((messageId) => {
       <Layout>
         <Header style={{ background: "var(--header-bg)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px", borderBottom: "1px solid var(--border-color)" }}>
           <Space>
-            <MessageOutlined style={{ fontSize: 20, color: "#1890ff" }} />
-            <Title level={4} style={{ margin: 0, color: "var(--text-title)" }}>Мессенджер</Title>
+            <Title level={4} style={{ margin: 0, color: "var(--text-title)" }}>Чаты</Title>
             {connected ? <Badge status="success" text="Подключено" /> : <Badge status="error" text="Отключено" />}
           </Space>
           <Space>
@@ -1246,11 +1245,9 @@ const scrollToMessage = useCallback((messageId) => {
                                 borderRadius: 16,
                                 maxWidth: "100%",
                                 wordBreak: "break-word",
-                                backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#2b527c") : (isDark ? "#2d2d2d" : "#f5f5f5"),
-                                color: isMine ? "#ffffff" : "var(--text-primary)",
+backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#2b527c") : (isDark ? "#3d3d3d" : "#f5f5f5"),                                color: isMine ? "#ffffff" : "var(--text-primary)",
                                 boxShadow: !isMine ? "0 1px 2px rgba(0, 0, 0, 0.1)" : "none",
-                                border: msg.is_pinned ? "1px solid #ffe58f" : "none",
-                              }}
+border: isMine ? (msg.is_pinned ? "1px solid #ffe58f" : "none") : (isDark ? "1px solid #4a4a4a" : (msg.is_pinned ? "1px solid #ffe58f" : "none")),                              }}
                             >
                               {/* Цитата исходного сообщения */}
                               {repliedMsg && !repliedMsg.is_deleted && (
@@ -1321,7 +1318,7 @@ const scrollToMessage = useCallback((messageId) => {
                                   whiteSpace: "pre-wrap",
                                   margin: 0,
                                   lineHeight: 1.4,
-                                  paddingRight: 70
+                                  paddingRight: 45
                                 }}>
                                   {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}
                                   {msg.message}

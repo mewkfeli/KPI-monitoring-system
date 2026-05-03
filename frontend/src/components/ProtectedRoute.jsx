@@ -1,3 +1,4 @@
+// frontend/src/components/ProtectedRoute.jsx
 import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
@@ -26,6 +27,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // Если указаны allowedRoles, проверяем роль пользователя
   if (allowedRoles && !allowedRoles.includes(user.role)) {
+    // Для администратора перенаправляем на админ-панель
+    if (user.role === "Администратор") {
+      return <Navigate to="/admin" replace />;
+    }
     // Для руководителей перенаправляем на их дашборд
     if (
       user.role === "Руководитель группы" ||

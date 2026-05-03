@@ -15,6 +15,8 @@ import GroupLeaderDashboard from './pages/GroupLeaderDashboard';
 import Leaderboard from './pages/Leaderboard';
 import KnowledgeBase from './pages/KnowledgeBase';
 import JoinInvite from './pages/JoinInvite';
+import AdminDashboard from './pages/AdminDashboard';
+
 import './index.css';
 
 function App() {
@@ -60,6 +62,11 @@ function App() {
             <Route path="/leaderboard" element={
               <ProtectedRoute allowedRoles={['Руководитель группы', 'Руководитель отдела']}>
                 <Leaderboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute allowedRoles={['Администратор']}>
+                <AdminDashboard />
               </ProtectedRoute>
             } />
             <Route path="/knowledge" element={
