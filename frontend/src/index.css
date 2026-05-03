@@ -998,3 +998,57 @@ h1, h2, h3, h4, h5, h6,
   background-color: #40a9ff !important;
   color: #ffffff !important;
 }
+
+/* ============ BADGE (счетчик непрочитанных) в темной теме ============ */
+[data-theme="dark"] .ant-badge-count,
+[data-theme="dark"] .ant-badge-dot {
+  background-color: #ff4d4f !important;
+  color: #ffffff !important;
+}
+
+/* Если badge на кнопке чата в сайдбаре */
+[data-theme="dark"] .ant-badge .ant-badge-count {
+  background-color: #ff4d4f !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+/* Для счетчиков в списке чатов */
+[data-theme="dark"] .ant-badge .ant-scroll-number {
+  background-color: #ff4d4f !important;
+}
+
+[data-theme="dark"] .ant-badge .ant-scroll-number-only-unit {
+  color: #ffffff !important;
+}
+
+/* ============ УВЕДОМЛЕНИЯ (NotificationBell) в темной теме ============ */
+[data-theme="dark"] .ant-popover-inner {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-list-item {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-list-item:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Непрочитанные уведомления - легкий подсветка, а не белый фон */
+[data-theme="dark"] .ant-list-item[style*="background: #f0f7ff"],
+[data-theme="dark"] .ant-list-item[style*="background:#f0f7ff"],
+[data-theme="dark"] .ant-list-item[style*="background: #f0f7ff"] {
+  background-color: rgba(24, 144, 255, 0.15) !important;
+}
+
+/* Контейнер уведомлений */
+[data-theme="dark"] .ant-popover-inner-content {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-popover-title {
+  background-color: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-title) !important;
+}
