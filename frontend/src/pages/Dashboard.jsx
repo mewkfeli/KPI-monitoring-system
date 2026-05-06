@@ -69,7 +69,18 @@ const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
-
+const [kpiTargets, setKpiTargets] = useState({ 
+    csat: 85, 
+    fcr: 75, 
+    contacts_per_hour: 8, 
+    quality_score: 90 
+  });
+    useEffect(() => {
+    fetch('http://localhost:5000/api/kpi/targets')
+      .then(res => res.json())
+      .then(data => setKpiTargets(data))
+      .catch(err => console.error('Ошибка загрузки KPI норм:', err));
+  }, []);
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!user?.employee_id) {

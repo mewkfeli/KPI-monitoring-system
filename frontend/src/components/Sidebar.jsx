@@ -12,11 +12,13 @@ import {
   BulbOutlined,
     SettingOutlined, 
   UserSwitchOutlined,
+  CheckCircleOutlined,
   BulbFilled,
 } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
+import TasksPage from '../pages/TasksPage';
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -87,6 +89,11 @@ const Sidebar = () => {
         key: "/knowledge",
         icon: <BookOutlined />,
         label: <Link to="/knowledge">База знаний</Link>,
+      },
+      {
+        key: "/tasks",
+        icon: <CheckCircleOutlined />,
+        label: <Link to="/tasks">Задачи</Link>,
       },
       
     ];

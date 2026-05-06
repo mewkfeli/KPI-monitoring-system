@@ -16,8 +16,9 @@ import Leaderboard from './pages/Leaderboard';
 import KnowledgeBase from './pages/KnowledgeBase';
 import JoinInvite from './pages/JoinInvite';
 import AdminDashboard from './pages/AdminDashboard';
-
+import TasksPage from './pages/TasksPage';
 import './index.css';
+
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/join/:code" element={<JoinInvite />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            
             <Route path="/dashboard" element={
               <ProtectedRoute allowedRoles={['Сотрудник']}>
                 <Dashboard />
@@ -54,6 +56,11 @@ function App() {
                 <ChatPage />
               </ProtectedRoute>
             } />
+            <Route path="/knowledge" element={
+              <ProtectedRoute>
+                <KnowledgeBase />
+              </ProtectedRoute>
+            } />
             <Route path="/group-leader" element={
               <ProtectedRoute allowedRoles={['Руководитель группы', 'Руководитель отдела']}>
                 <GroupLeaderDashboard />
@@ -69,9 +76,10 @@ function App() {
                 <AdminDashboard />
               </ProtectedRoute>
             } />
-            <Route path="/knowledge" element={
+            {/* ← ДОБАВЬТЕ ЭТОТ МАРШРУТ */}
+            <Route path="/tasks" element={
               <ProtectedRoute>
-                <KnowledgeBase />
+                <TasksPage />
               </ProtectedRoute>
             } />
           </Routes>

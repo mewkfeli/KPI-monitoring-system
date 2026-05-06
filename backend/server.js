@@ -14,6 +14,7 @@ import chatRoutes, { setIo } from "./chat.routes.js";
 import { db } from "./db.js";
 import { KPICollector } from "./services/kpiCollector.service.js";
 import adminRoutes from "./admin.routes.js";
+import taskRoutes from "./tasks.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,17 +22,20 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Настройка CORS
+// server.js
 app.use(cors({
   origin: ["http://localhost:3000", "http://localhost:5173", "http://localhost:5000"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "user-id"], 
 }));
 
 app.use(express.raw({ limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use("/api/tasks", taskRoutes);
+app.use('/uploads/tasks', express.static(path.join(__dirname, 'uploads/tasks')));
 
 // РАЗДАЧА СТАТИЧЕСКИХ ФАЙЛОВ
 const uploadsPath = path.join(__dirname, 'uploads');
@@ -629,6 +633,7 @@ app.get("/api/kpi/targets", async (req, res) => {
   }
 });
 
+export const getIo = () => io;
 
 const PORT = 5000;
 server.listen(PORT, () => {

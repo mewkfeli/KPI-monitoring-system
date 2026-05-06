@@ -85,8 +85,7 @@ const NotificationBell = ({ userId }) => {
       message.error("Ошибка при отметке уведомлений");
     }
   };
-
-  useEffect(() => {
+useEffect(() => {
     if (userId) {
       fetchNotifications();
       // Обновляем счетчик каждые 30 секунд
@@ -94,6 +93,7 @@ const NotificationBell = ({ userId }) => {
       return () => clearInterval(interval);
     }
   }, [userId]);
+  
 
   const handleOpenChange = (newOpen) => {
     setOpen(newOpen);
