@@ -1,6 +1,6 @@
 // frontend/src/components/Sidebar.jsx
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Avatar, Typography, Tag, Button, Tooltip } from 'antd';
+import { Layout, Menu, Avatar, Typography, Tag, Button, Tooltip, Badge } from 'antd';
 import {
   UserOutlined,
   TeamOutlined,
@@ -10,15 +10,14 @@ import {
   BookOutlined,
   LogoutOutlined,
   BulbOutlined,
-    SettingOutlined, 
-  UserSwitchOutlined,
+  SettingOutlined,
   CheckCircleOutlined,
   BulbFilled,
 } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
-import TasksPage from '../pages/TasksPage';
+import { useNotifications } from '../contexts/NotificationContext';
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -39,9 +38,11 @@ const getRoleColor = (role) => {
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const { unreadChatCount, unreadTasksCount } = useNotifications();
   const location = useLocation();
   const [avatarKey, setAvatarKey] = useState(Date.now());
   const isLeader = user?.role === "Руководитель группы" || user?.role === "Руководитель отдела";
+const { hasNewChatMessages, hasNewTasks } = useNotifications();
 
   useEffect(() => {
     setAvatarKey(Date.now());
@@ -73,59 +74,43 @@ const Sidebar = () => {
     return null;
   };
 
+  // Функция для создания элемента меню с бейджем (красный кружок БЕЗ цифры)
+  const getMenuItem = (key, icon, label, link, hasBadge = false) => {
+    const iconWithBadge = hasBadge ? (
+      <Badge dot offset={[5, -5]} size="small">
+        {icon}
+      </Badge>
+    ) : icon;
+    
+    return {
+      key: key,
+      icon: iconWithBadge,
+      label: <Link to={link}>{label}</Link>,
+    };
+  };
+
   const getMenuItems = () => {
     const baseItems = [
-      {
-        key: "/profile",
-        icon: <UserOutlined />,
-        label: <Link to="/profile">Личный профиль</Link>,
-      },
-      {
-        key: "/chat",
-        icon: <MessageOutlined />,
-        label: <Link to="/chat">Чаты</Link>,
-      },
-      {
-        key: "/knowledge",
-        icon: <BookOutlined />,
-        label: <Link to="/knowledge">База знаний</Link>,
-      },
-      {
-        key: "/tasks",
-        icon: <CheckCircleOutlined />,
-        label: <Link to="/tasks">Задачи</Link>,
-      },
-      
+      getMenuItem("/profile", <UserOutlined />, "Личный профиль", "/profile"),
+      getMenuItem("/chat", <MessageOutlined />, "Чаты", "/chat", hasNewChatMessages),
+getMenuItem("/tasks", <CheckCircleOutlined />, "Задачи", "/tasks"),
+      getMenuItem("/knowledge", <BookOutlined />, "База знаний", "/knowledge"),
     ];
-if (user?.role === 'Администратор') {
-  return [
-    ...baseItems,
-    {
-      key: "/admin",
-      icon: <SettingOutlined />,
-      label: <Link to="/admin">Администрирование</Link>,
-    },
-  ];
-}
+
+    if (user?.role === 'Администратор') {
+      return [
+        ...baseItems,
+        getMenuItem("/admin", <SettingOutlined />, "Администрирование", "/admin"),
+      ];
+    }
+
     const leaderItems = [
-      {
-        key: "/group-leader",
-        icon: <TeamOutlined />,
-        label: <Link to="/group-leader">Дашборд группы</Link>,
-      },
-      {
-        key: "/leaderboard",
-        icon: <TrophyOutlined />,
-        label: <Link to="/leaderboard">Рейтинг сотрудников</Link>,
-      },
+      getMenuItem("/group-leader", <TeamOutlined />, "Дашборд группы", "/group-leader"),
+      getMenuItem("/leaderboard", <TrophyOutlined />, "Рейтинг сотрудников", "/leaderboard"),
     ];
 
     const employeeItems = [
-      {
-        key: "/dashboard",
-        icon: <DashboardOutlined />,
-        label: <Link to="/dashboard">Показатели</Link>,
-      },
+      getMenuItem("/dashboard", <DashboardOutlined />, "Показатели", "/dashboard"),
     ];
 
     if (isLeader) {

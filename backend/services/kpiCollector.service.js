@@ -4,54 +4,76 @@ import { NotificationService } from "../notification.service.js";
 
 export class KPICollector {
   /**
-   * Эмуляция получения данных из CRM
+   * Генерация случайных данных для сотрудника
    */
-  static async fetchFromCRM(employeeId, date) {
-    // В реальной системе здесь был бы запрос к API CRM (AmoCRM, Bitrix24 и т.д.)
-    // Генерируем реалистичные данные на основе employee_id (для детерминированности)
-    const seed = (employeeId * 100 + date.getDate()) % 100;
-    
-    return {
-      processed_requests: Math.floor(20 + (seed % 50)), // 20-70 запросов
-      total_requests: Math.floor(25 + (seed % 55)), // 25-80 всего запросов
-      first_contact_resolved: Math.floor(15 + (seed % 40)), // 15-55 решено с первого раза
-      work_minutes: 460 + Math.floor(Math.random() * 60), // 7.6 - 8.6 часов
-    };
-  }
-
-  /**
-   * Эмуляция получения данных из Телефонии / Системы опросов
-   */
-  static async fetchFromTelephony(employeeId, date) {
-    const seed = (employeeId * 200 + date.getDate()) % 100;
-    const total_feedbacks = Math.floor(5 + (seed % 25)); // 5-30 отзывов
-    const positive_feedbacks = Math.floor(total_feedbacks * (0.7 + (seed % 30) / 100));
-    
-    return {
-      total_feedbacks: total_feedbacks,
-      positive_feedbacks: Math.min(positive_feedbacks, total_feedbacks),
-    };
-  }
-
-  /**
-   * Эмуляция получения данных из Системы контроля качества
-   */
-  static async fetchFromQualitySystem(employeeId, date) {
-    const seed = (employeeId * 300 + date.getDate()) % 100;
-    const checked_requests = Math.floor(5 + (seed % 20)); // 5-25 проверенных
-    const quality_score = 3 + (seed % 30) / 10; // 3.0 - 5.0 баллов
-    
-    return {
-      checked_requests: checked_requests,
-      quality_score: Math.min(5, Math.max(1, parseFloat(quality_score.toFixed(1)))),
-    };
-  }
+  // В kpiCollector.service.js
+static generateRandomMetrics(employeeId, date) {
+  // Создаем детерминированный, но разный seed для каждого сотрудника
+  const seed = (employeeId * 7919 + date.getDate() * 701 + date.getMonth() * 503) % 1000;
+  
+  // Базовый уровень эффективности сотрудника (разный для каждого)
+  // От 30% до 98%
+  const efficiency = 30 + (seed % 68);
+  
+  // 1. Обработанные запросы (от 20 до 120, зависит от эффективности)
+  const processed_requests = 20 + Math.floor(efficiency / 100 * 100);
+  
+  // 2. CSAT (от 55% до 96%, зависит от эффективности)
+  const csat = 55 + Math.floor(efficiency * 0.41);
+  
+  // 3. FCR (от 50% до 94%, зависит от эффективности)
+  const fcr = 50 + Math.floor(efficiency * 0.44);
+  
+  // 4. Качество (от 2.5 до 5.0, зависит от эффективности)
+  const quality_score = 2.5 + (efficiency / 100) * 2.5;
+  
+  // 5. Время работы (от 6 до 9.5 часов, немного случайности)
+  const work_hours = 6 + (Math.random() * 3.5);
+  const work_minutes = Math.floor(work_hours * 60);
+  
+  // 6. Количество отзывов (от 5 до 45, зависит от обработанных запросов)
+  const total_feedbacks = 5 + Math.floor(Math.random() * 40);
+  const positive_feedbacks = Math.floor(total_feedbacks * (csat / 100));
+  
+  // 7. Количество запросов для FCR
+  const total_requests = processed_requests + Math.floor(Math.random() * 30);
+  const first_contact_resolved = Math.floor(total_requests * (fcr / 100));
+  
+  // 8. Проверенные запросы (от 5 до 30)
+  const checked_requests = 5 + Math.floor(Math.random() * 25);
+  
+  return {
+    processed_requests: processed_requests,
+    work_minutes: Math.max(360, Math.min(660, work_minutes)), // 6-11 часов
+    positive_feedbacks: positive_feedbacks,
+    total_feedbacks: total_feedbacks,
+    first_contact_resolved: first_contact_resolved,
+    total_requests: total_requests,
+    quality_score: parseFloat(quality_score.toFixed(1)),
+    checked_requests: checked_requests,
+    // Для отладки
+    _efficiency: Math.round(efficiency),
+    _csat: csat,
+    _fcr: fcr,
+  };
+}
 
   /**
    * Основной метод сбора KPI для одного сотрудника
    */
   static async collectForEmployee(employeeId, reportDate) {
     try {
+      // Проверяем, что сотрудник имеет роль 'Сотрудник'
+      const [employeeCheck] = await db.query(
+        `SELECT role FROM employees WHERE employee_id = ? AND status = 'Активен'`,
+        [employeeId]
+      );
+      
+      if (employeeCheck.length === 0 || employeeCheck[0].role !== 'Сотрудник') {
+        console.log(`⏭️ Пропуск: сотрудник ${employeeId} - метрики собираются только для сотрудников`);
+        return null;
+      }
+      
       // Проверяем, нет ли уже данных за эту дату
       const [existing] = await db.query(
         `SELECT * FROM daily_metrics WHERE employee_id = ? AND DATE(report_date) = DATE(?)`,
@@ -63,10 +85,8 @@ export class KPICollector {
         return null;
       }
 
-      // Получаем данные из всех систем
-      const crmData = await this.fetchFromCRM(employeeId, reportDate);
-      const phoneData = await this.fetchFromTelephony(employeeId, reportDate);
-      const qualityData = await this.fetchFromQualitySystem(employeeId, reportDate);
+      // Генерируем случайные данные
+      const metrics = this.generateRandomMetrics(employeeId, reportDate);
 
       // Сохраняем в БД
       const [result] = await db.query(
@@ -81,14 +101,14 @@ export class KPICollector {
         [
           employeeId,
           reportDate.toISOString().split('T')[0],
-          crmData.processed_requests,
-          crmData.work_minutes,
-          phoneData.positive_feedbacks,
-          phoneData.total_feedbacks,
-          crmData.first_contact_resolved,
-          crmData.total_requests,
-          qualityData.quality_score,
-          qualityData.checked_requests,
+          metrics.processed_requests,
+          metrics.work_minutes,
+          metrics.positive_feedbacks,
+          metrics.total_feedbacks,
+          metrics.first_contact_resolved,
+          metrics.total_requests,
+          metrics.quality_score,
+          metrics.checked_requests,
         ]
       );
 
@@ -97,7 +117,7 @@ export class KPICollector {
       await NotificationService.createNotification(
         employeeId,
         "🤖 Данные автоматически собраны",
-        `Ваши рабочие показатели за ${formattedDate} были автоматически собраны из CRM и телефонии. Статус: Одобрено (автоматическая проверка).`,
+        `Ваши рабочие показатели за ${formattedDate} были автоматически собраны.\n\n📊 Обработано: ${metrics.processed_requests} запросов\n⭐ CSAT: ${Math.round((metrics.positive_feedbacks / metrics.total_feedbacks) * 100)}%\n🎯 Качество: ${metrics.quality_score}/5`,
         "success",
         "daily_metrics",
         result.insertId
@@ -117,15 +137,22 @@ export class KPICollector {
   static async collectForAllEmployees(date = new Date()) {
     console.log(`🚀 Запуск автоматического сбора KPI за ${date.toISOString().split('T')[0]}...`);
     
-const [employees] = await db.query(
-  `SELECT employee_id FROM employees 
-   WHERE status != 'В отпуске' AND status != 'Уволен'`
-);
+    // Получаем только сотрудников
+    const [employees] = await db.query(
+      `SELECT employee_id FROM employees 
+       WHERE status = 'Активен' 
+         AND role = 'Сотрудник'`
+    );
+
+    console.log(`👥 Найдено сотрудников для сбора: ${employees.length}`);
 
     let successCount = 0;
     for (const emp of employees) {
       const result = await this.collectForEmployee(emp.employee_id, date);
       if (result) successCount++;
+      
+      // Небольшая задержка между запросами, чтобы не перегружать
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     console.log(`📊 Сбор завершен: обработано ${employees.length} сотрудников, добавлено ${successCount} записей`);

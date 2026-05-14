@@ -1086,3 +1086,190 @@ h1, h2, h3, h4, h5, h6,
   background-color: var(--input-bg) !important;
   color: var(--text-secondary) !important;
 }
+
+/* ============ POPCONFIRM (подтверждение удаления и т.д.) в темной теме ============ */
+[data-theme="dark"] .ant-popconfirm {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-popconfirm-inner {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-popconfirm-title {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-popconfirm-description {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-popconfirm-buttons .ant-btn {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-popconfirm-buttons .ant-btn-primary {
+  background-color: #ff4d4f !important;
+  color: white !important;
+  border-color: #ff4d4f !important;
+}
+
+[data-theme="dark"] .ant-popconfirm-buttons .ant-btn-primary:hover {
+  background-color: #ff7875 !important;
+}
+
+[data-theme="dark"] .ant-popconfirm-buttons .ant-btn-default:hover {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============ MODAL.CONFIRM в темной теме ============ */
+[data-theme="dark"] .ant-modal-confirm-title {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-confirm-content {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-confirm-btns .ant-btn {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-confirm-btns .ant-btn-primary {
+  background-color: #ff4d4f !important;
+  color: white !important;
+  border-color: #ff4d4f !important;
+}
+
+/* ============ СТРАНИЦА ЛОГИНА (темная тема) ============ */
+[data-theme="dark"] .ant-card {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-input {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper input {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input-affix-wrapper .ant-input-prefix {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-input-password .ant-input-password-icon {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-input-password .ant-input-password-icon:hover {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-input::placeholder,
+[data-theme="dark"] .ant-input-affix-wrapper input::placeholder {
+  color: var(--text-secondary) !important;
+}
+
+/* Заголовок на странице логина */
+[data-theme="dark"] .ant-typography {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* Ссылка "Зарегистрироваться" */
+[data-theme="dark"] a {
+  color: #58a6ff !important;
+}
+
+[data-theme="dark"] a:hover {
+  color: #79c0ff !important;
+}
+
+/* Кнопка входа в темной теме */
+[data-theme="dark"] .ant-btn-primary {
+  background-color: #1890ff !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-btn-primary:hover {
+  background-color: #40a9ff !important;
+}
+
+/* ============ КАРТОЧКИ ДНЕЙ В ДИНАМИКЕ CSAT (темная тема) ============ */
+[data-theme="dark"] .ant-card {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-card-body {
+  background-color: var(--card-bg) !important;
+}
+
+/* Текст внутри карточек */
+[data-theme="dark"] .ant-card .ant-typography,
+[data-theme="dark"] .ant-card div {
+  color: var(--text-primary) !important;
+}
+
+/* Подписи (дата и "сотр.") */
+[data-theme="dark"] .ant-card div[style*="font-size: 12px"],
+[data-theme="dark"] .ant-card div[style*="font-size: 11px"] {
+  color: var(--text-secondary) !important;
+}
+
+/* Значение CSAT (проценты) - оставляем цветным */
+[data-theme="dark"] .ant-card .ant-typography.ant-typography-secondary {
+  color: inherit !important;
+}
+
+/* При наведении на карточку */
+[data-theme="dark"] .ant-card:hover {
+  background-color: var(--hover-bg) !important;
+  cursor: pointer;
+}
+
+/* CSAT карточки для темной темы */
+[data-theme="dark"] .csat-day-card {
+  background-color: #2d2d2d !important;
+  border-color: #3d3d3d !important;
+}
+
+[data-theme="dark"] .csat-day-card .ant-card-body {
+  background-color: #2d2d2d !important;
+}
+
+[data-theme="dark"] .csat-day-card .csat-date {
+  color: #a0a0a0 !important;
+}
+
+[data-theme="dark"] .csat-day-card .csat-value {
+  color: #e8e8e8 !important;
+}
+
+[data-theme="dark"] .csat-day-card .csat-employees {
+  color: #a0a0a0 !important;
+}
+
+/* При наведении */
+[data-theme="dark"] .csat-day-card:hover {
+  background-color: #3a3a3a !important;
+  cursor: pointer;
+}
+

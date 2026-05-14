@@ -58,10 +58,16 @@ router.get('/tasks', async (req, res) => {
     query += ' AND t.assigned_to = ?';
     params.push(assigned_to);
   }
+  
+  // 👇 ИСПРАВЛЯЕМ: обрабатываем status как массив query параметров
   if (status) {
-    query += ' AND t.status = ?';
-    params.push(status);
+    // Если status приходит как строка с несколькими значениями через запятую
+    const statuses = Array.isArray(status) ? status : status.split(',');
+    const placeholders = statuses.map(() => '?').join(',');
+    query += ` AND t.status IN (${placeholders})`;
+    params.push(...statuses);
   }
+  
   if (priority) {
     query += ' AND t.priority = ?';
     params.push(priority);
@@ -77,6 +83,9 @@ router.get('/tasks', async (req, res) => {
   }
   
   query += ' ORDER BY FIELD(t.priority, "urgent", "high", "medium", "low"), t.due_date ASC';
+  
+  console.log('SQL Query:', query);
+  console.log('Params:', params);
   
   const [rows] = await db.query(query, params);
   res.json(rows);
@@ -154,7 +163,11 @@ router.post('/tasks', isLeader, async (req, res) => {
 // Обновить задачу
 router.put('/tasks/:id', async (req, res) => {
   const { title, description, status, priority, due_date, actual_hours, category, tags } = req.body;
-  
+  // Валидация статуса
+  const validStatuses = ['todo', 'in_progress', 'review', 'done'];
+  if (status && !validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Некорректный статус задачи' });
+  }
   console.log('Updating task:', req.params.id, req.body);
   
   try {
@@ -258,19 +271,40 @@ router.post('/tasks/:id/attachments', upload.single('file'), async (req, res) =>
 
 router.get('/tasks-stats/:user_id', async (req, res) => {
   try {
+    console.log('=== DEBUG TASKS STATS ===');
+    console.log('User ID:', req.params.user_id);
+    
+    // Получаем сегодняшнюю дату в формате YYYY-MM-DD
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    console.log('Today:', todayStr);
+    
+    // Прямой SQL запрос с подробным логированием
     const [stats] = await db.query(`
       SELECT 
         COUNT(CASE WHEN status = 'todo' THEN 1 END) as todo,
         COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress,
         COUNT(CASE WHEN status = 'review' THEN 1 END) as review,
         COUNT(CASE WHEN status = 'done' THEN 1 END) as done,
-        COUNT(CASE WHEN due_date < CURDATE() AND status != 'done' THEN 1 END) as overdue,
+        COUNT(CASE WHEN due_date IS NOT NULL AND due_date < ? AND status != 'done' THEN 1 END) as overdue,
         COUNT(CASE WHEN priority = 'urgent' AND status != 'done' THEN 1 END) as urgent
       FROM tasks 
-      WHERE assigned_to = ? OR assigned_by = ?
-    `, [req.params.user_id, req.params.user_id]);
+      WHERE assigned_to = ?
+    `, [todayStr, req.params.user_id]);
     
-    console.log('Stats for user', req.params.user_id, ':', stats[0]);
+    console.log('Stats result:', stats[0]);
+    
+    // Дополнительно выведем все задачи пользователя для проверки
+    const [allTasks] = await db.query(`
+      SELECT task_id, title, due_date, status, 
+             CASE WHEN due_date IS NOT NULL AND due_date < ? THEN 'OVERDUE' ELSE 'NOT OVERDUE' END as overdue_check
+      FROM tasks 
+      WHERE assigned_to = ?
+    `, [todayStr, req.params.user_id]);
+    
+    console.log('All tasks with overdue check:', allTasks);
+    
     res.json(stats[0]);
   } catch (error) {
     console.error('Error fetching stats:', error);

@@ -1,17 +1,20 @@
 // frontend/src/pages/TasksPage.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Layout, Typography, Button, Card, Table, Space, Tag, Avatar, Modal, Form, Input, Select, 
+  Layout, Typography, Button, Card, Table, Space, Tag, Avatar, Modal, Form, Input, Select,
   message, Spin, Tabs, Progress, Badge, Tooltip, Popconfirm, Dropdown, Empty, Row, Col, Statistic, Divider
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, 
+  PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined,
   ClockCircleOutlined, ExclamationCircleOutlined, MenuOutlined,
-  UnorderedListOutlined, AppstoreOutlined, CommentOutlined, 
-  PaperClipOutlined, DragOutlined, CalendarOutlined, FlagOutlined
+  UnorderedListOutlined, AppstoreOutlined, CommentOutlined,
+  PaperClipOutlined, DragOutlined, CalendarOutlined, FlagOutlined,
+  LogoutOutlined, BellOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/useAuth';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
+import NotificationBell from '../components/NotificationBell';
 import dayjs from 'dayjs';
 
 const { Header, Content } = Layout;
@@ -48,7 +51,8 @@ const statusColors = {
 };
 
 const TasksPage = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewType, setViewType] = useState('list');
@@ -63,6 +67,7 @@ const TasksPage = () => {
   const [employeesLoading, setEmployeesLoading] = useState(false);
 
   const isLeader = user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела' || user?.role === 'Администратор';
+
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -85,6 +90,28 @@ const TasksPage = () => {
     }
   }, [user, isLeader]);
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/tasks/tasks-stats/${user?.employee_id}`);
+      const data = await response.json();
+      setStats(data);
+    } catch (error) {
+      console.error('Ошибка загрузки статистики', error);
+    }
+  }, [user]);
+
+  const fetchTaskDetails = async (taskId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/tasks/tasks/${taskId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedTask(data);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки деталей задачи:', error);
+    }
+  };
+
   const fetchGroupEmployees = useCallback(async () => {
     if (!isLeader) return;
     setEmployeesLoading(true);
@@ -101,27 +128,6 @@ const TasksPage = () => {
     }
   }, [user, isLeader]);
 
-  const fetchStats = useCallback(async () => {
-  try {
-    const response = await fetch(`http://localhost:5000/api/tasks/tasks-stats/${user?.employee_id}`);
-    const data = await response.json();
-    console.log('Stats received:', data);
-    setStats(data);
-  } catch (error) {
-    console.error('Ошибка загрузки статистики', error);
-  }
-}, [user]);
-  
-  useEffect(() => {
-    if (user) {
-      fetchTasks();
-      fetchStats();
-      if (isLeader) {
-        fetchGroupEmployees();
-      }
-    }
-  }, [user, fetchTasks, fetchStats, fetchGroupEmployees, isLeader]);
-  
   const handleCreateTask = async (values) => {
     try {
       const response = await fetch('http://localhost:5000/api/tasks/tasks', {
@@ -140,14 +146,14 @@ const TasksPage = () => {
         message.success('Задача создана');
         setModalVisible(false);
         form.resetFields();
-        fetchTasks();
-        fetchStats();
+        await fetchTasks();
+        await fetchStats();
       }
     } catch (error) {
       message.error('Ошибка создания задачи');
     }
   };
-  
+
   const handleUpdateTask = async (values) => {
     try {
       const response = await fetch(`http://localhost:5000/api/tasks/tasks/${editingTask.task_id}`, {
@@ -161,24 +167,13 @@ const TasksPage = () => {
         setModalVisible(false);
         setEditingTask(null);
         form.resetFields();
-        fetchTasks();
-        fetchStats();
+        await fetchTasks();
+        await fetchStats();
       }
     } catch (error) {
       message.error('Ошибка обновления задачи');
     }
   };
-  const fetchTaskDetails = async (taskId) => {
-  try {
-    const response = await fetch(`http://localhost:5000/api/tasks/tasks/${taskId}`);
-    if (response.ok) {
-      const data = await response.json();
-      setSelectedTask(data);
-    }
-  } catch (error) {
-    console.error('Ошибка загрузки деталей задачи:', error);
-  }
-};
 
   const handleDeleteTask = async (taskId) => {
     try {
@@ -189,43 +184,46 @@ const TasksPage = () => {
       
       if (response.ok) {
         message.success('Задача удалена');
-        fetchTasks();
-        fetchStats();
+        await fetchTasks();
+        await fetchStats();
       }
     } catch (error) {
       message.error('Ошибка удаления');
     }
   };
-  
+
   const moveTask = async (task, newStatus) => {
-  console.log('=== MOVE TASK ===');
-  console.log('Task ID:', task.task_id);
-  console.log('New status:', newStatus);
-  
-  try {
-    const response = await fetch(`http://localhost:5000/api/tasks/tasks/${task.task_id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus })
-    });
-    
-    console.log('Response status:', response.status);
-    const data = await response.json();
-    console.log('Response data:', data);
-    
-    if (response.ok) {
-      message.success(`Задача перемещена в "${statusLabels[newStatus]}"`);
-      await fetchTasks();
-      await fetchStats();
-    } else {
-      message.error('Ошибка обновления статуса');
+    try {
+      const response = await fetch(`http://localhost:5000/api/tasks/tasks/${task.task_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (response.ok) {
+        message.success(`Задача перемещена в "${statusLabels[newStatus]}"`);
+        await fetchTasks();
+        await fetchStats();
+      } else {
+        message.error('Ошибка обновления статуса');
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+      message.error('Ошибка соединения с сервером');
     }
-  } catch (error) {
-    console.error('Fetch error:', error);
-    message.error('Ошибка соединения с сервером');
-  }
-};
-  
+  };
+
+  // Загрузка данных при монтировании
+  useEffect(() => {
+    if (user) {
+      fetchTasks();
+      fetchStats();
+      if (isLeader) {
+        fetchGroupEmployees();
+      }
+    }
+  }, [user, fetchTasks, fetchStats, isLeader, fetchGroupEmployees]);
+
   const getKanbanColumns = () => {
     const columns = {
       todo: { title: 'К выполнению', tasks: [], color: '#d9d9d9' },
@@ -242,7 +240,7 @@ const TasksPage = () => {
     
     return columns;
   };
-  
+
   const taskColumns = [
     {
       title: 'Задача',
@@ -271,11 +269,9 @@ const TasksPage = () => {
       key: 'due_date',
       render: (date) => {
         if (!date) return '—';
-        const isOverdue = dayjs(date).isBefore(dayjs()) && dayjs(date).isBefore(dayjs(), 'day');
         return (
-          <Tag color={isOverdue ? 'red' : 'blue'} icon={<CalendarOutlined />}>
+          <Tag color="blue" icon={<CalendarOutlined />}>
             {dayjs(date).format('DD.MM.YYYY')}
-            {isOverdue && <span style={{ marginLeft: 4 }}>⚠️ Просрочено</span>}
           </Tag>
         );
       }
@@ -291,15 +287,15 @@ const TasksPage = () => {
       render: (_, record) => (
         <Space>
           <Tooltip title="Просмотреть">
-  <Button 
-    icon={<CommentOutlined />} 
-    size="small" 
-    onClick={() => { 
-      fetchTaskDetails(record.task_id); // Загружаем свежие данные с комментариями
-      setDetailsModalVisible(true); 
-    }} 
-  />
-</Tooltip>
+            <Button 
+              icon={<CommentOutlined />} 
+              size="small" 
+              onClick={() => { 
+                fetchTaskDetails(record.task_id);
+                setDetailsModalVisible(true); 
+              }} 
+            />
+          </Tooltip>
           {isLeader && (
             <>
               <Tooltip title="Редактировать">
@@ -337,7 +333,7 @@ const TasksPage = () => {
       )
     }
   ];
-  
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sidebar />
@@ -369,18 +365,18 @@ const TasksPage = () => {
                 Создать задачу
               </Button>
             )}
+            <NotificationBell userId={user?.employee_id} />
+            <Button onClick={logout} icon={<LogoutOutlined />}>Выйти</Button>
           </Space>
         </Header>
         
         <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)", borderRadius: "8px" }}>
           {/* Статистика */}
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col span={4}><Statistic title="К выполнению" value={stats.todo || 0} prefix={<ClockCircleOutlined />} /></Col>
-            <Col span={4}><Statistic title="В работе" value={stats.in_progress || 0} prefix={<MenuOutlined />} /></Col>
-            <Col span={4}><Statistic title="На проверке" value={stats.review || 0} prefix={<ExclamationCircleOutlined />} /></Col>
-            <Col span={4}><Statistic title="Выполнено" value={stats.done || 0} prefix={<CheckCircleOutlined />} /></Col>
-            <Col span={4}><Statistic title="Просрочено" value={stats.overdue || 0} prefix={<ClockCircleOutlined />} valueStyle={{ color: '#ff4d4f' }} /></Col>
-            <Col span={4}><Statistic title="Срочные" value={stats.urgent || 0} prefix={<FlagOutlined />} valueStyle={{ color: '#faad14' }} /></Col>
+            <Col span={6}><Statistic title="К выполнению" value={stats.todo || 0} prefix={<ClockCircleOutlined />} /></Col>
+            <Col span={6}><Statistic title="В работе" value={stats.in_progress || 0} prefix={<MenuOutlined />} /></Col>
+            <Col span={6}><Statistic title="На проверке" value={stats.review || 0} prefix={<ExclamationCircleOutlined />} /></Col>
+            <Col span={6}><Statistic title="Выполнено" value={stats.done || 0} prefix={<CheckCircleOutlined />} /></Col>
           </Row>
           
           {viewType === 'list' ? (
@@ -421,16 +417,16 @@ const TasksPage = () => {
                               <Avatar size={20}>{task.assigned_to_name?.[0]}</Avatar>
                               <Text type="secondary" style={{ fontSize: 11 }}>{task.assigned_to_name}</Text>
                             </Space>
-<Button 
-  size="small" 
-  type="link" 
-  onClick={() => { 
-    fetchTaskDetails(task.task_id);
-    setDetailsModalVisible(true); 
-  }}
->
-  <CommentOutlined /> {task.comments_count || 0}
-</Button>
+                            <Button 
+                              size="small" 
+                              type="link" 
+                              onClick={() => { 
+                                fetchTaskDetails(task.task_id);
+                                setDetailsModalVisible(true); 
+                              }}
+                            >
+                              <CommentOutlined /> {task.comments_count || 0}
+                            </Button>
                           </div>
                         </Space>
                       </Card>
@@ -511,97 +507,93 @@ const TasksPage = () => {
       </Modal>
       
       {/* Модалка деталей задачи */}
-<Modal title={selectedTask?.title} open={detailsModalVisible} onCancel={() => setDetailsModalVisible(false)} footer={null} width={600}>
-  {selectedTask && (
-    <>
-      <div>
-        <Tag color={priorityColors[selectedTask.priority]}>{priorityLabels[selectedTask.priority]}</Tag>
-        <Tag color={statusColors[selectedTask.status]}>{statusLabels[selectedTask.status]}</Tag>
-      </div>
-      
-      <div style={{ marginTop: 16 }}>
-        <Text type="secondary">Описание:</Text>
-        <p>{selectedTask.description || 'Нет описания'}</p>
-      </div>
-      
-      <div>
-        <Text type="secondary">Исполнитель:</Text> <Text>{selectedTask.assigned_to_name}</Text>
-      </div>
-      
-      <div>
-        <Text type="secondary">Создал:</Text> <Text>{selectedTask.assigned_by_name}</Text>
-      </div>
-      
-      {selectedTask.due_date && (
-        <div>
-          <Text type="secondary">Срок:</Text> <Text>{dayjs(selectedTask.due_date).format('DD.MM.YYYY')}</Text>
-        </div>
-      )}
-      
-      <Divider />
-      
-      {/* Комментарии */}
-      <Title level={5}>Комментарии</Title>
-      <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 16 }}>
-        {selectedTask.comments && selectedTask.comments.length > 0 ? (
-          selectedTask.comments.map(comment => (
-            <div key={comment.comment_id} style={{ marginBottom: 12, padding: 8, background: 'var(--bg-secondary)', borderRadius: 8 }}>
-              <Space>
-                <Avatar size={24} src={comment.avatar_url ? `http://localhost:5000${comment.avatar_url}` : null}>
-                  {comment.user_name?.[0]}
-                </Avatar>
-                <Text strong>{comment.user_name}</Text>
-                <Text type="secondary" style={{ fontSize: 11 }}>
-                  {dayjs(comment.created_at).format('DD.MM.YYYY HH:mm')}
-                </Text>
-              </Space>
-              <p style={{ marginTop: 8, marginBottom: 0 }}>{comment.comment}</p>
+      <Modal title={selectedTask?.title} open={detailsModalVisible} onCancel={() => setDetailsModalVisible(false)} footer={null} width={600}>
+        {selectedTask && (
+          <>
+            <div>
+              <Tag color={priorityColors[selectedTask.priority]}>{priorityLabels[selectedTask.priority]}</Tag>
+              <Tag color={statusColors[selectedTask.status]}>{statusLabels[selectedTask.status]}</Tag>
             </div>
-          ))
-        ) : (
-          <Empty description="Нет комментариев" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            
+            <div style={{ marginTop: 16 }}>
+              <Text type="secondary">Описание:</Text>
+              <p>{selectedTask.description || 'Нет описания'}</p>
+            </div>
+            
+            <div>
+              <Text type="secondary">Исполнитель:</Text> <Text>{selectedTask.assigned_to_name}</Text>
+            </div>
+            
+            <div>
+              <Text type="secondary">Создал:</Text> <Text>{selectedTask.assigned_by_name}</Text>
+            </div>
+            
+            {selectedTask.due_date && (
+              <div>
+                <Text type="secondary">Срок:</Text> <Text>{dayjs(selectedTask.due_date).format('DD.MM.YYYY')}</Text>
+              </div>
+            )}
+            
+            <Divider />
+            
+            <Title level={5}>Комментарии</Title>
+            <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 16 }}>
+              {selectedTask.comments && selectedTask.comments.length > 0 ? (
+                selectedTask.comments.map(comment => (
+                  <div key={comment.comment_id} style={{ marginBottom: 12, padding: 8, background: 'var(--bg-secondary)', borderRadius: 8 }}>
+                    <Space>
+                      <Avatar size={24} src={comment.avatar_url ? `http://localhost:5000${comment.avatar_url}` : null}>
+                        {comment.user_name?.[0]}
+                      </Avatar>
+                      <Text strong>{comment.user_name}</Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        {dayjs(comment.created_at).format('DD.MM.YYYY HH:mm')}
+                      </Text>
+                    </Space>
+                    <p style={{ marginTop: 8, marginBottom: 0 }}>{comment.comment}</p>
+                  </div>
+                ))
+              ) : (
+                <Empty description="Нет комментариев" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              )}
+            </div>
+            
+            <Form form={commentForm} onFinish={async (values) => {
+              try {
+                const response = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}/comments`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    comment: values.comment, 
+                    user_id: user?.employee_id 
+                  })
+                });
+                
+                if (response.ok) {
+                  message.success('Комментарий добавлен');
+                  commentForm.resetFields();
+                  const updatedTask = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}`);
+                  const taskData = await updatedTask.json();
+                  setSelectedTask(taskData);
+                  fetchTasks();
+                } else {
+                  message.error('Ошибка добавления комментария');
+                }
+              } catch (error) {
+                console.error('Error adding comment:', error);
+                message.error('Ошибка добавления комментария');
+              }
+            }}>
+              <Form.Item name="comment" rules={[{ required: true, message: 'Введите комментарий' }]}>
+                <TextArea rows={3} placeholder="Написать комментарий..." />
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" htmlType="submit">Отправить</Button>
+              </Form.Item>
+            </Form>
+          </>
         )}
-      </div>
-      
-      {/* Форма добавления комментария */}
-      <Form form={commentForm} onFinish={async (values) => {
-        try {
-          const response = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}/comments`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              comment: values.comment, 
-              user_id: user?.employee_id 
-            })
-          });
-          
-          if (response.ok) {
-            message.success('Комментарий добавлен');
-            commentForm.resetFields();
-            // Обновляем детали задачи
-            const updatedTask = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}`);
-            const taskData = await updatedTask.json();
-            setSelectedTask(taskData);
-            // Также обновляем список задач, чтобы обновить счетчик комментариев
-            fetchTasks();
-          } else {
-            message.error('Ошибка добавления комментария');
-          }
-        } catch (error) {
-          console.error('Error adding comment:', error);
-          message.error('Ошибка добавления комментария');
-        }
-      }}>
-        <Form.Item name="comment" rules={[{ required: true, message: 'Введите комментарий' }]}>
-          <TextArea rows={3} placeholder="Написать комментарий..." />
-        </Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit">Отправить</Button>
-        </Form.Item>
-      </Form>
-    </>
-  )}
-</Modal>
+      </Modal>
     </Layout>
   );
 };

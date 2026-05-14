@@ -30,11 +30,13 @@ router.get('/my-group', async (req, res) => {
 
     const groupId = leaderInfo[0].group_id;
 
-    // Получаем всех сотрудников группы
+    // Получаем всех СОТРУДНИКОВ группы (исключая руководителей)
     const [employees] = await db.query(
       `SELECT employee_id, last_name, first_name, middle_name, role, status, hire_date, avatar_url
        FROM employees 
-       WHERE group_id = ? AND status != 'Уволен'
+       WHERE group_id = ? 
+         AND status != 'Уволен'
+         AND role = 'Сотрудник'  -- 👈 ТОЛЬКО СОТРУДНИКИ
        ORDER BY 
          CASE role 
            WHEN 'Руководитель группы' THEN 1
@@ -304,6 +306,7 @@ if (reviewerCheck.length === 0) {
 });
 
 // Получить рейтинг сотрудников группы
+// Получить рейтинг сотрудников группы
 router.get("/leaderboard", async (req, res) => {
   const { group_id, period = 'week', limit = 50 } = req.query;
 
@@ -311,7 +314,6 @@ router.get("/leaderboard", async (req, res) => {
     return res.status(400).json({ error: "Не указан ID группы" });
   }
 
-  // Определяем период
   let dateCondition = '';
   const today = new Date();
   
@@ -330,7 +332,6 @@ router.get("/leaderboard", async (req, res) => {
   }
 
   try {
-    // Получаем агрегированные данные по сотрудникам группы
     const [rows] = await db.query(`
       SELECT 
         e.employee_id,
@@ -364,13 +365,15 @@ router.get("/leaderboard", async (req, res) => {
         END as contacts_per_hour
       FROM employees e
       LEFT JOIN daily_metrics dm ON e.employee_id = dm.employee_id AND dm.verification_status = 'Одобрено'
-      WHERE e.group_id = ? AND e.status = 'Активен' ${dateCondition}
+      WHERE e.group_id = ? 
+        AND e.status = 'Активен'
+        AND e.role = 'Сотрудник'  -- 👈 ТОЛЬКО СОТРУДНИКИ
+        ${dateCondition}
       GROUP BY e.employee_id, e.last_name, e.first_name, e.middle_name, e.role
       ORDER BY csat DESC
       LIMIT ?
     `, [group_id, parseInt(limit)]);
 
-    // Добавляем места
     const leaderboard = rows.map((row, index) => ({
       rank: index + 1,
       ...row,

@@ -258,6 +258,10 @@ router.get("/list", async (req, res) => {
 router.get("/unread-count", async (req, res) => {
   const { user_id, chat_type, chat_id } = req.query;
   
+  if (!user_id || !chat_type || !chat_id) {
+    return res.status(400).json({ error: "Не указаны обязательные параметры" });
+  }
+  
   try {
     const [result] = await db.query(
       `SELECT COUNT(*) as count
@@ -274,7 +278,7 @@ router.get("/unread-count", async (req, res) => {
     res.json({ count: result[0]?.count || 0 });
   } catch (error) {
     console.error("Ошибка подсчета непрочитанных:", error);
-    res.json({ count: 0 });
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 

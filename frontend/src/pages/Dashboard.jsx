@@ -382,63 +382,7 @@ const [kpiTargets, setKpiTargets] = useState({
 
           {/* Быстрые показатели и достижения */}
           <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-            <Col span={12}>
-              <Card
-                title={
-                  <Space>
-                    <TrophyOutlined />
-                    <span>Достижения и награды</span>
-                  </Space>
-                }
-              >
-                <Space direction="vertical" style={{ width: "100%" }}>
-                  {stats?.total_days >= 30 && (
-                    <Tag color="gold" icon={<TrophyOutlined />}>
-                      Опытный сотрудник: {stats.total_days} рабочих дней
-                    </Tag>
-                  )}
-
-                  {stats?.total_requests >= 1000 && (
-                    <Tag color="blue" icon={<TrophyOutlined />}>
-                      Мастер обработки: {stats.total_requests} запросов
-                    </Tag>
-                  )}
-
-                  {stats?.avg_csat >= 90 && (
-                    <Tag color="green" icon={<StarOutlined />}>
-                      Лидер CSAT: {stats.avg_csat}% удовлетворенности
-                    </Tag>
-                  )}
-
-                  {stats?.avg_quality >= 95 && (
-                    <Tag color="purple" icon={<CheckCircleOutlined />}>
-                      Эксперт качества: {stats.avg_quality}% качества
-                    </Tag>
-                  )}
-
-                  {(!stats || Object.keys(stats).length === 0) && (
-                    <Text type="secondary">Пока нет достижений</Text>
-                  )}
-                </Space>
-
-                <Divider />
-
-                <div
-                  style={{
-                    padding: "12px",
-                    background: "#f6ffed",
-                    borderRadius: "6px",
-                  }}
-                >
-                  <Text type="secondary" style={{ fontSize: "12px" }}>
-                    <TrophyOutlined /> Достижения обновляются автоматически на
-                    основе вашей рабочей активности.
-                  </Text>
-                </div>
-              </Card>
-            </Col>
-
-            <Col span={12}>
+                        <Col span={12}>
               <Card
                 title={
                   <Space>
@@ -481,75 +425,7 @@ const [kpiTargets, setKpiTargets] = useState({
             </Col>
           </Row>
 
-          {/* Быстрые действия */}
-          <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-            <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <DashboardOutlined />
-                    <span>Быстрые действия</span>
-                  </Space>
-                }
-              >
-                <Row gutter={[16, 16]}>
-                  <Col span={6}>
-                    <Card
-                      size="small"
-                      hoverable
-                      onClick={() => navigate("/profile")}
-                      style={{ textAlign: "center", cursor: "pointer" }}
-                    >
-                      <UserOutlined
-                        style={{
-                          fontSize: "24px",
-                          color: "#52c41a",
-                          marginBottom: "8px",
-                        }}
-                      />
-                      <div>Личные показатели</div>
-                    </Card>
-                  </Col>
-
-                  <Col span={6}>
-                    <Card
-                      size="small"
-                      hoverable
-                      onClick={() => window.location.reload()}
-                      style={{ textAlign: "center", cursor: "pointer" }}
-                    >
-                      <BarChartOutlined
-                        style={{
-                          fontSize: "24px",
-                          color: "#fa8c16",
-                          marginBottom: "8px",
-                        }}
-                      />
-                      <div>Обновить статистику</div>
-                    </Card>
-                  </Col>
-
-                  <Col span={6}>
-                    <Card
-                      size="small"
-                      hoverable
-                      onClick={() => navigate("/employee-dashboard")}
-                      style={{ textAlign: "center", cursor: "pointer" }}
-                    >
-                      <HistoryOutlined
-                        style={{
-                          fontSize: "24px",
-                          color: "#722ed1",
-                          marginBottom: "8px",
-                        }}
-                      />
-                      <div>История за неделю</div>
-                    </Card>
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
-          </Row>
+          
         </Content>
       </Layout>
     </Layout>

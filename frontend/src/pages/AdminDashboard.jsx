@@ -574,49 +574,53 @@ const fetchKpiNorms = async () => {
 
   // Колонки таблицы KPI норм
   const kpiColumns = [
-    {
-      title: "Показатель",
-      dataIndex: "metric_name",
-      key: "metric_name",
-      render: (name) => {
-        const names = {
-          csat: "CSAT (удовлетворенность)",
-          fcr: "FCR (первый контакт)",
-          contacts_per_hour: "Контакты в час",
-          quality_score: "Оценка качества",
-        };
-        return names[name] || name;
-      },
+  {
+    title: "Показатель",
+    dataIndex: "metric_name",
+    key: "metric_name",
+    render: (name) => {
+      const names = {
+        csat: "CSAT (удовлетворенность)",
+        fcr: "FCR (первый контакт)",
+        contacts_per_hour: "Контакты в час",
+        quality_score: "Оценка качества",
+      };
+      return names[name] || name;
     },
-    {
-  title: "Текущая норма",
-  dataIndex: "target_value",
-  key: "target_value",
-  render: (target_value, record) => (
-    <Space>
-      <Text strong>{target_value}%</Text>
-      <Tooltip title="Редактировать">
-        <Button 
-          size="small" 
-          type="link" 
-          icon={<EditOutlined />}
-          onClick={() => {
-            let newValue = prompt("Введите новое значение (%)", target_value);
-            if (newValue && !isNaN(newValue)) {
-              updateKpiTarget(record.target_id, parseFloat(newValue));
-            }
-          }}
-        />
-      </Tooltip>
-    </Space>
-  ),
-},
-    {
-      title: "Описание",
-      dataIndex: "description",
-      key: "description",
+  },
+  {
+    title: "Текущая норма",
+    dataIndex: "target_value",
+    key: "target_value",
+    render: (target_value, record) => {
+      // Для контактов в час не добавляем знак %
+      const suffix = record.metric_name === 'contacts_per_hour' ? '' : '%';
+      return (
+        <Space>
+          <Text strong>{target_value}{suffix}</Text>
+          <Tooltip title="Редактировать">
+            <Button 
+              size="small" 
+              type="link" 
+              icon={<EditOutlined />}
+              onClick={() => {
+                let newValue = prompt("Введите новое значение", target_value);
+                if (newValue && !isNaN(newValue)) {
+                  updateKpiTarget(record.target_id, parseFloat(newValue));
+                }
+              }}
+            />
+          </Tooltip>
+        </Space>
+      );
     },
-  ];
+  },
+  {
+    title: "Описание",
+    dataIndex: "description",
+    key: "description",
+  },
+];
 
   const updateKpiTarget = async (targetId, newValue) => {
     try {
@@ -739,6 +743,7 @@ const fetchKpiNorms = async () => {
               size="small"
               strokeColor={color}
               status={status}
+              showInfo={false}
             />
           </div>
         </>
@@ -882,27 +887,6 @@ const fetchKpiNorms = async () => {
                   dataSource={departments}
                   rowKey="department_id"
                   pagination={false}
-                />
-              </Card>
-            </TabPane>
-
-            {/* Вкладка: Логи действий */}
-            <TabPane
-              tab={
-                <Space>
-                  <HistoryOutlined />
-                  Логи действий
-                </Space>
-              }
-              key="logs"
-            >
-              <Card>
-                <Table
-                  columns={logColumns}
-                  dataSource={logs}
-                  rowKey="log_id"
-                  pagination={{ pageSize: 20 }}
-                  scroll={{ x: 900 }}
                 />
               </Card>
             </TabPane>

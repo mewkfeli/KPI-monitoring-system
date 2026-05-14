@@ -1,6 +1,6 @@
 // frontend/src/pages/ChatPage.jsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { io } from "socket.io-client";
+import { io } from "socket.io-client"; // 👈 ДОБАВЬТЕ ЭТОТ ИМПОРТ
 import {
   Layout, Avatar, Typography, Button, Card, Input, List, Space, Tag,
   Spin, Empty, message, Badge, Tooltip, Divider, Modal, Upload, Popover,
@@ -24,6 +24,7 @@ import Picker from "emoji-picker-react";
 import { useNavigate } from "react-router-dom";
 dayjs.extend(relativeTime);
 dayjs.locale("ru");
+import { useNotifications } from "../contexts/NotificationContext";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -41,9 +42,57 @@ const getRoleColor = (role) => {
   }
 };
 
+// Функция для форматирования даты в заголовок (как в Telegram)
+const formatDateHeader = (date) => {
+  const msgDate = dayjs(date);
+  const today = dayjs().startOf('day');
+  const yesterday = today.subtract(1, 'day');
+  const msgStartOfDay = msgDate.startOf('day');
+  
+  if (msgStartOfDay.isSame(today, 'day')) {
+    return "Сегодня";
+  } else if (msgStartOfDay.isSame(yesterday, 'day')) {
+    return "Вчера";
+  } else {
+    return msgDate.format("DD MMMM YYYY");
+  }
+};
+
+// Функция для группировки сообщений по датам
+const groupMessagesByDate = (messages) => {
+  const groups = [];
+  let currentDate = null;
+  let currentGroup = null;
+  
+  for (const msg of messages) {
+    const msgDate = dayjs(msg.created_at).startOf('day').format('YYYY-MM-DD');
+    
+    if (msgDate !== currentDate) {
+      if (currentGroup) {
+        groups.push(currentGroup);
+      }
+      currentDate = msgDate;
+      currentGroup = {
+        date: msgDate,
+        dateLabel: formatDateHeader(msg.created_at),
+        messages: [msg]
+      };
+    } else {
+      currentGroup.messages.push(msg);
+    }
+  }
+  
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+  
+  return groups;
+};
+
 const ChatPage = () => {
   const { user, logout } = useAuth();
   const { isDark } = useTheme();
+  const { resetChatIndicator } = useNotifications(); // 👈 ИСПРАВЛЕНО: resetChatIndicator вместо resetChatCount
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [chats, setChats] = useState([]);
@@ -83,11 +132,17 @@ const ChatPage = () => {
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const pendingMessagesRef = useRef(new Set());
   const isPasteProcessingRef = useRef(false);
   const uploadingRef = useRef(false);
   const currentChatRef = useRef(null);
   const searchUsersRef = useRef(null);
+  
+  // Сгруппированные сообщения
+  const groupedMessages = useMemo(() => {
+    return groupMessagesByDate(messages);
+  }, [messages]);
   
   const filteredChats = useMemo(() => {
     if (!chatSearch.trim()) return chats;
@@ -105,20 +160,19 @@ const ChatPage = () => {
     }
   }, []);
 
-const scrollToMessage = useCallback((messageId) => {
-  setTimeout(() => {
-    const messageElement = document.getElementById(`message-${messageId}`);
-    if (messageElement) {
-      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      messageElement.style.transition = 'background-color 0.3s';
-      // Вместо белого используем цвет из темы
-      messageElement.style.backgroundColor = 'var(--hover-bg)';
-      setTimeout(() => {
-        messageElement.style.backgroundColor = '';
-      }, 2000);
-    }
-  }, 100);
-}, []);
+  const scrollToMessage = useCallback((messageId) => {
+    setTimeout(() => {
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageElement.style.transition = 'background-color 0.3s';
+        messageElement.style.backgroundColor = 'var(--hover-bg)';
+        setTimeout(() => {
+          messageElement.style.backgroundColor = '';
+        }, 2000);
+      }
+    }, 100);
+  }, []);
   
   const loadChatsList = useCallback(async () => {
     if (!user?.employee_id) return;
@@ -702,13 +756,10 @@ const scrollToMessage = useCallback((messageId) => {
     return isImageFile(msg.attachment_url);
   };
 
-  const formatTime = (date) => {
+  // Только время для отображения под сообщением
+  const formatTimeOnly = (date) => {
     if (!date) return "";
-    const msgDate = dayjs(date);
-    const now = dayjs();
-    if (msgDate.isSame(now, "day")) return msgDate.format("HH:mm");
-    if (msgDate.isSame(now.subtract(1, "day"), "day")) return `Вчера ${msgDate.format("HH:mm")}`;
-    return msgDate.format("DD.MM.YY HH:mm");
+    return dayjs(date).format("HH:mm");
   };
 
   const getReactionButtons = (messageId, currentReactions = {}) => (
@@ -740,6 +791,11 @@ const scrollToMessage = useCallback((messageId) => {
     }}
   ];
 
+  // 👈 СБРОС ИНДИКАТОРА ПРИ ОТКРЫТИИ СТРАНИЦЫ
+  useEffect(() => {
+    resetChatIndicator();
+  }, [resetChatIndicator]);
+
   useEffect(() => {
     loadChatsList();
     setLoading(false);
@@ -762,7 +818,8 @@ const scrollToMessage = useCallback((messageId) => {
         try {
             const chat = JSON.parse(openChat);
             sessionStorage.removeItem('openChat');
-            
+            // 👈 ИСПРАВЛЕНО: resetChatIndicator вместо resetChatCount
+            resetChatIndicator();
             setChats(prev => {
                 const exists = prev.some(c => c.id === chat.id && c.type === chat.type);
                 if (!exists) return [chat, ...prev];
@@ -777,7 +834,7 @@ const scrollToMessage = useCallback((messageId) => {
             sessionStorage.removeItem('openChat');
         }
     }
-  }, []);
+  }, [resetChatIndicator]);
 
   useEffect(() => {
     if (createGroupVisible || addMemberVisible) {
@@ -1002,7 +1059,7 @@ const scrollToMessage = useCallback((messageId) => {
 
   const handleSelectChat = (chat) => {
     setCurrentChat(chat);
-    
+    resetChatIndicator();
     if (socket) {
         const rooms = socket.rooms || new Set();
         
@@ -1054,11 +1111,11 @@ const scrollToMessage = useCallback((messageId) => {
             <Tooltip title="Поиск (Ctrl+K)"><Button icon={<SearchOutlined />} onClick={() => setSearchModalVisible(true)}>Поиск</Button></Tooltip>
             <NotificationBell userId={user?.employee_id} />
             <Button onClick={logout} icon={<LogoutOutlined />}>Выйти</Button>
-          </Space>
+                    </Space>
         </Header>
         
         <Layout style={{ flexDirection: "row", height: "calc(100vh - 64px)" }}>
-          {/* Левая панель */}
+          {/* Левая панель - список чатов */}
           <div style={{ width: 350, minWidth: 350, flexShrink: 0, background: "var(--bg-sidebar)", borderRight: "1px solid var(--border-color)", overflowY: "auto", display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-sidebar)", flexShrink: 0 }}>
               <Space direction="vertical" style={{ width: "100%" }} size={12}>
@@ -1089,48 +1146,87 @@ const scrollToMessage = useCallback((messageId) => {
               </Space>
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
-              <List dataSource={filteredChats} renderItem={(chat) => (
-                <div onClick={() => handleSelectChat(chat)}
-                  style={{ padding: "12px 16px", cursor: "pointer", background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "var(--menu-active-bg)" : "transparent", borderBottom: "1px solid var(--border-color)", transition: "background 0.2s" }}
-                  onMouseEnter={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "var(--hover-bg)"; }}
-                  onMouseLeave={(e) => { if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) e.currentTarget.style.background = "transparent"; }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (chat.type === 'private') {
-                          navigate(`/employee/${chat.id}`);
-                        }
-                      }}
-                      style={{ cursor: chat.type === 'private' ? 'pointer' : 'default' }}
-                    >
-                      <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
-                        {renderChatAvatar(chat)}
-                      </Badge>
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>{chat.name || "Без названия"}</Text>
-                        {chat.unread_count > 0 && <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />}
+              <List 
+                dataSource={filteredChats} 
+                renderItem={(chat) => (
+                  <div 
+                    onClick={() => handleSelectChat(chat)}
+                    style={{ 
+                      padding: "12px 16px", 
+                      cursor: "pointer", 
+                      background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "var(--menu-active-bg)" : "transparent", 
+                      borderBottom: "1px solid var(--border-color)", 
+                      transition: "background 0.2s" 
+                    }}
+                    onMouseEnter={(e) => { 
+                      if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) 
+                        e.currentTarget.style.background = "var(--hover-bg)"; 
+                    }}
+                    onMouseLeave={(e) => { 
+                      if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) 
+                        e.currentTarget.style.background = "transparent"; 
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (chat.type === 'private') {
+                            navigate(`/employee/${chat.id}`);
+                          }
+                        }}
+                        style={{ cursor: chat.type === 'private' ? 'pointer' : 'default' }}
+                      >
+                        <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
+                          {renderChatAvatar(chat)}
+                        </Badge>
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                          <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>
+                            {chat.name || "Без названия"}
+                          </Text>
+                          {chat.unread_count > 0 && (
+                            <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />
+                          )}
+                        </div>
+                        <Text type="secondary" style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                          {chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}
+                        </Text>
                       </div>
-                      <Text type="secondary" style={{ fontSize: 12, color: "var(--text-secondary)" }}>{chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}</Text>
                     </div>
                   </div>
-                </div>
-              )} />
+                )} 
+              />
             </div>
           </div>
           
-          {/* Правая панель */}
+          {/* Правая панель - область чата */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "var(--bg-content)", height: "100%", overflow: "hidden" }}>
             {currentChat ? (
               <>
-                <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-sidebar)", flexShrink: 0 }}>
+                {/* Верхняя панель чата */}
+                <div style={{ 
+                  padding: "16px 24px", 
+                  borderBottom: "1px solid var(--border-color)", 
+                  display: "flex", 
+                  justifyContent: "space-between", 
+                  alignItems: "center", 
+                  background: "var(--bg-sidebar)", 
+                  flexShrink: 0 
+                }}>
                   <Space>
                     {renderChatAvatar(currentChat)}
                     <div>
-                      <Text strong style={{ fontSize: 16, color: "var(--text-primary)" }}>{currentChat.name}</Text>
-                      <div><Text type="secondary" style={{ fontSize: 12, color: "var(--text-secondary)" }}>{currentChat.type === "group" ? "Рабочая группа" : currentChat.type === "custom" ? "Пользовательская группа" : "Личный чат"}</Text></div>
+                      <Text strong style={{ fontSize: 16, color: "var(--text-primary)" }}>
+                        {currentChat.name}
+                      </Text>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                          {currentChat.type === "group" ? "Рабочая группа" : 
+                           currentChat.type === "custom" ? "Пользовательская группа" : "Личный чат"}
+                        </Text>
+                      </div>
                     </div>
                   </Space>
                   {(currentChat.type === "custom" || currentChat.type === "group") && (
@@ -1142,336 +1238,394 @@ const scrollToMessage = useCallback((messageId) => {
                 
                 {/* Закрепленные сообщения */}
                 {pinnedMessages.length > 0 && (
-                  <div style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-color)", padding: "8px 16px", maxHeight: 150, overflowY: 'auto', flexShrink: 0 }}>
-                    <Text type="secondary" style={{ fontSize: 11, marginBottom: 4, display: 'block', color: "var(--text-secondary)" }}><PushpinOutlined /> Закрепленные сообщения ({pinnedMessages.length})</Text>
+                  <div style={{ 
+                    background: "var(--bg-secondary)", 
+                    borderBottom: "1px solid var(--border-color)", 
+                    padding: "8px 16px", 
+                    maxHeight: 150, 
+                    overflowY: 'auto', 
+                    flexShrink: 0 
+                  }}>
+                    <Text type="secondary" style={{ fontSize: 11, marginBottom: 4, display: 'block', color: "var(--text-secondary)" }}>
+                      <PushpinOutlined /> Закрепленные сообщения ({pinnedMessages.length})
+                    </Text>
                     {pinnedMessages.map(msg => (
-                      <div   key={msg.message_id} 
-  onClick={() => scrollToMessage(msg.message_id)}
-  style={{ 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: '6px 0', 
-    borderBottom: pinnedMessages.indexOf(msg) < pinnedMessages.length - 1 ? '1px solid var(--border-color)' : 'none', 
-    cursor: 'pointer', 
-    transition: 'background-color 0.2s', 
-    borderRadius: 4 
-  }}
-  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--hover-bg)'; }}
-  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
->
+                      <div 
+                        key={msg.message_id} 
+                        onClick={() => scrollToMessage(msg.message_id)} 
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          padding: '6px 0', 
+                          borderBottom: pinnedMessages.indexOf(msg) < pinnedMessages.length - 1 ? '1px solid var(--border-color)' : 'none', 
+                          cursor: 'pointer', 
+                          transition: 'background-color 0.2s', 
+                          borderRadius: 4 
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--hover-bg)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
                         <Space style={{ flex: 1, minWidth: 0 }}>
                           <PushpinOutlined style={{ color: '#faad14', flexShrink: 0 }} />
-                          <Text strong style={{ fontSize: 12, flexShrink: 0, color: "var(--text-primary)" }}>{msg.first_name} {msg.last_name}:</Text>
-                          <Text style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: "var(--text-secondary)" }}>{msg.message?.substring(0, 100)}</Text>
+                          <Text strong style={{ fontSize: 12, flexShrink: 0, color: "var(--text-primary)" }}>
+                            {msg.first_name} {msg.last_name}:
+                          </Text>
+                          <Text style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: "var(--text-secondary)" }}>
+                            {msg.message?.substring(0, 100)}
+                          </Text>
                         </Space>
                         {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
                           (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
-                          <Button size="small" type="text" icon={<PushpinOutlined style={{ color: '#faad14' }} />}
+                          <Button 
+                            size="small" 
+                            type="text" 
+                            icon={<PushpinOutlined style={{ color: '#faad14' }} />}
                             onClick={(e) => { e.stopPropagation(); handlePinMessage(msg.message_id, true); }}
-                            style={{ flexShrink: 0 }} title="Открепить" />
+                            style={{ flexShrink: 0 }} 
+                            title="Открепить" 
+                          />
                         )}
                       </div>
                     ))}
                   </div>
                 )}
                 
-                {/* Сообщения */}
-                <div style={{ flex: 1, overflowY: "auto", padding: "24px", background: "var(--bg-secondary)", display: "flex", flexDirection: "column", minHeight: 0 }}>
-                  {messages.length === 0 ? (
+                {/* Сообщения с группировкой по датам */}
+                <div 
+                  ref={messagesContainerRef} 
+                  style={{ 
+                    flex: 1, 
+                    overflowY: "auto", 
+                    padding: "24px", 
+                    background: "var(--bg-secondary)", 
+                    display: "flex", 
+                    flexDirection: "column", 
+                    minHeight: 0 
+                  }}
+                >
+                  {groupedMessages.length === 0 ? (
                     <Empty description="Нет сообщений. Напишите что-нибудь!" style={{ marginTop: 100 }} />
                   ) : (
-                    messages.map((msg) => {
-                      const isMine = msg.sender_id === user?.employee_id;
-                      const isImage = isMessageImage(msg);
-                      const imageUrl = msg.attachment_url ? `http://localhost:5000${msg.attachment_url}` : null;
-                      const repliedMsg = msg.reply_to_id ? messages.find(m => m.message_id === msg.reply_to_id) : null;
-                      
-                      return (
-                        <div key={msg.message_id} id={`message-${msg.message_id}`}
-                          style={{ 
-                            display: "flex", 
-                            justifyContent: isMine ? "flex-end" : "flex-start", 
-                            marginBottom: 16,
-                            transition: 'background-color 0.3s',
-                            backgroundColor: replyTo?.message_id === msg.message_id ? "rgba(24, 144, 255, 0.1)" : "transparent",
-                            borderRadius: 12,
-                            padding: "4px 0",
-                            margin: replyTo?.message_id === msg.message_id ? "0 -8px 8px -8px" : "0",
-                          }}
-                          onMouseEnter={() => { if (socket && !isMine && !msg.is_deleted) socket.emit("mark_read", { message_id: msg.message_id }); }}>
-                          <div style={{ 
-                            maxWidth: "70%", 
-                            display: "flex", 
-                            flexDirection: "column", 
-                            alignItems: isMine ? "flex-end" : "flex-start" 
+                    groupedMessages.map((group, groupIdx) => (
+                      <div key={group.date} style={{ marginBottom: groupIdx < groupedMessages.length - 1 ? 24 : 0 }}>
+                        {/* Заголовок даты */}
+                        <div style={{ textAlign: "center", marginBottom: 16 }}>
+                          <Tag style={{ 
+                            backgroundColor: "var(--hover-bg)", 
+                            border: "none", 
+                            borderRadius: 16, 
+                            padding: "4px 12px",
+                            color: "var(--text-secondary)",
+                            fontSize: 12
                           }}>
-                            {!isMine && (
-                              <div style={{ marginBottom: 4, fontSize: 12, marginLeft: 12 }}>
-                                <Space size={4}>
-                                  <Avatar 
-                                    size="small" 
-                                    src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} 
-                                    style={{ 
-                                      backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
-                                      cursor: 'pointer'
-                                    }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate(`/employee/${msg.sender_id}`);
-                                    }}
-                                  >
-                                    {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
-                                  </Avatar>
-                                  <Text 
-                                    strong 
-                                    style={{ fontSize: 12, cursor: 'pointer', color: "var(--text-primary)" }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate(`/employee/${msg.sender_id}`);
-                                    }}
-                                  >
-                                    {msg.sender_name}
-                                  </Text>
-                                </Space>
-                              </div>
-                            )}
-                            
-                            {/* Блок сообщения */}
-                            <div
-                              style={{
-                                position: "relative",
-                                padding: "8px 12px 6px 12px",
-                                borderRadius: 16,
-                                maxWidth: "100%",
-                                wordBreak: "break-word",
-backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#2b527c") : (isDark ? "#3d3d3d" : "#f5f5f5"),                                color: isMine ? "#ffffff" : "var(--text-primary)",
-                                boxShadow: !isMine ? "0 1px 2px rgba(0, 0, 0, 0.1)" : "none",
-border: isMine ? (msg.is_pinned ? "1px solid #ffe58f" : "none") : (isDark ? "1px solid #4a4a4a" : (msg.is_pinned ? "1px solid #ffe58f" : "none")),                              }}
+                            {group.dateLabel}
+                          </Tag>
+                        </div>
+                        
+                        {/* Сообщения за эту дату */}
+                        {group.messages.map((msg) => {
+                          const isMine = msg.sender_id === user?.employee_id;
+                          const isImage = isMessageImage(msg);
+                          const imageUrl = msg.attachment_url ? `http://localhost:5000${msg.attachment_url}` : null;
+                          const repliedMsg = msg.reply_to_id ? messages.find(m => m.message_id === msg.reply_to_id) : null;
+                          
+                          return (
+                            <div 
+                              key={msg.message_id} 
+                              id={`message-${msg.message_id}`}
+                              style={{ 
+                                display: "flex", 
+                                justifyContent: isMine ? "flex-end" : "flex-start", 
+                                marginBottom: 8,
+                                transition: 'background-color 0.3s',
+                                backgroundColor: replyTo?.message_id === msg.message_id ? "rgba(24, 144, 255, 0.1)" : "transparent",
+                                borderRadius: 12,
+                                padding: "4px 0",
+                                margin: replyTo?.message_id === msg.message_id ? "0 -8px 8px -8px" : "0",
+                              }}
+                              onMouseEnter={() => { 
+                                if (socket && !isMine && !msg.is_deleted) 
+                                  socket.emit("mark_read", { message_id: msg.message_id }); 
+                              }}
                             >
-                              {/* Цитата исходного сообщения */}
-                              {repliedMsg && !repliedMsg.is_deleted && (
-                                <div 
-                                  style={{ 
-                                    marginBottom: 8,
-                                    paddingLeft: 10,
-                                    borderLeft: `3px solid ${isMine ? "#ffffff80" : "#e0e0e0"}`,
-                                    cursor: "pointer"
-                                  }}
-                                  onClick={() => {
-                                    const element = document.getElementById(`message-${repliedMsg.message_id}`);
-                                    if (element) {
-                                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                      element.style.transition = 'background-color 0.3s';
-                                      element.style.backgroundColor = 'rgba(24, 144, 255, 0.15)';
-                                      setTimeout(() => {
-                                        element.style.backgroundColor = '';
-                                      }, 2000);
-                                    }
+                              <div style={{ 
+                                maxWidth: "70%", 
+                                display: "flex", 
+                                flexDirection: "column", 
+                                alignItems: isMine ? "flex-end" : "flex-start" 
+                              }}>
+                                {!isMine && (
+                                  <div style={{ marginBottom: 4, fontSize: 12, marginLeft: 12 }}>
+                                    <Space size={4}>
+                                      <Avatar 
+                                        size="small" 
+                                        src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} 
+                                        style={{ 
+                                          backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
+                                          cursor: 'pointer'
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/employee/${msg.sender_id}`);
+                                        }}
+                                      >
+                                        {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
+                                      </Avatar>
+                                      <Text 
+                                        strong 
+                                        style={{ fontSize: 12, cursor: 'pointer', color: "var(--text-primary)" }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/employee/${msg.sender_id}`);
+                                        }}
+                                      >
+                                        {msg.sender_name}
+                                      </Text>
+                                    </Space>
+                                  </div>
+                                )}
+                                
+                                {/* Блок сообщения */}
+                                <div
+                                  style={{
+                                    position: "relative",
+                                    padding: "8px 12px 6px 12px",
+                                    borderRadius: 16,
+                                    maxWidth: "100%",
+                                    wordBreak: "break-word",
+                                    backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#2b527c") : (isDark ? "#3d3d3d" : "#f5f5f5"),
+                                    color: isMine ? "#ffffff" : "var(--text-primary)",
+                                    boxShadow: !isMine ? "0 1px 2px rgba(0, 0, 0, 0.1)" : "none",
+                                    border: isMine ? (msg.is_pinned ? "1px solid #ffe58f" : "none") : (isDark ? "1px solid #4a4a4a" : (msg.is_pinned ? "1px solid #ffe58f" : "none")),
                                   }}
                                 >
-                                  <div style={{ 
-                                    fontSize: 12, 
-                                    fontWeight: 500,
-                                    color: isMine ? "rgba(255,255,255,0.8)" : "var(--text-secondary)",
-                                    marginBottom: 2
-                                  }}>
-                                    {repliedMsg.sender_name}
-                                  </div>
-                                  <div style={{ 
-                                    fontSize: 12, 
-                                    color: isMine ? "rgba(255,255,255,0.6)" : "var(--text-secondary)",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap"
-                                  }}>
-                                    {repliedMsg.message?.length > 80 ? repliedMsg.message.substring(0, 80) + "..." : repliedMsg.message || "📎 Медиа"}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Изображение или текст */}
-                              {isImage && imageUrl ? (
-                                <div>
-                                  <img 
-                                    src={imageUrl} 
-                                    alt="Изображение" 
+                                  {/* Цитата исходного сообщения */}
+                                  {repliedMsg && !repliedMsg.is_deleted && (
+                                    <div 
+                                      style={{ 
+                                        marginBottom: 8,
+                                        paddingLeft: 10,
+                                        borderLeft: `3px solid ${isMine ? "#ffffff80" : "#e0e0e0"}`,
+                                        cursor: "pointer"
+                                      }}
+                                      onClick={() => {
+                                        const element = document.getElementById(`message-${repliedMsg.message_id}`);
+                                        if (element) {
+                                          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                          element.style.transition = 'background-color 0.3s';
+                                          element.style.backgroundColor = 'rgba(24, 144, 255, 0.15)';
+                                          setTimeout(() => {
+                                            element.style.backgroundColor = '';
+                                          }, 2000);
+                                        }
+                                      }}
+                                    >
+                                      <div style={{ 
+                                        fontSize: 12, 
+                                        fontWeight: 500,
+                                        color: isMine ? "rgba(255,255,255,0.8)" : "var(--text-secondary)",
+                                        marginBottom: 2
+                                      }}>
+                                        {repliedMsg.sender_name}
+                                      </div>
+                                      <div style={{ 
+                                        fontSize: 12, 
+                                        color: isMine ? "rgba(255,255,255,0.6)" : "var(--text-secondary)",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap"
+                                      }}>
+                                        {repliedMsg.message?.length > 80 ? repliedMsg.message.substring(0, 80) + "..." : repliedMsg.message || "📎 Медиа"}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Изображение или текст */}
+                                  {isImage && imageUrl ? (
+                                    <div>
+                                      <img 
+                                        src={imageUrl} 
+                                        alt="Изображение" 
+                                        style={{ 
+                                          maxWidth: "100%", 
+                                          maxHeight: 300, 
+                                          borderRadius: 12, 
+                                          cursor: "pointer",
+                                          display: "block"
+                                        }} 
+                                        onClick={() => setPreviewImage(imageUrl)} 
+                                      />
+                                      {msg.message && msg.message.trim() !== "" && (
+                                        <div style={{ marginTop: 8, fontSize: 13, paddingRight: 60, color: isMine ? "#ffffff" : "var(--text-primary)" }}>
+                                          {msg.message}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <Text style={{ 
+                                      color: isMine ? "#ffffff" : "var(--text-primary)", 
+                                      fontSize: 14, 
+                                      whiteSpace: "pre-wrap",
+                                      margin: 0,
+                                      lineHeight: 1.4,
+                                      paddingRight: 45
+                                    }}>
+                                      {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}
+                                      {msg.message}
+                                    </Text>
+                                  )}
+                                  
+                                  {/* Время */}
+                                  <div 
                                     style={{ 
-                                      maxWidth: "100%", 
-                                      maxHeight: 300, 
-                                      borderRadius: 12, 
-                                      cursor: "pointer",
-                                      display: "block"
-                                    }} 
-                                    onClick={() => setPreviewImage(imageUrl)} 
-                                  />
-{msg.message && msg.message.trim() !== "" && (
-  <div style={{ marginTop: 8, fontSize: 13, paddingRight: 60, color: isMine ? "#ffffff" : "var(--text-primary)" }}>
-    {msg.message}
-  </div>
-)}
-                                </div>
-                              ) : (
-                                <Text style={{ 
-                                  color: isMine ? "#ffffff" : "var(--text-primary)", 
-                                  fontSize: 14, 
-                                  whiteSpace: "pre-wrap",
-                                  margin: 0,
-                                  lineHeight: 1.4,
-                                  paddingRight: 45
-                                }}>
-                                  {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}
-                                  {msg.message}
-                                </Text>
-                              )}
-                              
-                              {/* Вложения */}
-                              {msg.attachment_url && !isImage && (
-                                <div style={{ marginTop: 8 }}>
-                                  <Button 
-                                    size="small" 
-                                    icon={<FileTextOutlined />} 
-                                    onClick={() => window.open(`http://localhost:5000${msg.attachment_url}`, "_blank")}
-                                    style={{ 
-                                      backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#e6f7ff") : (isDark ? "#3d3d3d" : "#f0f0f0"),
-                                      border: "none",
-                                      color: isMine ? "#ffffff" : "var(--text-primary)"
+                                      position: "absolute",
+                                      bottom: 4,
+                                      right: 6,
+                                      fontSize: 11,
+                                      color: isMine ? "rgba(255, 255, 255, 0.7)" : "var(--text-secondary)",
+                                      lineHeight: 1.2,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 4
                                     }}
                                   >
-                                    Скачать файл
-                                  </Button>
+                                    <span>{formatTimeOnly(msg.created_at)}</span>
+                                    {msg.edited_at && (
+                                      <Tooltip title={`Отредактировано ${dayjs(msg.edited_at).format("DD.MM.YY HH:mm")}`}>
+                                        <span style={{ fontSize: 10 }}>ред.</span>
+                                      </Tooltip>
+                                    )}
+                                    {isMine && msg.read_count > 0 && (
+                                      <Tooltip title={`Прочитано ${msg.read_count} участниками`}>
+                                        <CheckOutlined style={{ fontSize: 10 }} />
+                                      </Tooltip>
+                                    )}
+                                  </div>
                                 </div>
-                              )}
-                              
-                              {/* Время */}
-                              <div 
-                                style={{ 
-                                  position: "absolute",
-                                  bottom: 4,
-                                  right: 8,
-                                  fontSize: 11,
-                                  color: isMine ? "rgba(255, 255, 255, 0.7)" : "var(--text-secondary)",
-                                  lineHeight: 1.2,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 4
-                                }}
-                              >
-                                <span>{formatTime(msg.created_at)}</span>
-                                {msg.edited_at && (
-                                  <Tooltip title={`Отредактировано ${dayjs(msg.edited_at).format("DD.MM.YY HH:mm")}`}>
-                                    <span style={{ fontSize: 10 }}>ред.</span>
-                                  </Tooltip>
-                                )}
-                                {isMine && msg.read_count > 0 && (
-                                  <Tooltip title={`Прочитано ${msg.read_count} участниками`}>
-                                    <CheckOutlined style={{ fontSize: 10 }} />
-                                  </Tooltip>
-                                )}
+                                
+                                {/* Реакции и действия */}
+                                <div style={{ marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                  {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                                    <div style={{ display: "flex", gap: 4 }}>
+                                      {Object.entries(msg.reactions).map(([emoji, count]) => (
+                                        <Tag 
+                                          key={emoji} 
+                                          style={{ 
+                                            margin: 0, 
+                                            cursor: "pointer", 
+                                            borderRadius: 12,
+                                            fontSize: 12,
+                                            padding: "0 6px",
+                                            backgroundColor: "var(--hover-bg)",
+                                            borderColor: "var(--border-color)",
+                                            color: "var(--text-primary)"
+                                          }} 
+                                          onClick={() => handleAddReaction(msg.message_id, emoji)}
+                                        >
+                                          {emoji} {count}
+                                        </Tag>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  <Space size={4}>
+                                    <Popover content={getReactionButtons(msg.message_id, msg.reactions)} trigger="click" placement="top">
+                                      <Button size="small" type="text" icon={<SmileOutlined />} style={{ fontSize: 12, color: "var(--text-secondary)" }} />
+                                    </Popover>
+                                    <Tooltip title="Ответить">
+                                      <Button 
+                                        size="small" 
+                                        type="text" 
+                                        icon={<ArrowLeftOutlined style={{ transform: "rotate(180deg)" }} />} 
+                                        onClick={() => {
+                                          setReplyTo(msg);
+                                          setTimeout(() => {
+                                            const element = document.getElementById(`message-${msg.message_id}`);
+                                            if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                          }, 100);
+                                          setTimeout(() => inputRef.current?.focus(), 200);
+                                        }}
+                                        style={{ color: "var(--text-secondary)" }}
+                                      />
+                                    </Tooltip>
+                                    {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
+                                      (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
+                                      <Tooltip title={msg.is_pinned ? "Открепить" : "Закрепить"}>
+                                        <Button 
+                                          size="small" 
+                                          type="text" 
+                                          icon={<PushpinOutlined style={{ color: msg.is_pinned ? '#faad14' : undefined }} />} 
+                                          onClick={() => handlePinMessage(msg.message_id, msg.is_pinned)} 
+                                          style={{ fontSize: 12, color: "var(--text-secondary)" }}
+                                        />
+                                      </Tooltip>
+                                    )}
+                                    {isMine && !msg.is_deleted && (
+                                      <>
+                                        <Tooltip title="Редактировать">
+                                          <Button 
+                                            size="small" 
+                                            type="text" 
+                                            icon={<EditOutlined />} 
+                                            onClick={() => setEditMessage({ 
+                                              id: msg.message_id, 
+                                              message: msg.message,
+                                              newMessage: msg.message 
+                                            })} 
+                                            style={{ fontSize: 12, color: "var(--text-secondary)" }}
+                                          />
+                                        </Tooltip>
+                                        <Tooltip title="Удалить">
+                                          <Button 
+                                            size="small" 
+                                            type="text" 
+                                            danger 
+                                            icon={<DeleteOutlined />} 
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.message_id); }} 
+                                            style={{ fontSize: 12 }}
+                                          />
+                                        </Tooltip>
+                                      </>
+                                    )}
+                                  </Space>
+                                </div>
                               </div>
                             </div>
-                            
-                            {/* Реакции и действия */}
-                            <div style={{ marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                              {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                                <div style={{ display: "flex", gap: 4 }}>
-                                  {Object.entries(msg.reactions).map(([emoji, count]) => (
-                                    <Tag 
-                                      key={emoji} 
-                                      style={{ 
-                                        margin: 0, 
-                                        cursor: "pointer", 
-                                        borderRadius: 12,
-                                        fontSize: 12,
-                                        padding: "0 6px",
-                                        backgroundColor: "var(--hover-bg)",
-                                        borderColor: "var(--border-color)",
-                                        color: "var(--text-primary)"
-                                      }} 
-                                      onClick={() => handleAddReaction(msg.message_id, emoji)}
-                                    >
-                                      {emoji} {count}
-                                    </Tag>
-                                  ))}
-                                </div>
-                              )}
-                              
-                              <Space size={4}>
-                                <Popover content={getReactionButtons(msg.message_id, msg.reactions)} trigger="click" placement="top">
-                                  <Button size="small" type="text" icon={<SmileOutlined />} style={{ fontSize: 12, color: "var(--text-secondary)" }} />
-                                </Popover>
-                                <Tooltip title="Ответить">
-                                  <Button 
-                                    size="small" 
-                                    type="text" 
-                                    icon={<ArrowLeftOutlined style={{ transform: "rotate(180deg)" }} />} 
-                                    onClick={() => {
-                                      setReplyTo(msg);
-                                      setTimeout(() => {
-                                        const element = document.getElementById(`message-${msg.message_id}`);
-                                        if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                      }, 100);
-                                      setTimeout(() => inputRef.current?.focus(), 200);
-                                    }}
-                                    style={{ color: "var(--text-secondary)" }}
-                                  />
-                                </Tooltip>
-                                {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
-                                  (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
-                                  <Tooltip title={msg.is_pinned ? "Открепить" : "Закрепить"}>
-                                    <Button 
-                                      size="small" 
-                                      type="text" 
-                                      icon={<PushpinOutlined style={{ color: msg.is_pinned ? '#faad14' : undefined }} />} 
-                                      onClick={() => handlePinMessage(msg.message_id, msg.is_pinned)} 
-                                      style={{ fontSize: 12, color: "var(--text-secondary)" }}
-                                    />
-                                  </Tooltip>
-                                )}
-                                {isMine && !msg.is_deleted && (
-                                  <>
-                                    <Tooltip title="Редактировать">
-                                      <Button 
-                                        size="small" 
-                                        type="text" 
-                                        icon={<EditOutlined />} 
-                                        onClick={() => setEditMessage({ 
-                                          id: msg.message_id, 
-                                          message: msg.message,
-                                          newMessage: msg.message 
-                                        })} 
-                                        style={{ fontSize: 12, color: "var(--text-secondary)" }}
-                                      />
-                                    </Tooltip>
-                                    <Tooltip title="Удалить">
-                                      <Button 
-                                        size="small" 
-                                        type="text" 
-                                        danger 
-                                        icon={<DeleteOutlined />} 
-                                        onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.message_id); }} 
-                                        style={{ fontSize: 12 }}
-                                      />
-                                    </Tooltip>
-                                  </>
-                                )}
-                              </Space>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
+                          );
+                        })}
+                      </div>
+                    ))
                   )}
                   <div ref={messagesEndRef} />
                 </div>
                 
+                {/* Индикатор печати */}
                 {typingUsers.size > 0 && (
-                  <div style={{ padding: "6px 24px", background: "var(--bg-sidebar)", borderTop: "1px solid var(--border-color)", fontSize: 12, color: "var(--text-secondary)", fontStyle: "italic", flexShrink: 0 }}>
-                    <Space><WifiOutlined style={{ fontSize: 12, color: "#52c41a" }} /><span>{Array.from(typingUsers).join(", ")} печатает...</span></Space>
+                  <div style={{ 
+                    padding: "6px 24px", 
+                    background: "var(--bg-sidebar)", 
+                    borderTop: "1px solid var(--border-color)", 
+                    fontSize: 12, 
+                    color: "var(--text-secondary)", 
+                    fontStyle: "italic", 
+                    flexShrink: 0 
+                  }}>
+                    <Space>
+                      <WifiOutlined style={{ fontSize: 12, color: "#52c41a" }} />
+                      <span>{Array.from(typingUsers).join(", ")} печатает...</span>
+                    </Space>
                   </div>
                 )}
                 
-                <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-color)", background: "var(--bg-sidebar)", flexShrink: 0 }}>
+                {/* Панель ввода сообщения */}
+                <div style={{ 
+                  padding: "16px 24px", 
+                  borderTop: "1px solid var(--border-color)", 
+                  background: "var(--bg-sidebar)", 
+                  flexShrink: 0 
+                }}>
+                  {/* Ответ на сообщение */}
                   {replyTo && (
                     <div style={{ 
                       background: "var(--bg-secondary)",
@@ -1531,13 +1685,28 @@ border: isMine ? (msg.is_pinned ? "1px solid #ffe58f" : "none") : (isDark ? "1px
                     </div>
                   )}
                   
+                  {/* Редактирование сообщения */}
                   {editMessage && (
-                    <div style={{ background: "var(--bg-secondary)", padding: "8px 12px", borderRadius: 8, marginBottom: 8, display: "flex", gap: 8, alignItems: "center", border: "1px solid var(--border-color)" }}>
+                    <div style={{ 
+                      background: "var(--bg-secondary)", 
+                      padding: "8px 12px", 
+                      borderRadius: 8, 
+                      marginBottom: 8, 
+                      display: "flex", 
+                      gap: 8, 
+                      alignItems: "center", 
+                      border: "1px solid var(--border-color)" 
+                    }}>
                       <TextArea 
                         value={editMessage.newMessage} 
                         onChange={(e) => setEditMessage({ ...editMessage, newMessage: e.target.value })} 
                         autoSize={{ minRows: 1, maxRows: 3 }} 
-                        style={{ flex: 1, backgroundColor: "var(--input-bg)", color: "var(--text-primary)", borderColor: "var(--border-color)" }} 
+                        style={{ 
+                          flex: 1, 
+                          backgroundColor: "var(--input-bg)", 
+                          color: "var(--text-primary)", 
+                          borderColor: "var(--border-color)" 
+                        }} 
                         placeholder="Редактировать сообщение..."
                       />
                       <Button size="small" type="primary" icon={<CheckOutlined />} onClick={handleEditMessage} />
@@ -1545,37 +1714,113 @@ border: isMine ? (msg.is_pinned ? "1px solid #ffe58f" : "none") : (isDark ? "1px
                     </div>
                   )}
                   
-                  {uploading && uploadProgress !== null && <div style={{ marginBottom: 8 }}><AntProgress percent={uploadProgress} status="active" size="small" /></div>}
+                  {/* Прогресс загрузки файла */}
+                  {uploading && uploadProgress !== null && (
+                    <div style={{ marginBottom: 8 }}>
+                      <AntProgress percent={uploadProgress} status="active" size="small" />
+                    </div>
+                  )}
                   
+                  {/* Поле ввода и кнопки */}
                   <div style={{ display: "flex", gap: 8 }}>
-                    <Upload beforeUpload={(file) => uploadFile(file)} showUploadList={false} accept="image/*,.pdf,.doc,.docx,.txt">
-                      <Button icon={<PaperClipOutlined />} loading={uploading} style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>Файл</Button>
+                    <Upload 
+                      beforeUpload={(file) => uploadFile(file)} 
+                      showUploadList={false} 
+                      accept="image/*,.pdf,.doc,.docx,.txt"
+                    >
+                      <Button 
+                        icon={<PaperClipOutlined />} 
+                        loading={uploading} 
+                        style={{ 
+                          backgroundColor: "var(--input-bg)", 
+                          borderColor: "var(--border-color)", 
+                          color: "var(--text-primary)" 
+                        }}
+                      >
+                        Файл
+                      </Button>
                     </Upload>
-                    <Popover content={<Picker onEmojiClick={(emoji) => setNewMessage(prev => prev + emoji.emoji)} />} trigger="click" placement="top" open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-                      <Button icon={<SmileOutlined />} style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }} />
+                    <Popover 
+                      content={<Picker onEmojiClick={(emoji) => setNewMessage(prev => prev + emoji.emoji)} />} 
+                      trigger="click" 
+                      placement="top" 
+                      open={showEmojiPicker} 
+                      onOpenChange={setShowEmojiPicker}
+                    >
+                      <Button 
+                        icon={<SmileOutlined />} 
+                        style={{ 
+                          backgroundColor: "var(--input-bg)", 
+                          borderColor: "var(--border-color)", 
+                          color: "var(--text-primary)" 
+                        }} 
+                      />
                     </Popover>
                     <TextArea 
                       ref={inputRef} 
                       value={newMessage} 
                       onChange={handleTyping} 
-                      onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }} 
+                      onPressEnter={(e) => { 
+                        if (!e.shiftKey) { 
+                          e.preventDefault(); 
+                          handleSend(); 
+                        } 
+                      }} 
                       placeholder="Введите сообщение..." 
                       autoSize={{ minRows: 1, maxRows: 4 }} 
                       disabled={sending || !connected} 
-                      style={{ flex: 1, resize: "none", backgroundColor: "var(--input-bg)", color: "var(--text-primary)", borderColor: "var(--border-color)" }} 
+                      style={{ 
+                        flex: 1, 
+                        resize: "none", 
+                        backgroundColor: "var(--input-bg)", 
+                        color: "var(--text-primary)", 
+                        borderColor: "var(--border-color)" 
+                      }} 
                     />
-                    <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={sending} disabled={!newMessage.trim() && !replyTo && !uploading}>Отправить</Button>
+                    <Button 
+                      type="primary" 
+                      icon={<SendOutlined />} 
+                      onClick={handleSend} 
+                      loading={sending} 
+                      disabled={!newMessage.trim() && !replyTo && !uploading}
+                    >
+                      Отправить
+                    </Button>
                   </div>
                 </div>
               </>
             ) : (
-              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", flexDirection: "column", background: "var(--bg-content)" }}>
+              // Пустое состояние - чат не выбран
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "center", 
+                alignItems: "center", 
+                height: "100%", 
+                flexDirection: "column", 
+                background: "var(--bg-content)" 
+              }}>
                 <MessageOutlined style={{ fontSize: 64, color: "var(--text-secondary)", marginBottom: 16 }} />
-                <Title level={4} type="secondary" style={{ color: "var(--text-secondary)" }}>Выберите чат</Title>
-                <Text type="secondary" style={{ color: "var(--text-secondary)" }}>Начните диалог или создайте новую группу</Text>
+                <Title level={4} type="secondary" style={{ color: "var(--text-secondary)" }}>
+                  Выберите чат
+                </Title>
+                <Text type="secondary" style={{ color: "var(--text-secondary)" }}>
+                  Начните диалог или создайте новую группу
+                </Text>
                 <Space style={{ marginTop: 24 }}>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)}>Создать группу</Button>
-                  <Button icon={<UserAddOutlined />} onClick={() => setJoinCodeVisible(true)} style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>Присоединиться по коду</Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)}>
+                    Создать группу
+                  </Button>
+                  <Button 
+                    icon={<UserAddOutlined />} 
+                    onClick={() => setJoinCodeVisible(true)} 
+                    style={{ 
+                      backgroundColor: "var(--input-bg)", 
+                      borderColor: "var(--border-color)", 
+                      color: "var(--text-primary)" 
+                    }}
+                  >
+                    Присоединиться по коду
+                  </Button>
                 </Space>
               </div>
             )}
@@ -1583,99 +1828,370 @@ border: isMine ? (msg.is_pinned ? "1px solid #ffe58f" : "none") : (isDark ? "1px
         </Layout>
       </Layout>
 
-      {/* Модальные окна */}
-      <Modal title={<Space><SearchOutlined /><span>Поиск сотрудников</span></Space>} open={searchModalVisible} onCancel={() => { setSearchModalVisible(false); setSearchQuery(""); setSearchResults([]); }} footer={null} width={500}>
-        <Input placeholder="Введите имя или фамилию..." value={searchQuery} onChange={(e) => handleUserSearch(e.target.value)} prefix={<SearchOutlined />} allowClear size="large" autoFocus />
+      {/* ==================== МОДАЛЬНЫЕ ОКНА ==================== */}
+      
+      {/* Модальное окно поиска сотрудников */}
+      <Modal 
+        title={<Space><SearchOutlined /><span>Поиск сотрудников</span></Space>} 
+        open={searchModalVisible} 
+        onCancel={() => { 
+          setSearchModalVisible(false); 
+          setSearchQuery(""); 
+          setSearchResults([]); 
+        }} 
+        footer={null} 
+        width={500}
+      >
+        <Input 
+          placeholder="Введите имя или фамилию..." 
+          value={searchQuery} 
+          onChange={(e) => handleUserSearch(e.target.value)} 
+          prefix={<SearchOutlined />} 
+          allowClear 
+          size="large" 
+          autoFocus 
+        />
         <div style={{ marginTop: 16, maxHeight: 400, overflowY: "auto" }}>
-          {searching ? <div style={{ textAlign: "center", padding: 20 }}><Spin /></div> :
-           searchResults.length > 0 ? searchResults.map((emp) => (
-            <Card key={emp.employee_id} size="small" style={{ marginBottom: 8, cursor: "pointer", backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }} hoverable onClick={() => startPrivateChat(emp)}>
-              <Space><Avatar src={emp.avatar_url ? `http://localhost:5000${emp.avatar_url}` : null} icon={<UserOutlined />} /><div><Text strong style={{ color: "var(--text-primary)" }}>{emp.last_name} {emp.first_name}</Text><br /><Tag color={getRoleColor(emp.role)}>{emp.role}</Tag></div></Space>
-            </Card>
-          )) : searchQuery.trim() ? <Empty description="Ничего не найдено" /> : <Empty description="Начните вводить имя для поиска" />}
+          {searching ? 
+            <div style={{ textAlign: "center", padding: 20 }}><Spin /></div> :
+            searchResults.length > 0 ? 
+              searchResults.map((emp) => (
+                <Card 
+                  key={emp.employee_id} 
+                  size="small" 
+                  style={{ 
+                    marginBottom: 8, 
+                    cursor: "pointer", 
+                    backgroundColor: "var(--card-bg)", 
+                    borderColor: "var(--border-color)" 
+                  }} 
+                  hoverable 
+                  onClick={() => startPrivateChat(emp)}
+                >
+                  <Space>
+                    <Avatar 
+                      src={emp.avatar_url ? `http://localhost:5000${emp.avatar_url}` : null} 
+                      icon={<UserOutlined />} 
+                    />
+                    <div>
+                      <Text strong style={{ color: "var(--text-primary)" }}>
+                        {emp.last_name} {emp.first_name}
+                      </Text>
+                      <br />
+                      <Tag color={getRoleColor(emp.role)}>{emp.role}</Tag>
+                    </div>
+                  </Space>
+                </Card>
+              )) : 
+              searchQuery.trim() ? 
+                <Empty description="Ничего не найдено" /> : 
+                <Empty description="Начните вводить имя для поиска" />
+          }
         </div>
       </Modal>
 
-      <Modal title="Создать новую группу" open={createGroupVisible} onOk={handleCreateGroup} onCancel={() => { setCreateGroupVisible(false); setGroupName(""); setGroupMembers([]); }} okText="Создать" cancelText="Отмена" confirmLoading={createGroupLoading} width={500}>
+      {/* Модальное окно создания группы */}
+      <Modal 
+        title="Создать новую группу" 
+        open={createGroupVisible} 
+        onOk={handleCreateGroup} 
+        onCancel={() => { 
+          setCreateGroupVisible(false); 
+          setGroupName(""); 
+          setGroupMembers([]); 
+        }} 
+        okText="Создать" 
+        cancelText="Отмена" 
+        confirmLoading={createGroupLoading} 
+        width={500}
+      >
         <Form layout="vertical">
-          <Form.Item label="Название группы" required><Input placeholder="Введите название группы" value={groupName} onChange={(e) => setGroupName(e.target.value)} maxLength={50} showCount /></Form.Item>
-          <Form.Item label="Участники" help="Вы можете добавить участников сейчас или пригласить их позже по коду">
-            <Select mode="multiple" placeholder="Выберите участников" value={groupMembers} onChange={setGroupMembers} loading={employeesLoading} showSearch filterOption={(input, option) => (option?.label?.toString().toLowerCase() || '').includes(input.toLowerCase())} style={{ width: '100%' }}>
+          <Form.Item label="Название группы" required>
+            <Input 
+              placeholder="Введите название группы" 
+              value={groupName} 
+              onChange={(e) => setGroupName(e.target.value)} 
+              maxLength={50} 
+              showCount 
+            />
+          </Form.Item>
+          <Form.Item 
+            label="Участники" 
+            help="Вы можете добавить участников сейчас или пригласить их позже по коду"
+          >
+            <Select 
+              mode="multiple" 
+              placeholder="Выберите участников" 
+              value={groupMembers} 
+              onChange={setGroupMembers} 
+              loading={employeesLoading} 
+              showSearch 
+              filterOption={(input, option) => 
+                (option?.label?.toString().toLowerCase() || '').includes(input.toLowerCase())
+              } 
+              style={{ width: '100%' }}
+            >
               {allEmployees.map(emp => (
-                <Option key={emp.employee_id} value={emp.employee_id} label={`${emp.last_name} ${emp.first_name}`}>
-                  <Space><Avatar size="small" icon={<UserOutlined />} /><span>{emp.last_name} {emp.first_name}</span><Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>{emp.role === 'Руководитель группы' ? 'Рук. группы' : emp.role === 'Руководитель отдела' ? 'Рук. отдела' : 'Сотрудник'}</Tag></Space>
+                <Option 
+                  key={emp.employee_id} 
+                  value={emp.employee_id} 
+                  label={`${emp.last_name} ${emp.first_name}`}
+                >
+                  <Space>
+                    <Avatar size="small" icon={<UserOutlined />} />
+                    <span>{emp.last_name} {emp.first_name}</span>
+                    <Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>
+                      {emp.role === 'Руководитель группы' ? 'Рук. группы' : 
+                       emp.role === 'Руководитель отдела' ? 'Рук. отдела' : 'Сотрудник'}
+                    </Tag>
+                  </Space>
                 </Option>
               ))}
             </Select>
           </Form.Item>
-          <Alert message="Вы будете администратором группы" type="info" showIcon style={{ marginTop: 16, padding: "8px 12px", fontSize: 12 }} />
+          <Alert 
+            message="Вы будете администратором группы" 
+            type="info" 
+            showIcon 
+            style={{ marginTop: 16, padding: "8px 12px", fontSize: 12 }} 
+          />
         </Form>
       </Modal>
 
-      <Modal title="Присоединиться к чату" open={joinCodeVisible} onOk={handleJoinByCode} onCancel={() => { setJoinCodeVisible(false); setJoinCode(""); }} okText="Присоединиться" cancelText="Отмена">
-        <Input placeholder="Введите код приглашения" value={joinCode} onChange={(e) => setJoinCode(e.target.value)} prefix={<LinkOutlined />} /><Divider /><Alert message="Введите код приглашения" type="info" showIcon />
+      {/* Модальное окно присоединения по коду */}
+      <Modal 
+        title="Присоединиться к чату" 
+        open={joinCodeVisible} 
+        onOk={handleJoinByCode} 
+        onCancel={() => { 
+          setJoinCodeVisible(false); 
+          setJoinCode(""); 
+        }} 
+        okText="Присоединиться" 
+        cancelText="Отмена"
+      >
+        <Input 
+          placeholder="Введите код приглашения" 
+          value={joinCode} 
+          onChange={(e) => setJoinCode(e.target.value)} 
+          prefix={<LinkOutlined />} 
+        />
+        <Divider />
+        <Alert message="Введите код приглашения" type="info" showIcon />
       </Modal>
 
-      <Modal title={<Space><LinkOutlined /><span>Код для приглашения</span></Space>} open={inviteCodeModalVisible} onCancel={() => { setInviteCodeModalVisible(false); setInviteCode(""); }}
-        footer={[<Button key="copy" type="primary" icon={<CopyOutlined />} onClick={() => { navigator.clipboard.writeText(inviteCode); message.success("Код скопирован!"); }}>Скопировать</Button>, <Button key="close" onClick={() => setInviteCodeModalVisible(false)}>Закрыть</Button>]} width={500}>
-        <div style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", padding: "20px", borderRadius: 12, textAlign: "center", marginBottom: 16 }}>
-          <Text style={{ fontFamily: "monospace", fontSize: 24, fontWeight: "bold", color: "white", letterSpacing: 2, wordBreak: "break-all" }}>{inviteCode || "Ошибка"}</Text>
+      {/* Модальное окно с кодом приглашения */}
+      <Modal 
+        title={<Space><LinkOutlined /><span>Код для приглашения</span></Space>} 
+        open={inviteCodeModalVisible} 
+        onCancel={() => { 
+          setInviteCodeModalVisible(false); 
+          setInviteCode(""); 
+        }}
+        footer={[
+          <Button 
+            key="copy" 
+            type="primary" 
+            icon={<CopyOutlined />} 
+            onClick={() => { 
+              navigator.clipboard.writeText(inviteCode); 
+              message.success("Код скопирован!"); 
+            }}
+          >
+            Скопировать
+          </Button>,
+          <Button key="close" onClick={() => setInviteCodeModalVisible(false)}>Закрыть</Button>
+        ]} 
+        width={500}
+      >
+        <div style={{ 
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", 
+          padding: "20px", 
+          borderRadius: 12, 
+          textAlign: "center", 
+          marginBottom: 16 
+        }}>
+          <Text style={{ 
+            fontFamily: "monospace", 
+            fontSize: 24, 
+            fontWeight: "bold", 
+            color: "white", 
+            letterSpacing: 2, 
+            wordBreak: "break-all" 
+          }}>
+            {inviteCode || "Ошибка"}
+          </Text>
         </div>
         <Alert message="Код действителен 7 дней" type="info" showIcon />
       </Modal>
 
-      <Drawer title="Информация о группе" placement="right" onClose={() => setGroupInfoDrawerVisible(false)} open={groupInfoDrawerVisible} width={400}>
+      {/* Drawer информации о группе */}
+      <Drawer 
+        title="Информация о группе" 
+        placement="right" 
+        onClose={() => setGroupInfoDrawerVisible(false)} 
+        open={groupInfoDrawerVisible} 
+        width={400}
+      >
         {currentGroupInfo && (
           <>
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               {currentGroupInfo.is_custom && currentGroupInfo.can_edit ? (
-                <Upload showUploadList={false} beforeUpload={(file) => { handleGroupAvatarUpload(file); return false; }} accept="image/*">
+                <Upload 
+                  showUploadList={false} 
+                  beforeUpload={(file) => { 
+                    handleGroupAvatarUpload(file); 
+                    return false; 
+                  }} 
+                  accept="image/*"
+                >
                   <div style={{ cursor: 'pointer', display: 'inline-block' }}>
-                    <Avatar size={80} src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} icon={<TeamOutlined />} style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} />
+                    <Avatar 
+                      size={80} 
+                      src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} 
+                      icon={<TeamOutlined />} 
+                      style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} 
+                    />
                     <div style={{ marginTop: 8 }}><CameraOutlined /> Изменить</div>
                   </div>
                 </Upload>
               ) : (
-                <Avatar size={80} src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} icon={<TeamOutlined />} style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} />
+                <Avatar 
+                  size={80} 
+                  src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} 
+                  icon={<TeamOutlined />} 
+                  style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} 
+                />
               )}
               <Title level={4} style={{ marginTop: 12 }}>{currentGroupInfo.group_name}</Title>
-              <Text type="secondary">Создана {currentGroupInfo.created_at ? dayjs(currentGroupInfo.created_at).format("DD.MM.YYYY") : "Неизвестно"}</Text>
+              <Text type="secondary">
+                Создана {currentGroupInfo.created_at ? dayjs(currentGroupInfo.created_at).format("DD.MM.YYYY") : "Неизвестно"}
+              </Text>
             </div>
-            {currentGroupInfo.can_edit && <div style={{ marginBottom: 16 }}><Button type="dashed" block icon={<UserAddOutlined />} onClick={() => setAddMemberVisible(true)}>Добавить участников</Button></div>}
+            {currentGroupInfo.can_edit && (
+              <div style={{ marginBottom: 16 }}>
+                <Button type="dashed" block icon={<UserAddOutlined />} onClick={() => setAddMemberVisible(true)}>
+                  Добавить участников
+                </Button>
+              </div>
+            )}
             <Divider>Участники ({currentGroupInfo.members?.length || 0})</Divider>
-            <List dataSource={currentGroupInfo.members} renderItem={(member) => (
-              <List.Item actions={currentGroupInfo.can_edit && member.role !== 'admin' ? [<a key="remove" onClick={() => handleRemoveMember(member.user_id)}>Удалить</a>] : []}>
-                <List.Item.Meta avatar={<Avatar src={member.avatar_url ? `http://localhost:5000${member.avatar_url}` : null} icon={<UserOutlined />} />} title={`${member.last_name} ${member.first_name}`}
-                  description={<Space><Tag color={member.role === 'admin' ? 'gold' : 'default'}>{member.role === 'admin' ? 'Администратор' : 'Участник'}</Tag><Text type="secondary">{member.joined_at ? dayjs(member.joined_at).format("DD.MM.YYYY") : ""}</Text></Space>} />
-              </List.Item>
-            )} />
+            <List 
+              dataSource={currentGroupInfo.members} 
+              renderItem={(member) => (
+                <List.Item 
+                  actions={currentGroupInfo.can_edit && member.role !== 'admin' ? [
+                    <a key="remove" onClick={() => handleRemoveMember(member.user_id)}>Удалить</a>
+                  ] : []}
+                >
+                  <List.Item.Meta 
+                    avatar={<Avatar src={member.avatar_url ? `http://localhost:5000${member.avatar_url}` : null} icon={<UserOutlined />} />} 
+                    title={`${member.last_name} ${member.first_name}`}
+                    description={
+                      <Space>
+                        <Tag color={member.role === 'admin' ? 'gold' : 'default'}>
+                          {member.role === 'admin' ? 'Администратор' : 'Участник'}
+                        </Tag>
+                        <Text type="secondary">
+                          {member.joined_at ? dayjs(member.joined_at).format("DD.MM.YYYY") : ""}
+                        </Text>
+                      </Space>
+                    } 
+                  />
+                </List.Item>
+              )} 
+            />
           </>
         )}
       </Drawer>
 
-      <Modal title="Добавить участников" open={addMemberVisible} onOk={async () => {
-        if (selectedNewMembers.length === 0) { message.warning("Выберите участников"); return; }
-        try {
-          const res = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo?.group_id}/add-members`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_id: user.employee_id, member_ids: selectedNewMembers }) });
-          if (res.ok) { message.success("Участники добавлены!"); setAddMemberVisible(false); setSelectedNewMembers([]); fetchGroupInfo(currentGroupInfo?.group_id); }
-          else message.error("Ошибка");
-        } catch (error) { message.error("Ошибка"); }
-      }} onCancel={() => { setAddMemberVisible(false); setSelectedNewMembers([]); }} okText="Добавить" cancelText="Отмена">
+      {/* Модальное окно добавления участников */}
+      <Modal 
+        title="Добавить участников" 
+        open={addMemberVisible} 
+        onOk={async () => {
+          if (selectedNewMembers.length === 0) { 
+            message.warning("Выберите участников"); 
+            return; 
+          }
+          try {
+            const res = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo?.group_id}/add-members`, { 
+              method: "POST", 
+              headers: { "Content-Type": "application/json" }, 
+              body: JSON.stringify({ 
+                admin_id: user.employee_id, 
+                member_ids: selectedNewMembers 
+              }) 
+            });
+            if (res.ok) { 
+              message.success("Участники добавлены!"); 
+              setAddMemberVisible(false); 
+              setSelectedNewMembers([]); 
+              fetchGroupInfo(currentGroupInfo?.group_id); 
+              loadChatsList();
+            } else {
+              message.error("Ошибка");
+            }
+          } catch (error) { 
+            message.error("Ошибка"); 
+          }
+        }} 
+        onCancel={() => { 
+          setAddMemberVisible(false); 
+          setSelectedNewMembers([]); 
+        }} 
+        okText="Добавить" 
+        cancelText="Отмена"
+      >
         <Form layout="vertical">
           <Form.Item label="Выберите сотрудников">
-            <Select mode="multiple" placeholder="Поиск" value={selectedNewMembers} onChange={setSelectedNewMembers} loading={employeesLoading} showSearch filterOption={(input, option) => (option?.label?.toString().toLowerCase() || '').includes(input.toLowerCase())} style={{ width: '100%' }}>
-              {allEmployees.filter(emp => !currentGroupInfo?.members?.some(m => m.user_id === emp.employee_id)).map(emp => (
-                <Option key={emp.employee_id} value={emp.employee_id} label={`${emp.last_name} ${emp.first_name}`}>
-                  <Space><Avatar size="small" icon={<UserOutlined />} /><span>{emp.last_name} {emp.first_name}</span><Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>{emp.role}</Tag></Space>
-                </Option>
-              ))}
+            <Select 
+              mode="multiple" 
+              placeholder="Поиск" 
+              value={selectedNewMembers} 
+              onChange={setSelectedNewMembers} 
+              loading={employeesLoading} 
+              showSearch 
+              filterOption={(input, option) => 
+                (option?.label?.toString().toLowerCase() || '').includes(input.toLowerCase())
+              } 
+              style={{ width: '100%' }}
+            >
+              {allEmployees
+                .filter(emp => !currentGroupInfo?.members?.some(m => m.user_id === emp.employee_id))
+                .map(emp => (
+                  <Option 
+                    key={emp.employee_id} 
+                    value={emp.employee_id} 
+                    label={`${emp.last_name} ${emp.first_name}`}
+                  >
+                    <Space>
+                      <Avatar size="small" icon={<UserOutlined />} />
+                      <span>{emp.last_name} {emp.first_name}</span>
+                      <Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>
+                        {emp.role}
+                      </Tag>
+                    </Space>
+                  </Option>
+                ))}
             </Select>
           </Form.Item>
         </Form>
       </Modal>
 
-      <Modal open={!!previewImage} footer={null} onCancel={() => setPreviewImage(null)} width="auto" style={{ maxWidth: "90vw" }}>
-        <img alt="preview" src={previewImage} style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }} />
+      {/* Модальное окно предпросмотра изображения */}
+      <Modal 
+        open={!!previewImage} 
+        footer={null} 
+        onCancel={() => setPreviewImage(null)} 
+        width="auto" 
+        style={{ maxWidth: "90vw" }}
+      >
+        <img 
+          alt="preview" 
+          src={previewImage} 
+          style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }} 
+        />
       </Modal>
     </Layout>
   );

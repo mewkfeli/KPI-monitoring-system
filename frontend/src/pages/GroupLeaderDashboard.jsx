@@ -76,14 +76,15 @@ import { Link, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
 import Sidebar from "../components/Sidebar";
+import { useTheme } from "../contexts/ThemeContext";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
-
 const GroupLeaderDashboard = () => {
   const { user, logout } = useAuth();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const [groupData, setGroupData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +97,7 @@ const GroupLeaderDashboard = () => {
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
   const [profileData, setProfileData] = useState(null);
  const [kpiTargets, setKpiTargets] = useState({ 
+
     csat: 85, 
     fcr: 75, 
     contacts_per_hour: 8, 
@@ -108,6 +110,8 @@ const GroupLeaderDashboard = () => {
       .then(data => setKpiTargets(data))
       .catch(err => console.error('Ошибка загрузки KPI норм:', err));
   }, []);
+  console.log("isDark mode:", isDark);
+
   // Функция экспорта в Excel
   const exportGroupToExcel = () => {
     if (!groupData?.todayKpi || groupData.todayKpi.length === 0) {
@@ -518,38 +522,30 @@ const GroupLeaderDashboard = () => {
         );
       },
     },
-    {
-      title: "Качество",
-      dataIndex: "avg_quality",
-      key: "avg_quality",
-      align: "center",
-      render: (value, record) => {
-        const actualValue =
-          value ||
-          (record.checked_requests > 0
-            ? Math.round(
-                (record.quality_score / record.checked_requests) * 100,
-              ) / 100
-            : 0);
-        return (
-          <div>
-            <Text strong>{actualValue}/5</Text>
-            <Progress
-              percent={actualValue * 20}
-              size="small"
-              status={
-                actualValue >= 4.5
-                  ? "success"
-                  : actualValue >= 4.0
-                    ? "normal"
-                    : "exception"
-              }
-              style={{ margin: "4px 0" }}
-            />
-          </div>
-        );
-      },
-    },
+   {
+  title: "Качество",
+  dataIndex: "quality_score",
+  key: "quality_score",
+  align: "center",
+  render: (value, record) => {
+    // Принудительно преобразуем в число
+    let score = Number(record.quality_score) || Number(value) || 0;
+    // Если все еще не число
+    if (isNaN(score)) score = 0;
+    
+    return (
+      <div>
+        <Text strong>{score.toFixed(1)}/5</Text>
+        <Progress 
+          percent={score * 20} 
+          size="small" 
+          status={score >= 4.5 ? "success" : score >= 3.5 ? "normal" : "exception"}
+          style={{ margin: "4px 0" }}
+        />
+      </div>
+    );
+  },
+},
     {
       title: "Производительность",
       dataIndex: "productivity",
@@ -592,36 +588,7 @@ const GroupLeaderDashboard = () => {
           </Tag>
         );
       },
-    },
-    {
-      title: "Действия",
-      key: "actions",
-      align: "center",
-      render: (_, record) => (
-        
-        <Space>
-          <Tooltip title="Просмотреть детали">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => showEmployeeDetails(record)}
-            />
-          </Tooltip>
-          {record.verification_status === "Ожидание" &&
-            user?.role === "Руководитель группы" && (
-              <Tooltip title="Модерация">
-                <Button
-                  type="primary"
-                  size="small"
-                  onClick={() => handleReview(record)}
-                >
-                  Проверить
-                </Button>
-              </Tooltip>
-            )}
-        </Space>
-      ),
-    },
+    }
   ];
 
   // Колонки для ожидающих проверки
@@ -683,22 +650,7 @@ const GroupLeaderDashboard = () => {
             : 0;
         return <Text strong>{value}%</Text>;
       },
-    },
-    {
-      title: "Действия",
-      key: "actions",
-      align: "center",
-      render: (_, record) =>
-        user?.role === "Руководитель группы" && (
-          <Button
-            type="primary"
-            size="small"
-            onClick={() => handleReview(record)}
-          >
-            Проверить
-          </Button>
-        ),
-    },
+    }
   ];
 
   if (loading) {
@@ -985,38 +937,52 @@ const GroupLeaderDashboard = () => {
               <>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart
-                    data={groupData.weeklyCsat
-                      .filter((day) => {
-                        const csatValue = parseFloat(day.avg_csat);
-                        return !isNaN(csatValue) && csatValue !== null;
-                      })
-                      .map((day) => ({
-                        date: dayjs(day.date).format("DD.MM"),
-                        csat: parseFloat(day.avg_csat),
-                        employees: day.employee_count,
-                      }))}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis
-                      domain={[0, 100]}
-                      label={{
-                        value: "CSAT (%)",
-                        angle: -90,
-                        position: "insideLeft",
-                      }}
-                    />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="csat"
-                      stroke="#8884d8"
-                      name="Средний CSAT"
-                      strokeWidth={3}
-                      dot={{ r: 5 }}
-                    />
-                  </LineChart>
+  data={groupData.weeklyCsat
+    .filter((day) => {
+      const csatValue = parseFloat(day.avg_csat);
+      return !isNaN(csatValue) && csatValue !== null;
+    })
+    .map((day) => ({
+      date: dayjs(day.date).format("DD.MM"),
+      csat: parseFloat(day.avg_csat),
+      employees: day.employee_count,
+    }))}
+>
+  <CartesianGrid strokeDasharray="3 3" />
+  <XAxis dataKey="date" />
+  <YAxis
+    domain={[0, 100]}
+    label={{
+      value: "CSAT (%)",
+      angle: -90,
+      position: "insideLeft",
+    }}
+  />
+  {/* 👇 ЗАМЕНИТЕ обычный Tooltip на кастомный */}
+  <Tooltip
+    contentStyle={{
+      backgroundColor: isDark ? "#2d2d2d" : "#ffffff",
+      borderColor: isDark ? "#3d3d3d" : "#d9d9d9",
+      color: isDark ? "#e8e8e8" : "#1a1a1a",
+      borderRadius: "8px",
+    }}
+    labelStyle={{
+      color: isDark ? "#a0a0a0" : "#666",
+    }}
+    itemStyle={{
+      color: isDark ? "#e8e8e8" : "#1a1a1a",
+    }}
+  />
+  <Legend />
+  <Line
+    type="monotone"
+    dataKey="csat"
+    stroke="#8884d8"
+    name="Средний CSAT"
+    strokeWidth={3}
+    dot={{ r: 5 }}
+  />
+</LineChart>
                 </ResponsiveContainer>
 
                 <Divider />
@@ -1030,32 +996,35 @@ const GroupLeaderDashboard = () => {
                     .map((day, index) => {
                       const csatValue = parseFloat(day.avg_csat);
                       return (
-                        <Col span={3} key={index}>
-                          <Card size="small">
-                            <div style={{ textAlign: "center" }}>
-                              <div style={{ fontSize: "12px", color: "#666" }}>
-                                {dayjs(day.date).format("DD.MM")}
-                              </div>
-                              <Title
-                                level={3}
-                                style={{
-                                  margin: "8px 0",
-                                  color:
-                                    csatValue >= 85
-                                      ? "#3f8600"
-                                      : csatValue >= 70
-                                        ? "#faad14"
-                                        : "#cf1322",
-                                }}
-                              >
-                                {csatValue.toFixed(2)}%
-                              </Title>
-                              <div style={{ fontSize: "11px", color: "#999" }}>
-                                {day.employee_count} сотр.
-                              </div>
-                            </div>
-                          </Card>
-                        </Col>
+                       <Col span={3} key={index}>
+  <div 
+    style={{ 
+      backgroundColor: isDark ? '#2d2d2d' : '#ffffff',
+      border: `1px solid ${isDark ? '#3d3d3d' : '#d9d9d9'}`,
+      borderRadius: '8px',
+      padding: '12px',
+      textAlign: 'center',
+      cursor: 'pointer'
+    }}
+  >
+    <div style={{ fontSize: '12px', color: isDark ? '#a0a0a0' : '#666' }}>
+      {dayjs(day.date).format('DD.MM')}
+    </div>
+    <div
+      style={{
+        fontSize: '24px',
+        fontWeight: 'bold',
+        margin: '8px 0',
+        color: csatValue >= 85 ? '#3f8600' : csatValue >= 70 ? '#faad14' : '#cf1322',
+      }}
+    >
+      {csatValue.toFixed(1)}%
+    </div>
+    <div style={{ fontSize: '11px', color: isDark ? '#a0a0a0' : '#999' }}>
+      {day.employee_count} сотр.
+    </div>
+  </div>
+</Col>
                       );
                     })}
                 </Row>
@@ -1130,7 +1099,20 @@ const GroupLeaderDashboard = () => {
                     label={{ value: "Процент (%)", position: "bottom" }}
                   />
                   <YAxis type="category" dataKey="name" width={120} />
-                  <Tooltip />
+                  <Tooltip
+    contentStyle={{
+      backgroundColor: isDark ? "#2d2d2d" : "#ffffff",
+      borderColor: isDark ? "#3d3d3d" : "#d9d9d9",
+      color: isDark ? "#e8e8e8" : "#1a1a1a",
+      borderRadius: "8px",
+    }}
+    labelStyle={{
+      color: isDark ? "#a0a0a0" : "#666",
+    }}
+    itemStyle={{
+      color: isDark ? "#e8e8e8" : "#1a1a1a",
+    }}
+  />
                   <Legend />
                   <Bar dataKey="csat" fill="#8884d8" name="CSAT %" />
                   <Bar dataKey="fcr" fill="#82ca9d" name="FCR %" />
