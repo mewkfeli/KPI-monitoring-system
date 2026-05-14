@@ -418,8 +418,7 @@ router.post("/private", async (req, res) => {
 
 // ============= СОЗДАНИЕ ГРУППЫ =============
 router.post("/create-group", async (req, res) => {
-  const { group_name, created_by, is_private = false, member_ids = [] } = req.body;
-
+  const { group_name, created_by, is_private = false, member_ids = [], has_filter = false } = req.body;
   console.log('📝 Создание группы:', { group_name, created_by, member_ids });
 
   if (!group_name || !created_by) {
@@ -429,9 +428,9 @@ router.post("/create-group", async (req, res) => {
   try {
     // Создаем группу
     const [groupResult] = await db.query(
-      `INSERT INTO custom_groups (group_name, created_by, is_private, created_at) 
-       VALUES (?, ?, ?, NOW())`,
-      [group_name.trim(), created_by, is_private ? 1 : 0]
+      `INSERT INTO custom_groups (group_name, created_by, is_private, has_filter, created_at) 
+       VALUES (?, ?, ?, ?, NOW())`,
+      [group_name.trim(), created_by, is_private ? 1 : 0, has_filter ? 1 : 0]
     );
 
     const group_id = groupResult.insertId;
@@ -506,7 +505,50 @@ await db.query(
     res.status(500).json({ error: error.message });
   }
 });
+// Добавьте эндпоинт для изменения настройки фильтрации
+router.put("/group/:groupId/filter", async (req, res) => {
+  const { groupId } = req.params;
+  const { admin_id, has_filter } = req.body;
+  
+  try {
+    // Проверяем права админа
+    const [adminCheck] = await db.query(
+      `SELECT role FROM custom_group_members WHERE group_id = ? AND user_id = ?`,
+      [groupId, admin_id]
+    );
+    
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') {
+      return res.status(403).json({ error: "Нет прав на изменение настроек" });
+    }
+    
+    await db.query(
+      `UPDATE custom_groups SET has_filter = ? WHERE group_id = ?`,
+      [has_filter ? 1 : 0, groupId]
+    );
+    
+    res.json({ success: true, has_filter });
+  } catch (error) {
+    console.error("Ошибка обновления фильтра:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
 
+// Получить настройки фильтрации группы
+router.get("/group/:groupId/filter", async (req, res) => {
+  const { groupId } = req.params;
+  
+  try {
+    const [rows] = await db.query(
+      `SELECT has_filter FROM custom_groups WHERE group_id = ?`,
+      [groupId]
+    );
+    
+    res.json({ has_filter: rows[0]?.has_filter === 1 });
+  } catch (error) {
+    console.error("Ошибка получения настроек:", error);
+    res.json({ has_filter: false });
+  }
+});
 // ============= ИНФОРМАЦИЯ О ГРУППЕ =============
 router.get("/group/:groupId", async (req, res) => {
   const { groupId } = req.params;
@@ -533,7 +575,8 @@ router.get("/group/:groupId", async (req, res) => {
                 wg.group_name, 
                 wg.created_at,
                 NULL as created_by, 
-                NULL as is_private
+                NULL as is_private,
+                NULL as has_filter
          FROM work_groups wg
          WHERE wg.group_id = ?`,
         [groupId]
@@ -585,6 +628,7 @@ router.get("/group/:groupId", async (req, res) => {
       created_by: group[0].created_by,
       created_at: group[0].created_at,
       is_private: group[0].is_private || false,
+      has_filter: group[0].has_filter === 1,
       members: members,
       user_role: userRole,
       can_edit: userRole === 'admin' || (isCustomGroup && user_id == group[0].created_by),
@@ -1289,6 +1333,37 @@ router.get('/messages/pinned', async (req, res) => {
   } catch (error) {
     console.error('Ошибка получения закрепленных:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ============= ИЗМЕНЕНИЕ НАСТРОЙКИ ФИЛЬТРАЦИИ ГРУППЫ =============
+router.put("/group/:groupId/filter", async (req, res) => {
+  const { groupId } = req.params;
+  const { admin_id, has_filter } = req.body;
+  
+  console.log('🔧 Изменение фильтрации группы:', { groupId, admin_id, has_filter });
+  
+  try {
+    // Проверяем права админа
+    const [adminCheck] = await db.query(
+      `SELECT role FROM custom_group_members WHERE group_id = ? AND user_id = ?`,
+      [groupId, admin_id]
+    );
+    
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') {
+      return res.status(403).json({ error: "Нет прав на изменение настроек" });
+    }
+    
+    await db.query(
+      `UPDATE custom_groups SET has_filter = ? WHERE group_id = ?`,
+      [has_filter ? 1 : 0, groupId]
+    );
+    
+    console.log('✅ Фильтрация обновлена:', has_filter ? 'включена' : 'выключена');
+    res.json({ success: true, has_filter });
+  } catch (error) {
+    console.error("Ошибка обновления фильтра:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 export default router;

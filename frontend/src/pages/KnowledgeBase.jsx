@@ -54,7 +54,6 @@ import {
 import { useAuth } from "../contexts/useAuth";
 import { Link } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
-import UserAvatar from "../components/UserAvatar";
 import Sidebar from "../components/Sidebar";
 
 const { Header, Sider, Content } = Layout;

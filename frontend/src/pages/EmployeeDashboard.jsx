@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import NotificationBell from "../components/NotificationBell";
-import UserAvatar from "../components/UserAvatar";
 import {
   Layout,
   Menu,
@@ -60,6 +59,7 @@ import {
   Cell,
 } from "recharts";
 import Sidebar from "../components/Sidebar";
+import UserAvatar from "../components/UserAvatar";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;

@@ -38,7 +38,6 @@ const getRoleColor = (role) => {
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { unreadChatCount, unreadTasksCount } = useNotifications();
   const location = useLocation();
   const [avatarKey, setAvatarKey] = useState(Date.now());
   const isLeader = user?.role === "Руководитель группы" || user?.role === "Руководитель отдела";

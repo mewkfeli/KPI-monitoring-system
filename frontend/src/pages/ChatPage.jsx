@@ -4,14 +4,14 @@ import { io } from "socket.io-client"; // 👈 ДОБАВЬТЕ ЭТОТ ИМП�
 import {
   Layout, Avatar, Typography, Button, Card, Input, List, Space, Tag,
   Spin, Empty, message, Badge, Tooltip, Divider, Modal, Upload, Popover,
-  Progress as AntProgress, Drawer, Form, Select, Alert, Dropdown,
+  Progress as AntProgress, Drawer, Form, Select, Alert, Dropdown, Checkbox, Switch
 } from "antd";
 import {
   UserOutlined, TeamOutlined, LogoutOutlined, SendOutlined, MessageOutlined,
   WifiOutlined, ClockCircleOutlined, SmileOutlined, PaperClipOutlined,
   EditOutlined, DeleteOutlined, SearchOutlined, FileTextOutlined, CloseOutlined,
   CheckOutlined, ArrowLeftOutlined, PlusOutlined, UserAddOutlined, LinkOutlined,
-  CopyOutlined, SettingOutlined, PushpinOutlined, CameraOutlined,
+  CopyOutlined, SettingOutlined, PushpinOutlined, CameraOutlined, SafetyOutlined  
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 import { useTheme } from "../contexts/ThemeContext";
@@ -138,7 +138,7 @@ const ChatPage = () => {
   const uploadingRef = useRef(false);
   const currentChatRef = useRef(null);
   const searchUsersRef = useRef(null);
-  
+  const [hasFilter, setHasFilter] = useState(false);
   // Сгруппированные сообщения
   const groupedMessages = useMemo(() => {
     return groupMessagesByDate(messages);
@@ -600,7 +600,7 @@ const ChatPage = () => {
       const response = await fetch("http://localhost:5000/api/chat/create-group", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ group_name: groupName, created_by: user.employee_id, is_private: false, member_ids: groupMembers }),
+        body: JSON.stringify({ group_name: groupName, created_by: user.employee_id, is_private: false, member_ids: groupMembers, has_filter: hasFilter }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Ошибка создания группы");
@@ -843,174 +843,217 @@ const ChatPage = () => {
   }, [createGroupVisible, addMemberVisible, loadAllEmployees]);
 
   // ==================== SOCKET.IO SETUP ====================
-  useEffect(() => {
-    if (!user?.employee_id) return;
+useEffect(() => {
+  if (!user?.employee_id) return;
+  
+  const newSocket = io("http://localhost:5000", {
+    auth: { employeeId: user.employee_id },
+    transports: ['websocket', 'polling'],
+  });
+  
+  newSocket.on("connect", () => { 
+    setConnected(true); 
+    console.log("✅ Socket connected");
+  });
+  
+  newSocket.on("disconnect", () => { 
+    setConnected(false); 
+  });
+  
+  newSocket.on("new_message", (message) => {
+    if (!currentChatRef.current) return;
     
-    const newSocket = io("http://localhost:5000", {
-      auth: { employeeId: user.employee_id },
-      transports: ['websocket', 'polling'],
+    if (message.chat_type !== currentChatRef.current.type || 
+        message.chat_id !== currentChatRef.current.id) {
+        return;
+    }
+    
+    if (message.sender_id === user?.employee_id && message._tempId) {
+        return;
+    }
+    
+    setMessages(prev => {
+        const existsById = prev.some(m => m.message_id === message.message_id);
+        if (existsById) return prev;
+        
+        const tempIndex = prev.findIndex(m => m._tempId === message._tempId);
+        
+        if (tempIndex !== -1) {
+          const newMessages = [...prev];
+          newMessages[tempIndex] = { ...message, status: 'sent', _tempId: undefined };
+          setTimeout(() => scrollToBottom(), 100);
+          return newMessages;
+        }
+        
+        setTimeout(() => scrollToBottom(), 100);
+        return [...prev, { ...message, status: 'sent', _tempId: undefined }];
     });
     
-    newSocket.on("connect", () => { 
-      setConnected(true); 
-      console.log("✅ Socket connected");
-    });
+    if (message.sender_id !== user?.employee_id) {
+      newSocket.emit("mark_read", { message_id: message.message_id });
+    }
     
-    newSocket.on("disconnect", () => { 
-      setConnected(false); 
-    });
+    loadChatsList();
+  });
+  
+  // 👇 ОБРАБОТЧИК ЦЕНЗУРЫ (ТОЛЬКО ОДИН РАЗ)
+  newSocket.on("message_censored", ({ _tempId, censoredMessage }) => {
+  console.log('🔍 Сообщение отцензурено, новая версия:', censoredMessage);
+  
+  setMessages(prev => prev.map(msg => {
+    if (msg._tempId === _tempId) {
+      return { 
+        ...msg, 
+        message: censoredMessage,
+        was_filtered: true,
+        status: 'sent'
+      };
+    }
+    return msg;
+  }));
+  });
+  
+  // 👇 ОБРАБОТЧИК ПОДТВЕРЖДЕНИЯ ОТПРАВКИ (ТОЛЬКО ОДИН РАЗ)
+  newSocket.on("message_sent", (message) => {
+    if (message._tempId) {
+      pendingMessagesRef.current.delete(message._tempId);
+    }
     
-    newSocket.on("new_message", (message) => {
-      if (!currentChatRef.current) return;
-      
-      if (message.chat_type !== currentChatRef.current.type || 
-          message.chat_id !== currentChatRef.current.id) {
-          return;
-      }
-      
-      if (message.sender_id === user?.employee_id && message._tempId) {
-          return;
-      }
+    if (currentChatRef.current && 
+        message.chat_type === currentChatRef.current.type && 
+        message.chat_id === currentChatRef.current.id) {
       
       setMessages(prev => {
-          const existsById = prev.some(m => m.message_id === message.message_id);
-          if (existsById) return prev;
-          
-          const tempIndex = prev.findIndex(m => m._tempId === message._tempId);
-          
-          if (tempIndex !== -1) {
-            const newMessages = [...prev];
-            newMessages[tempIndex] = { ...message, status: 'sent', _tempId: undefined };
-            setTimeout(() => scrollToBottom(), 100);
-            return newMessages;
+        return prev.map(msg => {
+          if (msg._tempId === message._tempId) {
+            return { 
+              ...msg, 
+              status: 'sent', 
+              _tempId: undefined, 
+              message_id: message.message_id,
+              message: message.message,
+              was_filtered: message.was_filtered || false
+            };
           }
-          
-          setTimeout(() => scrollToBottom(), 100);
-          return [...prev, { ...message, status: 'sent', _tempId: undefined }];
+          return msg;
+        });
       });
-      
-      if (message.sender_id !== user?.employee_id) {
-        newSocket.emit("mark_read", { message_id: message.message_id });
-      }
-      
+    }
+  });
+  
+  newSocket.on("read_update", ({ message_id, read_count }) => {
+    setMessages(prev => prev.map(msg =>
+      msg?.message_id === message_id ? { ...msg, read_count } : msg
+    ));
+  });
+  
+  newSocket.on("message_deleted", ({ message_id, deleted }) => {
+    if (deleted) {
+      setMessages(prev => prev.filter(msg => msg.message_id !== message_id));
+      setPinnedMessages(prev => prev.filter(msg => msg.message_id !== message_id));
       loadChatsList();
-    });
-    
-    newSocket.on("message_sent", (message) => {
-      if (message._tempId) {
-        pendingMessagesRef.current.delete(message._tempId);
-      }
+    }
+  });
+  
+newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
+  setMessages(prev => prev.map(msg => 
+    msg?.message_id === message_id 
+      ? { ...msg, message: newMsg, edited_at } 
+      : msg
+  ));
+});
+newSocket.on("message_edit_censored", ({ message_id, censoredMessage }) => {
+  console.log('🔍 Отредактированное сообщение отцензурено:', censoredMessage);
+  
+  setMessages(prev => prev.map(msg => 
+    msg?.message_id === message_id 
+      ? { ...msg, message: censoredMessage, was_filtered: true } 
+      : msg
+  ));
+  
+  message.warning('Редактируемое сообщение содержало нецензурную лексику и было отфильтровано', 2);
+});
+  newSocket.on("message_edit_blocked", ({ message_id, reason }) => {
+  message.error(`Редактирование заблокировано: ${reason}`);
+});
+  newSocket.on("reaction_update", ({ message_id, reactions }) => {
+    setMessages(prev => prev.map(msg => 
+      msg?.message_id === message_id ? { ...msg, reactions } : msg
+    ));
+  });
+  
+  newSocket.on("message_pinned", (pinnedMessage) => {
+    if (currentChatRef.current && 
+        pinnedMessage.chat_type === currentChatRef.current.type && 
+        pinnedMessage.chat_id === currentChatRef.current.id) {
       
-      if (currentChatRef.current && 
-          message.chat_type === currentChatRef.current.type && 
-          message.chat_id === currentChatRef.current.id) {
-        
-        setMessages(prev => {
-          const hasTemp = prev.some(m => m._tempId === message._tempId);
-          if (hasTemp) {
-            return prev.map(msg => 
-              msg._tempId === message._tempId 
-                ? { ...msg, status: 'sent', _tempId: undefined, message_id: message.message_id }
-                : msg
-            );
-          }
-          return prev;
-        });
-      }
-    });
-    
-    newSocket.on("read_update", ({ message_id, read_count }) => {
-      setMessages(prev => prev.map(msg =>
-        msg?.message_id === message_id ? { ...msg, read_count } : msg
-      ));
-    });
-    
-    newSocket.on("message_deleted", ({ message_id, deleted }) => {
-      if (deleted) {
-        setMessages(prev => prev.filter(msg => msg.message_id !== message_id));
-        setPinnedMessages(prev => prev.filter(msg => msg.message_id !== message_id));
-        loadChatsList();
-      }
-    });
-    
-    newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
-      setMessages(prev => prev.map(msg => 
-        msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg
-      ));
-    });
-    
-    newSocket.on("reaction_update", ({ message_id, reactions }) => {
-      setMessages(prev => prev.map(msg => 
-        msg?.message_id === message_id ? { ...msg, reactions } : msg
-      ));
-    });
-    
-    newSocket.on("message_pinned", (pinnedMessage) => {
-      if (currentChatRef.current && 
-          pinnedMessage.chat_type === currentChatRef.current.type && 
-          pinnedMessage.chat_id === currentChatRef.current.id) {
-        
-        setPinnedMessages(prev => {
-          if (!prev.some(m => m.message_id === pinnedMessage.message_id)) {
-            return [pinnedMessage, ...prev];
-          }
-          return prev;
-        });
-        
-        setMessages(prev => prev.map(msg => 
-          msg.message_id === pinnedMessage.message_id 
-            ? { ...msg, is_pinned: true } 
-            : msg
-        ));
-      }
-    });
-    
-    newSocket.on("message_unpinned", ({ message_id }) => {
-      if (currentChatRef.current) {
-        setPinnedMessages(prev => prev.filter(m => m.message_id !== message_id));
-        setMessages(prev => prev.map(msg => 
-          msg.message_id === message_id 
-            ? { ...msg, is_pinned: false } 
-            : msg
-        ));
-      }
-    });
-    
-    newSocket.on("message_error", ({ error, _tempId }) => {
-      message.error(error);
-      if (_tempId) {
-        setMessages(prev => prev.filter(msg => msg._tempId !== _tempId));
-      }
-    });
-    
-    newSocket.on("new_chat_created", (newChat) => {
-      setChats(prev => {
-        if (prev.some(c => c.id === newChat.id && c.type === newChat.type)) return prev;
-        return [newChat, ...prev];
+      setPinnedMessages(prev => {
+        if (!prev.some(m => m.message_id === pinnedMessage.message_id)) {
+          return [pinnedMessage, ...prev];
+        }
+        return prev;
       });
-      message.info(`Вас добавили в группу: ${newChat.name}`);
+      
+      setMessages(prev => prev.map(msg => 
+        msg.message_id === pinnedMessage.message_id 
+          ? { ...msg, is_pinned: true } 
+          : msg
+      ));
+    }
+  });
+  
+  newSocket.on("message_unpinned", ({ message_id }) => {
+    if (currentChatRef.current) {
+      setPinnedMessages(prev => prev.filter(m => m.message_id !== message_id));
+      setMessages(prev => prev.map(msg => 
+        msg.message_id === message_id 
+          ? { ...msg, is_pinned: false } 
+          : msg
+      ));
+    }
+  });
+  
+  newSocket.on("message_error", ({ error, _tempId }) => {
+    message.error(error);
+    if (_tempId) {
+      setMessages(prev => prev.filter(msg => msg._tempId !== _tempId));
+    }
+  });
+  
+  newSocket.on("new_chat_created", (newChat) => {
+    setChats(prev => {
+      if (prev.some(c => c.id === newChat.id && c.type === newChat.type)) return prev;
+      return [newChat, ...prev];
     });
-    
-    newSocket.on("group_deleted", ({ group_id, chat_type }) => {
-      setChats(prev => prev.filter(chat => !(chat.id === group_id && chat.type === chat_type)));
-      if (currentChat?.id === group_id && currentChat?.type === chat_type) setCurrentChat(null);
-    });
-    
-    newSocket.on("chat_removed", ({ chat_id, chat_type }) => {
-      setChats(prev => prev.filter(chat => !(chat.id === chat_id && chat.type === chat_type)));
-      if (currentChat?.id === chat_id && currentChat?.type === chat_type) setCurrentChat(null);
-    });
-    
-    newSocket.on("unread_count_update", () => loadChatsList());
-    newSocket.on("error", ({ message: errorMsg }) => message.error(errorMsg));
-    
-    setSocket(newSocket);
-    
-    return () => { 
-      newSocket.disconnect(); 
-    };
-    
-  }, [user?.employee_id]);
+    message.info(`Вас добавили в группу: ${newChat.name}`);
+  });
+  
+  newSocket.on("group_deleted", ({ group_id, chat_type }) => {
+    setChats(prev => prev.filter(chat => !(chat.id === group_id && chat.type === chat_type)));
+    if (currentChat?.id === group_id && currentChat?.type === chat_type) setCurrentChat(null);
+  });
+  
+  newSocket.on("chat_removed", ({ chat_id, chat_type }) => {
+    setChats(prev => prev.filter(chat => !(chat.id === chat_id && chat.type === chat_type)));
+    if (currentChat?.id === chat_id && currentChat?.type === chat_type) setCurrentChat(null);
+  });
+newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_filtered }) => {
+  setMessages(prev => prev.map(msg => 
+    msg?.message_id === message_id 
+      ? { ...msg, message: newMsg, edited_at, was_filtered: was_filtered || msg.was_filtered } 
+      : msg
+  ));
+});
+  newSocket.on("unread_count_update", () => loadChatsList());
+  newSocket.on("error", ({ message: errorMsg }) => message.error(errorMsg));
+  
+  setSocket(newSocket);
+  
+  return () => { 
+    newSocket.disconnect(); 
+  };
+  
+}, [user?.employee_id]);
 
   // ==================== PASTE HANDLER ====================
   useEffect(() => {
@@ -1473,6 +1516,13 @@ const ChatPage = () => {
                                     }}>
                                       {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}
                                       {msg.message}
+                                      {msg.was_filtered && (
+    <Tooltip title="Сообщение было автоматически отфильтровано от нецензурной лексики">
+      <span style={{ fontSize: 10, marginLeft: 8, color: '#faad14' }}>
+        🛡️
+      </span>
+    </Tooltip>
+  )}
                                     </Text>
                                   )}
                                   
@@ -1899,6 +1949,7 @@ const ChatPage = () => {
           setCreateGroupVisible(false); 
           setGroupName(""); 
           setGroupMembers([]); 
+          setHasFilter(false);
         }} 
         okText="Создать" 
         cancelText="Отмена" 
@@ -1949,6 +2000,17 @@ const ChatPage = () => {
               ))}
             </Select>
           </Form.Item>
+          <Form.Item label="Фильтрация сообщений">
+      <Checkbox 
+        checked={hasFilter} 
+        onChange={(e) => setHasFilter(e.target.checked)}
+      >
+        Автоматическая фильтрация спама и нецензурной лексики
+      </Checkbox>
+      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+        Сообщения с нецензурной лексикой будут заменены на ***, спам-сообщения будут блокироваться
+      </Text>
+    </Form.Item>
           <Alert 
             message="Вы будете администратором группы" 
             type="info" 
@@ -2075,6 +2137,39 @@ const ChatPage = () => {
                 </Button>
               </div>
             )}
+            {currentGroupInfo.is_custom && currentGroupInfo.can_edit && (
+        <div style={{ marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Divider style={{ margin: '12px 0' }}>Настройки</Divider>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>
+                <SafetyOutlined /> Фильтрация сообщений
+              </span>
+              <Switch
+                checked={currentGroupInfo.has_filter}
+                onChange={async (checked) => {
+                  try {
+                    const response = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo.group_id}/filter`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ admin_id: user.employee_id, has_filter: checked })
+                    });
+                    if (response.ok) {
+                      message.success(checked ? 'Фильтрация включена' : 'Фильтрация выключена');
+                      setCurrentGroupInfo(prev => ({ ...prev, has_filter: checked }));
+                    }
+                  } catch (error) {
+                    message.error('Ошибка изменения настроек');
+                  }
+                }}
+              />
+            </div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              🛡️ Защищает от нецензурной лексики и автоматически блокирует спам
+            </Text>
+          </Space>
+        </div>
+      )}
             <Divider>Участники ({currentGroupInfo.members?.length || 0})</Divider>
             <List 
               dataSource={currentGroupInfo.members} 

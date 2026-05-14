@@ -1272,4 +1272,195 @@ h1, h2, h3, h4, h5, h6,
   background-color: #3a3a3a !important;
   cursor: pointer;
 }
+/* ============ ЧЕКБОКСЫ (Checkbox) в темной теме ============ */
+[data-theme="dark"] .ant-checkbox-wrapper {
+  color: var(--text-primary) !important;
+}
 
+[data-theme="dark"] .ant-checkbox-wrapper span:not(.ant-checkbox) {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-checkbox + span {
+  color: var(--text-primary) !important;
+}
+
+/* ============ ТЕКСТ В FORM.ITEM (лейблы) ============ */
+[data-theme="dark"] .ant-form-item-label > label {
+  color: var(--text-primary) !important;
+}
+
+/* ============ ТЕКСТ В ALERT (уже есть, но добавим для надежности) ============ */
+[data-theme="dark"] .ant-alert-description {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ ВСПОМОГАТЕЛЬНЫЙ ТЕКСТ (Text type="secondary") ============ */
+[data-theme="dark"] .ant-typography-secondary,
+[data-theme="dark"] .ant-typography.ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ ТЕКСТ НАПРЯМУЮ В DIV (для гарантии) ============ */
+[data-theme="dark"] div,
+[data-theme="dark"] span:not(.ant-badge-count):not(.ant-scroll-number-only-unit) {
+  color: var(--text-primary);
+}
+
+/* Но сохраняем вторичный текст серым */
+[data-theme="dark"] .ant-typography-secondary,
+[data-theme="dark"] .ant-text-secondary,
+[data-theme="dark"] .text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* ============ ТЕКСТ В МОДАЛЬНЫХ ОКНАХ ============ */
+[data-theme="dark"] .ant-modal-body {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-body .ant-typography {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-body .ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+/* ============ УВЕДОМЛЕНИЯ (message) в темной теме ============ */
+[data-theme="dark"] .ant-message-notice-content {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-message .anticon {
+  color: inherit !important;
+}
+
+/* Успешные уведомления */
+[data-theme="dark"] .ant-message-success {
+  background-color: #1a4a2a !important;
+  border-color: #2d6a4f !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-message-success .ant-message-notice-content {
+  background-color: #1a4a2a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-message-success .anticon-check-circle {
+  color: #52c41a !important;
+}
+
+/* Информационные уведомления */
+[data-theme="dark"] .ant-message-info {
+  background-color: #1e3a5f !important;
+  border-color: #2b527c !important;
+}
+
+[data-theme="dark"] .ant-message-info .ant-message-notice-content {
+  background-color: #1e3a5f !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-message-info .anticon-info-circle {
+  color: #1890ff !important;
+}
+
+/* Предупреждения */
+[data-theme="dark"] .ant-message-warning {
+  background-color: #4a3a1a !important;
+  border-color: #6a5a2d !important;
+}
+
+[data-theme="dark"] .ant-message-warning .ant-message-notice-content {
+  background-color: #4a3a1a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-message-warning .anticon-exclamation-circle {
+  color: #faad14 !important;
+}
+
+/* Ошибки */
+[data-theme="dark"] .ant-message-error {
+  background-color: #4a1a1a !important;
+  border-color: #6a2d2d !important;
+}
+
+[data-theme="dark"] .ant-message-error .ant-message-notice-content {
+  background-color: #4a1a1a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-message-error .anticon-close-circle {
+  color: #ff4d4f !important;
+}
+
+/* Текст внутри уведомлений */
+[data-theme="dark"] .ant-message-notice-content span,
+[data-theme="dark"] .ant-message-notice-content div {
+  color: #ffffff !important;
+}
+
+/* Ссылки в уведомлениях */
+[data-theme="dark"] .ant-message-notice-content a {
+  color: #58a6ff !important;
+}
+
+[data-theme="dark"] .ant-message-notice-content a:hover {
+  color: #79c0ff !important;
+}
+
+/* Убираем фоновую обводку у текста в уведомлениях в темной теме */
+[data-theme="dark"] .ant-message-notice-content {
+  background-color: #2d2d2d !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme="dark"] .ant-message-notice-content span,
+[data-theme="dark"] .ant-message-notice-content div,
+[data-theme="dark"] .ant-message-notice-content .ant-message-custom-content {
+  background-color: transparent !important;
+  color: #e8e8e8 !important;
+}
+
+/* Убираем любой фон у текста */
+[data-theme="dark"] .ant-message-notice-content * {
+  background-color: transparent !important;
+}
+
+/* Для каждого типа уведомлений */
+[data-theme="dark"] .ant-message-success .ant-message-notice-content {
+  background-color: #1a4a2a !important;
+}
+
+[data-theme="dark"] .ant-message-success .ant-message-notice-content * {
+  background-color: transparent !important;
+}
+
+[data-theme="dark"] .ant-message-info .ant-message-notice-content {
+  background-color: #1e3a5f !important;
+}
+
+[data-theme="dark"] .ant-message-info .ant-message-notice-content * {
+  background-color: transparent !important;
+}
+
+[data-theme="dark"] .ant-message-warning .ant-message-notice-content {
+  background-color: #4a3a1a !important;
+}
+
+[data-theme="dark"] .ant-message-warning .ant-message-notice-content * {
+  background-color: transparent !important;
+}
+
+[data-theme="dark"] .ant-message-error .ant-message-notice-content {
+  background-color: #4a1a1a !important;
+}
+
+[data-theme="dark"] .ant-message-error .ant-message-notice-content * {
+  background-color: transparent !important;
+}

@@ -15,7 +15,7 @@ import { db } from "./db.js";
 import { KPICollector } from "./services/kpiCollector.service.js";
 import adminRoutes from "./admin.routes.js";
 import taskRoutes from "./tasks.routes.js";
-
+import { MessageFilter } from './services/messageFilter.service.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -87,10 +87,6 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
-app.use("/api/auth", authRoutes);
-app.use("/api/metrics", metricsRoutes);
-app.use("/api/group", groupRoutes);
-app.use("/api/chat", chatRoutes);
 app.use("/api/admin", adminRoutes);
 const server = http.createServer(app);
 
@@ -231,33 +227,72 @@ io.on("connection", (socket) => {
 
 // Отправка сообщения
 socket.on("send_message", async (data) => {
-  const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id, reply_to_id } = data;
-  
+const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id, reply_to_id } = data;  
   console.log('📨 send_message:', { chat_type, chat_id, sender: user.full_name, tempId: _tempId, reply_to_id });
   
   try {
     let queryResult;
     let groupId = null;
+    let finalMessage = message || '';
+    let wasFiltered = false;
     
+    // Применяем фильтрацию только для текстовых сообщений в кастомных группах
+    if ((chat_type === 'custom' || chat_type === 'group') && finalMessage && finalMessage.trim()) {
+  let shouldFilter = false;
+  
+  if (chat_type === 'group') {
+    // Для рабочих групп - ВСЕГДА фильтруем
+    shouldFilter = true;
+    console.log('🔍 Рабочая группа - фильтрация включена принудительно');
+  } else if (chat_type === 'custom') {
+    // Для кастомных групп - проверяем настройку
+    const [groupInfo] = await db.query(
+      `SELECT has_filter FROM custom_groups WHERE group_id = ?`,
+      [chat_id]
+    );
+    shouldFilter = groupInfo[0]?.has_filter === 1;
+    console.log('🔍 Кастомная группа - фильтрация:', shouldFilter ? 'включена' : 'выключена');
+  }
+  
+  if (shouldFilter) {
+    const filterResult = await MessageFilter.filterMessage(finalMessage, chat_id, db);
+    
+    if (!filterResult.allowed) {
+      socket.emit("message_blocked", { _tempId, reason: filterResult.reason });
+      return;
+    }
+    
+    finalMessage = filterResult.message;
+    wasFiltered = filterResult.wasFiltered || false;
+    
+    if (wasFiltered) {
+      socket.emit("message_censored", { _tempId, censoredMessage: finalMessage });
+    }
+        if (wasFiltered) {
+          // Уведомляем отправителя, что сообщение было отцензурено
+          socket.emit("message_censored", { _tempId });
+        }
+      }
+    }
     // Определяем group_id для сообщения
     if (chat_type === 'group') {
       groupId = chat_id;
     }
     
     // Сохраняем сообщение в БД
-    if (chat_type === 'group') {
-      [queryResult] = await db.query(
-        `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [chat_type, chat_id, groupId, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
-      );
-    } else {
-      [queryResult] = await db.query(
-        `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
-         VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
-        [chat_type, chat_id, user.employee_id, message || '', attachment_url || null, attachment_type || null, reply_to_id || null]
-      );
-    }
+if (chat_type === 'group') {
+  [queryResult] = await db.query(
+    `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [chat_type, chat_id, groupId, user.employee_id, finalMessage || '', attachment_url || null, attachment_type || null, reply_to_id || null]
+  );
+} else {
+  [queryResult] = await db.query(
+    `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
+    [chat_type, chat_id, user.employee_id, finalMessage || '', attachment_url || null, attachment_type || null, reply_to_id || null]
+  );
+}
     
     const [senderInfo] = await db.query(
       `SELECT avatar_url FROM employees WHERE employee_id = ?`, 
@@ -272,7 +307,7 @@ socket.on("send_message", async (data) => {
       sender_name: user.full_name,
       sender_role: user.role,
       sender_avatar_url: senderInfo[0]?.avatar_url || null,
-      message: message || '',
+      message: finalMessage || '',
       created_at: new Date().toISOString(),
       attachment_url: attachment_url || null,
       attachment_type: attachment_type || null,
@@ -282,6 +317,7 @@ socket.on("send_message", async (data) => {
       reactions: {},
       status: 'sent',
       _tempId: _tempId || null,
+      was_filtered: wasFiltered
     };
     
     // ✅ ОПРЕДЕЛЯЕМ КОМНАТЫ ДЛЯ ОТПРАВКИ
@@ -307,9 +343,10 @@ socket.on("send_message", async (data) => {
       
     } else if (chat_type === 'custom') {
       const roomName = `custom_${chat_id}`;
-      // Отправляем всем в комнате группы
-      io.to(roomName).emit("new_message", messageData);
-      socket.emit("message_sent", messageData);
+  // Отправляем всем КРОМЕ отправителя, чтобы не дублировать
+  socket.to(roomName).emit("new_message", messageData);
+  // Отправителю отправляем отдельно с подтверждением
+  socket.emit("message_sent", { ...messageData, _tempId });
       
     } else {
       const roomName = `group_${chat_id}`;
@@ -360,49 +397,105 @@ socket.on("leave_chat", ({ chat_type, chat_id }) => {
   console.log(`👋 ${user.full_name} покинул ${roomName}`);
 });
 
-  // Редактирование
-  // Редактирование
+// Редактирование сообщения
+// Редактирование сообщения
 socket.on("edit_message", async (data) => {
   const { message_id, message } = data;
   
   console.log(`✏️ Редактирование сообщения ${message_id} пользователем ${user.employee_id}`);
   
   try {
-    // Обновляем сообщение
-    await db.query(
-      `UPDATE chat_messages SET message = ?, edited_at = NOW() WHERE message_id = ? AND sender_id = ?`,
-      [message, message_id, user.employee_id]
-    );
-    
-    // Получаем информацию о чате
+    // Получаем информацию о сообщении (включая chat_type и chat_id)
     const [msgInfo] = await db.query(
-      `SELECT chat_type, chat_id FROM chat_messages WHERE message_id = ?`,
+      `SELECT chat_type, chat_id, sender_id FROM chat_messages WHERE message_id = ?`,
       [message_id]
     );
     
-    if (msgInfo.length > 0) {
-      // Правильно определяем комнату для всех типов чатов
-      let roomName;
-      const chatType = msgInfo[0].chat_type;
-      const chatId = msgInfo[0].chat_id;
+    if (msgInfo.length === 0) {
+      socket.emit("error", { message: "Сообщение не найдено" });
+      return;
+    }
+    
+    // Проверяем, что пользователь - автор сообщения
+    if (msgInfo[0].sender_id !== user.employee_id) {
+      socket.emit("error", { message: "Можно редактировать только свои сообщения" });
+      return;
+    }
+    
+    const chat_type = msgInfo[0].chat_type;
+    const chat_id = msgInfo[0].chat_id;
+    let finalMessage = message;
+    let wasFiltered = false;
+    
+    // Применяем фильтрацию для редактируемых сообщений
+    if ((chat_type === 'custom' || chat_type === 'group') && finalMessage && finalMessage.trim()) {
+      let shouldFilter = false;
       
-      if (chatType === 'private') {
-        roomName = `private_${chatId}`;
-      } else if (chatType === 'custom') {
-        roomName = `custom_${chatId}`;
-      } else {
-        roomName = `group_${chatId}`;
+      if (chat_type === 'group') {
+        // Для рабочих групп - ВСЕГДА фильтруем
+        shouldFilter = true;
+        console.log('🔍 Рабочая группа (редактирование) - фильтрация включена принудительно');
+      } else if (chat_type === 'custom') {
+        // Для кастомных групп - проверяем настройку
+        const [groupInfo] = await db.query(
+          `SELECT has_filter FROM custom_groups WHERE group_id = ?`,
+          [chat_id]
+        );
+        shouldFilter = groupInfo[0]?.has_filter === 1;
+        console.log('🔍 Кастомная группа (редактирование) - фильтрация:', shouldFilter ? 'включена' : 'выключена');
       }
       
-      console.log(`✏️ Отправляем обновление в комнату: ${roomName}`);
-      
-      // Отправляем событие ВСЕМ в комнате
-      io.to(roomName).emit("message_edited", { 
-        message_id, 
-        message, 
-        edited_at: new Date().toISOString() 
-      });
+      if (shouldFilter) {
+        const filterResult = await MessageFilter.filterMessage(finalMessage, chat_id, db);
+        
+        if (!filterResult.allowed) {
+          // Сообщение заблокировано (спам)
+          socket.emit("message_edit_blocked", { 
+            message_id,
+            reason: filterResult.reason 
+          });
+          return;
+        }
+        
+        finalMessage = filterResult.message;
+        wasFiltered = filterResult.wasFiltered || false;
+        
+        if (wasFiltered) {
+          // Уведомляем отправителя, что сообщение было отцензурено
+          socket.emit("message_edit_censored", { 
+            message_id,
+            censoredMessage: finalMessage 
+          });
+          console.log('🔍 Редактируемое сообщение отцензурено:', message, '→', finalMessage);
+        }
+      }
     }
+    
+    // Обновляем сообщение с отфильтрованным текстом
+    await db.query(
+      `UPDATE chat_messages SET message = ?, edited_at = NOW() WHERE message_id = ? AND sender_id = ?`,
+      [finalMessage, message_id, user.employee_id]
+    );
+    
+    // Определяем комнату для рассылки
+    let roomName;
+    if (chat_type === 'private') {
+      roomName = `private_${chat_id}`;
+    } else if (chat_type === 'custom') {
+      roomName = `custom_${chat_id}`;
+    } else {
+      roomName = `group_${chat_id}`;
+    }
+    
+    console.log(`✏️ Отправляем обновление в комнату: ${roomName}`);
+    
+    // Отправляем событие ВСЕМ в комнате с отфильтрованным текстом
+    io.to(roomName).emit("message_edited", { 
+      message_id, 
+      message: finalMessage, 
+      edited_at: new Date().toISOString()
+    });
+    
   } catch (error) {
     console.error("Ошибка редактирования сообщения:", error);
     socket.emit("error", { message: "Ошибка при редактировании" });
