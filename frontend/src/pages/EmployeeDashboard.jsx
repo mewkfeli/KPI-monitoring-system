@@ -30,8 +30,7 @@ import {
   CalendarOutlined,
   ClockCircleOutlined,
   StarOutlined,
-    MessageOutlined,
-
+  MessageOutlined,
   CheckCircleOutlined,
   BarChartOutlined,
   HistoryOutlined,
@@ -51,7 +50,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
   PieChart,
@@ -60,11 +59,13 @@ import {
 } from "recharts";
 import Sidebar from "../components/Sidebar";
 import UserAvatar from "../components/UserAvatar";
+import { KpiTooltip, KpiColumnTitle } from "../components/KpiTooltip";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 dayjs.extend(isBetween);
+
 // Цвета для круговой диаграммы
 const COLORS = ["#52c41a", "#faad14", "#ff4d4f"];
 
@@ -89,9 +90,7 @@ const EmployeeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState({});
   const [weeklyStats, setWeeklyStats] = useState({});
-  // Состояние для фильтра дат
   const [dateRange, setDateRange] = useState(null);
-// 👇 ДОБАВЬТЕ ЭТО
   const [kpiTargets, setKpiTargets] = useState({ 
     csat: 85, 
     fcr: 75, 
@@ -99,20 +98,20 @@ const EmployeeDashboard = () => {
     quality_score: 90 
   });
 
-  // 👇 ДОБАВЬТЕ ЭТОТ useEffect
   useEffect(() => {
     fetch('http://localhost:5000/api/kpi/targets')
       .then(res => res.json())
       .then(data => setKpiTargets(data))
       .catch(err => console.error('Ошибка загрузки KPI норм:', err));
   }, []);
+
   const menuItems = [
     {
       key: "profile",
       icon: <UserOutlined />,
       label: <Link to="/profile">Личный профиль</Link>,
     },
-        {
+    {
       key: "chat", 
       icon: <MessageOutlined />,
       label: <Link to="/chat">Чат группы</Link>,
@@ -123,10 +122,10 @@ const EmployeeDashboard = () => {
       label: <Link to="/dashboard">Показатели</Link>,
     },
     {
-              key: "knowledge",
-              icon: <BookOutlined />,
-              label: <Link to="/knowledge">База знаний</Link>,
-            },
+      key: "knowledge",
+      icon: <BookOutlined />,
+      label: <Link to="/knowledge">База знаний</Link>,
+    },
   ];
 
   useEffect(() => {
@@ -142,12 +141,8 @@ const EmployeeDashboard = () => {
         console.log("Загружаем данные для employee_id:", user.employee_id);
 
         const [todayResponse, weekResponse] = await Promise.all([
-          fetch(
-            `http://localhost:5000/api/auth/daily-metrics/today?employee_id=${user.employee_id}`,
-          ),
-          fetch(
-            `http://localhost:5000/api/auth/daily-metrics/week?employee_id=${user.employee_id}`,
-          ),
+          fetch(`http://localhost:5000/api/auth/daily-metrics/today?employee_id=${user.employee_id}`),
+          fetch(`http://localhost:5000/api/auth/daily-metrics/week?employee_id=${user.employee_id}`),
         ]);
 
         if (todayResponse.ok) {
@@ -193,32 +188,26 @@ const EmployeeDashboard = () => {
     fetchData();
   }, [user?.employee_id]);
 
-  // Расчет KPI за день
   const calculateKPIs = (data) => {
     if (!data) return {};
 
-    const csat =
-      data.total_feedbacks > 0
-        ? ((data.positive_feedbacks / data.total_feedbacks) * 100).toFixed(1)
-        : 0;
+    const csat = data.total_feedbacks > 0
+      ? ((data.positive_feedbacks / data.total_feedbacks) * 100).toFixed(1)
+      : 0;
 
-    const contactsPerHour =
-      data.work_minutes > 0
-        ? (data.processed_requests / (data.work_minutes / 60)).toFixed(1)
-        : 0;
+    const contactsPerHour = data.work_minutes > 0
+      ? (data.processed_requests / (data.work_minutes / 60)).toFixed(1)
+      : 0;
 
-    const fcr =
-      data.total_requests > 0
-        ? ((data.first_contact_resolved / data.total_requests) * 100).toFixed(1)
-        : 0;
+    const fcr = data.total_requests > 0
+      ? ((data.first_contact_resolved / data.total_requests) * 100).toFixed(1)
+      : 0;
 
-    const qualityScore =
-      data.checked_requests > 0 ? (data.quality_score / 1).toFixed(1) : 0;
+    const qualityScore = data.checked_requests > 0 ? (data.quality_score / 1).toFixed(1) : 0;
 
-    const productivity =
-      data.work_minutes > 0
-        ? ((data.processed_requests / data.work_minutes) * 60).toFixed(1)
-        : 0;
+    const productivity = data.work_minutes > 0
+      ? ((data.processed_requests / data.work_minutes) * 60).toFixed(1)
+      : 0;
 
     return {
       csat: Number(csat),
@@ -229,23 +218,16 @@ const EmployeeDashboard = () => {
     };
   };
 
-  // Расчет статистики за неделю
-  // Расчет статистики за неделю (исправлено: защита от NaN)
   const calculateWeeklyStats = (data) => {
     if (!data || data.length === 0) return {};
 
     const total = data.reduce(
       (acc, day) => ({
-        processed_requests:
-          acc.processed_requests + (Number(day.processed_requests) || 0),
+        processed_requests: acc.processed_requests + (Number(day.processed_requests) || 0),
         work_minutes: acc.work_minutes + (Number(day.work_minutes) || 0),
-        positive_feedbacks:
-          acc.positive_feedbacks + (Number(day.positive_feedbacks) || 0),
-        total_feedbacks:
-          acc.total_feedbacks + (Number(day.total_feedbacks) || 0),
-        first_contact_resolved:
-          acc.first_contact_resolved +
-          (Number(day.first_contact_resolved) || 0),
+        positive_feedbacks: acc.positive_feedbacks + (Number(day.positive_feedbacks) || 0),
+        total_feedbacks: acc.total_feedbacks + (Number(day.total_feedbacks) || 0),
+        first_contact_resolved: acc.first_contact_resolved + (Number(day.first_contact_resolved) || 0),
         total_requests: acc.total_requests + (Number(day.total_requests) || 0),
         quality_score: acc.quality_score + (Number(day.quality_score) || 0),
       }),
@@ -261,44 +243,30 @@ const EmployeeDashboard = () => {
     );
 
     const average = {
-      processed_requests:
-        Math.round(total.processed_requests / data.length) || 0,
+      processed_requests: Math.round(total.processed_requests / data.length) || 0,
       work_minutes: Math.round(total.work_minutes / data.length) || 0,
-      csat:
-        total.total_feedbacks > 0
-          ? ((total.positive_feedbacks / total.total_feedbacks) * 100).toFixed(
-              1,
-            )
-          : 0,
-      fcr:
-        total.total_requests > 0
-          ? (
-              (total.first_contact_resolved / total.total_requests) *
-              100
-            ).toFixed(1)
-          : 0,
-      quality_score:
-        data.length > 0 ? (total.quality_score / data.length).toFixed(1) : 0,
+      csat: total.total_feedbacks > 0
+        ? ((total.positive_feedbacks / total.total_feedbacks) * 100).toFixed(1)
+        : 0,
+      fcr: total.total_requests > 0
+        ? ((total.first_contact_resolved / total.total_requests) * 100).toFixed(1)
+        : 0,
+      quality_score: data.length > 0 ? (total.quality_score / data.length).toFixed(1) : 0,
     };
 
     return { total, average, daysCount: data.length };
   };
 
-  // Определяем цвет для статуса проверки
   const getStatusColor = (status) => {
     switch (status) {
-      case "Одобрено":
-        return "success";
-      case "Отклонено":
-        return "error";
-      case "Ожидание":
-        return "warning";
-      default:
-        return "default";
+      case "Одобрено": return "success";
+      case "Отклонено": return "error";
+      case "Ожидание": return "warning";
+      default: return "default";
     }
   };
 
-  // Колонки для таблицы истории
+  // КОЛОНКИ ТАБЛИЦЫ С ПОДСКАЗКАМИ
   const columns = [
     {
       title: "Дата",
@@ -313,109 +281,95 @@ const EmployeeDashboard = () => {
           </Tag>
         );
       },
-      sorter: (a, b) =>
-        dayjs(a.report_date).unix() - dayjs(b.report_date).unix(),
+      sorter: (a, b) => dayjs(a.report_date).unix() - dayjs(b.report_date).unix(),
       defaultSortOrder: "descend",
     },
     {
-      title: "Запросы",
+      title: <KpiColumnTitle metric="processed_requests" title="Запросы" />,
       dataIndex: "processed_requests",
       key: "processed_requests",
       sorter: (a, b) => a.processed_requests - b.processed_requests,
     },
     {
-      title: "Часы работы",
+      title: <KpiColumnTitle metric="work_minutes" title="Часы работы" />,
       dataIndex: "work_minutes",
       key: "work_minutes",
       render: (minutes) => `${(minutes / 60).toFixed(1)} ч`,
       sorter: (a, b) => a.work_minutes - b.work_minutes,
     },
     {
-      title: "CSAT",
+      title: <KpiColumnTitle metric="csat" title="CSAT" />,
       key: "csat",
       render: (_, record) => {
-        const csat =
-          record.total_feedbacks > 0
-            ? (
-                (record.positive_feedbacks / record.total_feedbacks) *
-                100
-              ).toFixed(1)
-            : 0;
+        const csat = record.total_feedbacks > 0
+          ? ((record.positive_feedbacks / record.total_feedbacks) * 100).toFixed(1)
+          : 0;
         return (
-          <Tag color={csat >= 85 ? "green" : csat >= 70 ? "orange" : "red"}>
-            {csat}%
-          </Tag>
+          <KpiTooltip metric="csat">
+            <Tag color={csat >= 85 ? "green" : csat >= 70 ? "orange" : "red"}>
+              {csat}%
+            </Tag>
+          </KpiTooltip>
         );
       },
       sorter: (a, b) => {
-        const csatA =
-          a.total_feedbacks > 0 ? a.positive_feedbacks / a.total_feedbacks : 0;
-        const csatB =
-          b.total_feedbacks > 0 ? b.positive_feedbacks / b.total_feedbacks : 0;
+        const csatA = a.total_feedbacks > 0 ? a.positive_feedbacks / a.total_feedbacks : 0;
+        const csatB = b.total_feedbacks > 0 ? b.positive_feedbacks / b.total_feedbacks : 0;
         return csatA - csatB;
       },
     },
     {
-      title: "Конт./час",
+      title: <KpiColumnTitle metric="contacts_per_hour" title="Конт./час" />,
       key: "contacts_per_hour",
       render: (_, record) => {
-        const cph =
-          record.work_minutes > 0
-            ? (record.processed_requests / (record.work_minutes / 60)).toFixed(
-                1,
-              )
-            : 0;
+        const cph = record.work_minutes > 0
+          ? (record.processed_requests / (record.work_minutes / 60)).toFixed(1)
+          : 0;
         return (
-          <Tag color={cph >= 8 ? "green" : cph >= 5 ? "orange" : "red"}>
-            {cph}
-          </Tag>
+          <KpiTooltip metric="contacts_per_hour">
+            <Tag color={cph >= 8 ? "green" : cph >= 5 ? "orange" : "red"}>
+              {cph}
+            </Tag>
+          </KpiTooltip>
         );
       },
       sorter: (a, b) => {
-        const cphA =
-          a.work_minutes > 0 ? a.processed_requests / (a.work_minutes / 60) : 0;
-        const cphB =
-          b.work_minutes > 0 ? b.processed_requests / (b.work_minutes / 60) : 0;
+        const cphA = a.work_minutes > 0 ? a.processed_requests / (a.work_minutes / 60) : 0;
+        const cphB = b.work_minutes > 0 ? b.processed_requests / (b.work_minutes / 60) : 0;
         return cphA - cphB;
       },
     },
     {
-      title: "FCR",
+      title: <KpiColumnTitle metric="fcr" title="FCR" />,
       key: "fcr",
       render: (_, record) => {
-        const fcr =
-          record.total_requests > 0
-            ? (
-                (record.first_contact_resolved / record.total_requests) *
-                100
-              ).toFixed(1)
-            : 0;
+        const fcr = record.total_requests > 0
+          ? ((record.first_contact_resolved / record.total_requests) * 100).toFixed(1)
+          : 0;
         return (
-          <Tag color={fcr >= 75 ? "green" : fcr >= 60 ? "orange" : "red"}>
-            {fcr}%
-          </Tag>
+          <KpiTooltip metric="fcr">
+            <Tag color={fcr >= 75 ? "green" : fcr >= 60 ? "orange" : "red"}>
+              {fcr}%
+            </Tag>
+          </KpiTooltip>
         );
       },
       sorter: (a, b) => {
-        const fcrA =
-          a.total_requests > 0
-            ? a.first_contact_resolved / a.total_requests
-            : 0;
-        const fcrB =
-          b.total_requests > 0
-            ? b.first_contact_resolved / b.total_requests
-            : 0;
+        const fcrA = a.total_requests > 0 ? a.first_contact_resolved / a.total_requests : 0;
+        const fcrB = b.total_requests > 0 ? b.first_contact_resolved / b.total_requests : 0;
         return fcrA - fcrB;
       },
     },
     {
-      title: "Качество",
+      title: <KpiColumnTitle metric="quality_score" title="Качество" />,
       dataIndex: "quality_score",
       key: "quality_score",
       render: (score) => (
-        <Tag color={score >= 90 ? "green" : score >= 70 ? "orange" : "red"}>
-          {score}%
-        </Tag>
+        <KpiTooltip metric="quality_score">
+          <Tag color={score >= 90 ? "green" : score >= 70 ? "orange" : "red"}>
+            {score}%
+          </Tag>
+        </KpiTooltip>
       ),
       sorter: (a, b) => a.quality_score - b.quality_score,
     },
@@ -433,25 +387,19 @@ const EmployeeDashboard = () => {
     },
   ];
 
-  // Подготовка данных для графиков
   const prepareChartData = () => {
     return [...weeklyData]
       .sort((a, b) => new Date(a.report_date) - new Date(b.report_date))
       .map((day) => {
-        const csat =
-          day.total_feedbacks > 0
-            ? ((day.positive_feedbacks / day.total_feedbacks) * 100).toFixed(1)
-            : 0;
-        const contactsPerHour =
-          day.work_minutes > 0
-            ? (day.processed_requests / (day.work_minutes / 60)).toFixed(1)
-            : 0;
-        const fcr =
-          day.total_requests > 0
-            ? ((day.first_contact_resolved / day.total_requests) * 100).toFixed(
-                1,
-              )
-            : 0;
+        const csat = day.total_feedbacks > 0
+          ? ((day.positive_feedbacks / day.total_feedbacks) * 100).toFixed(1)
+          : 0;
+        const contactsPerHour = day.work_minutes > 0
+          ? (day.processed_requests / (day.work_minutes / 60)).toFixed(1)
+          : 0;
+        const fcr = day.total_requests > 0
+          ? ((day.first_contact_resolved / day.total_requests) * 100).toFixed(1)
+          : 0;
 
         return {
           date: dayjs(day.report_date).format("DD.MM"),
@@ -466,18 +414,12 @@ const EmployeeDashboard = () => {
   };
 
   const getStatusPieData = () => {
-    const statuses = {
-      Одобрено: 0,
-      Ожидание: 0,
-      Отклонено: 0,
-    };
-
+    const statuses = { Одобрено: 0, Ожидание: 0, Отклонено: 0 };
     weeklyData.forEach((day) => {
       if (statuses[day.verification_status] !== undefined) {
         statuses[day.verification_status]++;
       }
     });
-
     return Object.entries(statuses)
       .filter(([_, value]) => value > 0)
       .map(([name, value]) => ({ name, value }));
@@ -493,14 +435,11 @@ const EmployeeDashboard = () => {
       }));
   };
 
-  // Фильтрация данных по датам
   const getFilteredData = () => {
     if (!dateRange) return weeklyData;
-
     const [startDate, endDate] = dateRange;
     const start = dayjs(startDate).startOf("day");
     const end = dayjs(endDate).endOf("day");
-
     return weeklyData.filter((item) => {
       const itemDate = dayjs(item.report_date);
       return itemDate >= start && itemDate <= end;
@@ -512,32 +451,20 @@ const EmployeeDashboard = () => {
   const topDaysData = getTopDays();
   const filteredData = getFilteredData();
 
-  // Сброс фильтра
-  const handleResetFilter = () => {
-    setDateRange(null);
-  };
+  const handleResetFilter = () => setDateRange(null);
 
   if (loading) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Header style={{background: "var(--bg-content)", padding: "0 24px" }}>
+          <Header style={{ background: "var(--bg-content)", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
               Показатели
             </Title>
           </Header>
-          <Content
-            style={{ margin: "24px", padding: "24px",background: "var(--bg-content)" }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "50vh",
-              }}
-            >
+          <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)" }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
               <Spin size="large" />
               <div style={{ marginLeft: "16px" }}>Загрузка данных...</div>
             </div>
@@ -550,51 +477,42 @@ const EmployeeDashboard = () => {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sidebar />
-
       <Layout>
-        <Header
-          style={{
-           background: "var(--bg-content)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "0 24px",
-            boxShadow: "0 1px 4px rgba(0,21,41,.08)",
-          }}
-        >
+        <Header style={{
+          background: "var(--bg-content)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "0 24px",
+          boxShadow: "0 1px 4px rgba(0,21,41,.08)",
+        }}>
           <Title level={4} style={{ margin: 0 }}>
             Основные показатели
           </Title>
-          <NotificationBell userId={user?.employee_id} />
-          <Button onClick={logout} icon={<LogoutOutlined />}>
-            Выйти
-          </Button>
+          <Space>
+            <NotificationBell userId={user?.employee_id} />
+            <Button onClick={logout} icon={<LogoutOutlined />}>Выйти</Button>
+          </Space>
         </Header>
 
-        <Content
-          style={{
-            margin: "24px",
-            padding: "24px",
-           background: "var(--bg-content)",
-            borderRadius: "8px",
-            minHeight: "calc(100vh - 112px)",
-          }}
-        >
+        <Content style={{
+          margin: "24px",
+          padding: "24px",
+          background: "var(--bg-content)",
+          borderRadius: "8px",
+          minHeight: "calc(100vh - 112px)",
+        }}>
           {/* Заголовок и информация о сотруднике */}
           <Row gutter={[24, 24]}>
             <Col span={24}>
               <Card>
                 <Space align="center" size="large">
-                  <UserOutlined
-                    style={{ fontSize: "32px", color: "#1890ff" }}
-                  />
+                  <UserOutlined style={{ fontSize: "32px", color: "#1890ff" }} />
                   <div>
                     <Title level={2} style={{ margin: 0 }}>
                       {user?.username || `Сотрудник ${user?.employee_id}`}
                     </Title>
-                    <Text type="secondary">
-                      {user?.role}
-                    </Text>
+                    <Text type="secondary">{user?.role}</Text>
                     <div>
                       <Text type="secondary" style={{ fontSize: "12px" }}>
                         Добро пожаловать в систему мониторинга KPI
@@ -610,64 +528,18 @@ const EmployeeDashboard = () => {
           {chartData.length > 0 && (
             <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
               <Col span={24}>
-                <Card
-                  title={
-                    <Space>
-                      <BarChartOutlined />
-                      <span>Динамика показателей</span>
-                    </Space>
-                  }
-                >
+                <Card title={<Space><BarChartOutlined /><span>Динамика показателей</span></Space>}>
                   <ResponsiveContainer width="100%" height={350}>
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
-                      <YAxis
-                        yAxisId="left"
-                        label={{
-                          value: "CSAT / FCR (%)",
-                          angle: -90,
-                          position: "insideLeft",
-                        }}
-                      />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        label={{
-                          value: "Контакты/час",
-                          angle: 90,
-                          position: "insideRight",
-                        }}
-                      />
-                      <Tooltip />
+                      <YAxis yAxisId="left" label={{ value: "CSAT / FCR (%)", angle: -90, position: "insideLeft" }} />
+                      <YAxis yAxisId="right" orientation="right" label={{ value: "Контакты/час", angle: 90, position: "insideRight" }} />
+                      <RechartsTooltip />
                       <Legend />
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="csat"
-                        stroke="#8884d8"
-                        name="CSAT %"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="fcr"
-                        stroke="#82ca9d"
-                        name="FCR %"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="contactsPerHour"
-                        stroke="#ff7300"
-                        name="Контакты/час"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
+                      <Line yAxisId="left" type="monotone" dataKey="csat" stroke="#8884d8" name="CSAT %" strokeWidth={2} dot={{ r: 4 }} />
+                      <Line yAxisId="left" type="monotone" dataKey="fcr" stroke="#82ca9d" name="FCR %" strokeWidth={2} dot={{ r: 4 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="contactsPerHour" stroke="#ff7300" name="Контакты/час" strokeWidth={2} dot={{ r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </Card>
@@ -679,26 +551,13 @@ const EmployeeDashboard = () => {
           <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
             {topDaysData.length > 0 && (
               <Col span={12}>
-                <Card
-                  title={
-                    <Space>
-                      <BarChartOutlined />
-                      <span>Топ дней по продуктивности</span>
-                    </Space>
-                  }
-                >
+                <Card title={<Space><BarChartOutlined /><span>Топ дней по продуктивности</span></Space>}>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={topDaysData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
-                      <YAxis
-                        label={{
-                          value: "Обработано запросов",
-                          angle: -90,
-                          position: "insideLeft",
-                        }}
-                      />
-                      <Tooltip />
+                      <YAxis label={{ value: "Обработано запросов", angle: -90, position: "insideLeft" }} />
+                      <RechartsTooltip />
                       <Bar dataKey="requests" fill="#8884d8" name="Запросов" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -708,14 +567,7 @@ const EmployeeDashboard = () => {
 
             {statusPieData.length > 0 && (
               <Col span={12}>
-                <Card
-                  title={
-                    <Space>
-                      <TrophyOutlined />
-                      <span>Статус проверки записей</span>
-                    </Space>
-                  }
-                >
+                <Card title={<Space><TrophyOutlined /><span>Статус проверки записей</span></Space>}>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
@@ -723,21 +575,16 @@ const EmployeeDashboard = () => {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) =>
-                          `${name}: ${(percent * 100).toFixed(0)}%`
-                        }
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
                       >
                         {statusPieData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <RechartsTooltip />
                     </PieChart>
                   </ResponsiveContainer>
                 </Card>
@@ -746,199 +593,92 @@ const EmployeeDashboard = () => {
           </Row>
 
           {/* Данные за сегодня */}
-          <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-            <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <CalendarOutlined />
-                    <span>Данные за сегодня</span>
-                    {todayData && (
-                      <Tag
-                        color={getStatusColor(todayData.verification_status)}
-                      >
-                        {todayData.verification_status}
-                      </Tag>
-                    )}
-                  </Space>
-                }
-                extra={
-                  <Button type="link">
-                    <Link to="/daily-metrics">
-                      {todayData ? "Посмотреть детали" : "Ввести данные"}
-                    </Link>
-                  </Button>
-                }
-              >
-                todayData (
+          {todayData ? (
+            <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+              <Col span={24}>
+                <Card
+                  title={<Space><CalendarOutlined /><span>Данные за сегодня</span><Tag color={getStatusColor(todayData.verification_status)}>{todayData.verification_status}</Tag></Space>}
+                  extra={<Button type="link"><Link to="/daily-metrics">Посмотреть детали</Link></Button>}
+                >
                   <Row gutter={[24, 24]}>
                     <Col span={24}>
                       <Descriptions bordered column={2}>
-                        <Descriptions.Item label="Дата" span={2}>
-                          {dayjs(todayData.report_date).format("DD.MM.YYYY")}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Обработанные запросы">
-                          {todayData.processed_requests}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Время работы">
-                          {(todayData.work_minutes / 60).toFixed(1)} часов
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Положительные отзывы">
-                          {todayData.positive_feedbacks} /{" "}
-                          {todayData.total_feedbacks}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Решено с первого контакта">
-                          {todayData.first_contact_resolved} /{" "}
-                          {todayData.total_requests}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Оценка качества">
-                          {todayData.quality_score}%
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Статус проверки">
-                          <Tag
-                            color={getStatusColor(
-                              todayData.verification_status,
-                            )}
-                          >
-                            {todayData.verification_status}
-                          </Tag>
-                        </Descriptions.Item>
+                        <Descriptions.Item label="Дата" span={2}>{dayjs(todayData.report_date).format("DD.MM.YYYY")}</Descriptions.Item>
+                        <Descriptions.Item label={<KpiTooltip metric="processed_requests">Обработанные запросы</KpiTooltip>}>{todayData.processed_requests}</Descriptions.Item>
+                        <Descriptions.Item label={<KpiTooltip metric="work_minutes">Время работы</KpiTooltip>}>{(todayData.work_minutes / 60).toFixed(1)} часов</Descriptions.Item>
+                        <Descriptions.Item label={<KpiTooltip metric="positive_feedbacks">Положительные отзывы</KpiTooltip>}>{todayData.positive_feedbacks} / {todayData.total_feedbacks}</Descriptions.Item>
+                        <Descriptions.Item label={<KpiTooltip metric="first_contact_resolved">Решено с первого контакта</KpiTooltip>}>{todayData.first_contact_resolved} / {todayData.total_requests}</Descriptions.Item>
+                        <Descriptions.Item label={<KpiTooltip metric="quality_score">Оценка качества</KpiTooltip>}>{todayData.quality_score}%</Descriptions.Item>
+                        <Descriptions.Item label="Статус проверки"><Tag color={getStatusColor(todayData.verification_status)}>{todayData.verification_status}</Tag></Descriptions.Item>
                       </Descriptions>
                     </Col>
 
                     <Col span={24}>
-                      <Divider orientation="left">
-                        Ключевые показатели (KPI)
-                      </Divider>
+                      <Divider orientation="left">Ключевые показатели (KPI)</Divider>
                       <Row gutter={[16, 16]}>
                         <Col span={8}>
                           <Card size="small">
                             <Statistic
-                              title="CSAT (Удовлетворенность)"
+                              title={<KpiTooltip metric="csat">CSAT (Удовлетворенность)</KpiTooltip>}
                               value={kpis.csat || 0}
                               suffix="%"
                               prefix={<StarOutlined />}
-                              valueStyle={{
-                                color:
-                                  kpis.csat >= 85
-                                    ? "#3f8600"
-                                    : kpis.csat >= 70
-                                      ? "#faad14"
-                                      : "#cf1322",
-                              }}
+                              valueStyle={{ color: kpis.csat >= 85 ? "#3f8600" : kpis.csat >= 70 ? "#faad14" : "#cf1322" }}
                             />
-                            <Progress
-                              percent={kpis.csat || 0}
-                              status={
-                                kpis.csat >= 85
-                                  ? "success"
-                                  : kpis.csat >= 70
-                                    ? "normal"
-                                    : "exception"
-                              }
-                              size="small"
-                            />
+                            <Progress percent={kpis.csat || 0} size="small" />
                           </Card>
                         </Col>
                         <Col span={8}>
                           <Card size="small">
                             <Statistic
-                              title="Контакты в час"
+                              title={<KpiTooltip metric="contacts_per_hour">Контакты в час</KpiTooltip>}
                               value={kpis.contactsPerHour || 0}
                               prefix={<ClockCircleOutlined />}
-                              valueStyle={{
-                                color:
-                                  kpis.contactsPerHour >= kpiTargets.contacts_per_hour ? "#3f8600" : contactsPerHour >= kpiTargets.contacts_per_hour * 0.7 ? "#faad14" : "#cf1322"
-                              }}
+                              valueStyle={{ color: kpis.contactsPerHour >= kpiTargets.contacts_per_hour ? "#3f8600" : "#faad14" }}
                             />
-                            <Text type="secondary">Цель: 8 контактов/час</Text>
+                            <Text type="secondary">Цель: {kpiTargets.contacts_per_hour} контактов/час</Text>
                           </Card>
                         </Col>
                         <Col span={8}>
                           <Card size="small">
                             <Statistic
-                              title="FCR (Первый контакт)"
+                              title={<KpiTooltip metric="fcr">FCR (Первый контакт)</KpiTooltip>}
                               value={kpis.fcr || 0}
                               suffix="%"
                               prefix={<CheckCircleOutlined />}
-                              valueStyle={{
-                                color:
-                                  kpis.fcr >= kpiTargets.fcr ? "#3f8600" : fcr >= kpiTargets.fcr * 0.8 ? "#faad14" : "#cf1322"
-                              }}
+                              valueStyle={{ color: kpis.fcr >= kpiTargets.fcr ? "#3f8600" : "#faad14" }}
                             />
-                            <Progress
-                              percent={kpis.fcr || 0}
-                              status={
-                                kpis.fcr >= kpiTargets.fcr ? "#3f8600" : fcr >= kpiTargets.fcr * 0.8 ? "#faad14" : "#cf1322"
-                              }
-                              size="small"
-                            />
+                            <Progress percent={kpis.fcr || 0} size="small" />
                           </Card>
                         </Col>
                       </Row>
                     </Col>
                   </Row>
-                ) 
-              </Card>
-            </Col>
-          </Row>
+                </Card>
+              </Col>
+            </Row>
+          ) : (
+            <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+              <Col span={24}>
+                <Card title={<Space><CalendarOutlined /><span>Данные за сегодня</span></Space>}>
+                  <Empty description="Нет данных за сегодня. Данные будут загружены автоматически." />
+                </Card>
+              </Col>
+            </Row>
+          )}
 
           {/* Статистика за неделю */}
           <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
             <Col span={12}>
-              <Card
-                title={
-                  <Space>
-                    <BarChartOutlined />
-                    <span>Сводка за неделю</span>
-                  </Space>
-                }
-              >
+              <Card title={<Space><BarChartOutlined /><span>Сводка за неделю</span></Space>}>
                 {weeklyStats.daysCount > 0 ? (
                   <Row gutter={[16, 16]}>
-                    <Col span={12}>
-                      <Statistic
-                        title="Всего дней"
-                        value={weeklyStats.daysCount}
-                        prefix={<CalendarOutlined />}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Всего запросов"
-                        value={weeklyStats.total?.processed_requests || 0}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Всего часов"
-                        value={(
-                          (weeklyStats.total?.work_minutes || 0) / 60
-                        ).toFixed(1)}
-                        suffix="ч"
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Средний CSAT"
-                        value={weeklyStats.average?.csat || 0}
-                        suffix="%"
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Средний FCR"
-                        value={weeklyStats.average?.fcr || 0}
-                        suffix="%"
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Среднее качество"
-                        value={weeklyStats.average?.quality_score || 0}
-                        suffix="%"
-                      />
-                    </Col>
+                    <Col span={12}><Statistic title="Всего дней" value={weeklyStats.daysCount} prefix={<CalendarOutlined />} /></Col>
+                    <Col span={12}><Statistic title="Всего запросов" value={weeklyStats.total?.processed_requests || 0} /></Col>
+                    <Col span={12}><Statistic title="Всего часов" value={((weeklyStats.total?.work_minutes || 0) / 60).toFixed(1)} suffix="ч" /></Col>
+                    <Col span={12}><Statistic title={<KpiTooltip metric="csat">Средний CSAT</KpiTooltip>} value={weeklyStats.average?.csat || 0} suffix="%" /></Col>
+                    <Col span={12}><Statistic title={<KpiTooltip metric="fcr">Средний FCR</KpiTooltip>} value={weeklyStats.average?.fcr || 0} suffix="%" /></Col>
+                    <Col span={12}><Statistic title={<KpiTooltip metric="quality_score">Среднее качество</KpiTooltip>} value={weeklyStats.average?.quality_score || 0} suffix="%" /></Col>
                   </Row>
                 ) : (
                   <Empty description="Нет данных за неделю" />
@@ -947,59 +687,35 @@ const EmployeeDashboard = () => {
             </Col>
 
             <Col span={12}>
-              <Card
-                title={
-                  <Space>
-                    <TrophyOutlined />
-                    <span>Достижения недели</span>
-                  </Space>
-                }
-              >
+              <Card title={<Space><TrophyOutlined /><span>Достижения недели</span></Space>}>
                 {weeklyData.length > 0 ? (
                   <Space direction="vertical" style={{ width: "100%" }}>
                     {(() => {
                       const bestDay = weeklyData.reduce((best, current) => {
-                        const currentContactsPerHour =
-                          current.work_minutes > 0
-                            ? current.processed_requests /
-                              (current.work_minutes / 60)
-                            : 0;
-                        const bestContactsPerHour =
-                          best.work_minutes > 0
-                            ? best.processed_requests / (best.work_minutes / 60)
-                            : 0;
-                        return currentContactsPerHour > bestContactsPerHour
-                          ? current
-                          : best;
+                        const currentContactsPerHour = current.work_minutes > 0
+                          ? current.processed_requests / (current.work_minutes / 60)
+                          : 0;
+                        const bestContactsPerHour = best.work_minutes > 0
+                          ? best.processed_requests / (best.work_minutes / 60)
+                          : 0;
+                        return currentContactsPerHour > bestContactsPerHour ? current : best;
                       }, weeklyData[0]);
 
-                      const csat =
-                        bestDay.total_feedbacks > 0
-                          ? (
-                              (bestDay.positive_feedbacks /
-                                bestDay.total_feedbacks) *
-                              100
-                            ).toFixed(1)
-                          : 0;
+                      const csat = bestDay.total_feedbacks > 0
+                        ? ((bestDay.positive_feedbacks / bestDay.total_feedbacks) * 100).toFixed(1)
+                        : 0;
 
-                      const contactsPerHour =
-                        bestDay.work_minutes > 0
-                          ? (
-                              bestDay.processed_requests /
-                              (bestDay.work_minutes / 60)
-                            ).toFixed(1)
-                          : 0;
+                      const contactsPerHour = bestDay.work_minutes > 0
+                        ? (bestDay.processed_requests / (bestDay.work_minutes / 60)).toFixed(1)
+                        : 0;
 
                       return (
                         <div>
                           <Text strong>Лучший день: </Text>
-                          <Text>
-                            {dayjs(bestDay.report_date).format("DD.MM.YYYY")}
-                          </Text>
+                          <Text>{dayjs(bestDay.report_date).format("DD.MM.YYYY")}</Text>
                           <br />
                           <Text type="secondary">
-                            Контактов в час:{" "}
-                            <Text strong>{contactsPerHour}</Text>
+                            Контактов в час: <Text strong>{contactsPerHour}</Text>
                           </Text>
                           <br />
                           <Text type="secondary">
@@ -1010,16 +726,9 @@ const EmployeeDashboard = () => {
                     })()}
 
                     {(() => {
-                      const totalRequests = weeklyData.reduce(
-                        (sum, day) => sum + (day.processed_requests || 0),
-                        0,
-                      );
+                      const totalRequests = weeklyData.reduce((sum, day) => sum + (day.processed_requests || 0), 0);
                       if (totalRequests > 100) {
-                        return (
-                          <Tag color="gold" icon={<TrophyOutlined />}>
-                            Мастер обработки: {totalRequests} запросов
-                          </Tag>
-                        );
+                        return <Tag color="gold" icon={<TrophyOutlined />}>Мастер обработки: {totalRequests} запросов</Tag>;
                       }
                       return null;
                     })()}
@@ -1031,56 +740,27 @@ const EmployeeDashboard = () => {
             </Col>
           </Row>
 
-          {/* История за неделю с ФИЛЬТРОМ ДАТ */}
+          {/* История за неделю с фильтром дат */}
           <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
             <Col span={24}>
               <Card
-                title={
-                  <Space>
-                    <HistoryOutlined />
-                    <span>История</span>
-                  </Space>
-                }
+                title={<Space><HistoryOutlined /><span>История</span></Space>}
                 extra={
                   <Space>
-                    <RangePicker
-                      onChange={(dates) => setDateRange(dates)}
-                      placeholder={["Начало", "Конец"]}
-                      format="DD.MM.YYYY"
-                      allowClear
-                    />
-                    {dateRange && (
-                      <Button onClick={handleResetFilter} size="small">
-                        Сбросить
-                      </Button>
-                    )}
+                    <RangePicker onChange={(dates) => setDateRange(dates)} placeholder={["Начало", "Конец"]} format="DD.MM.YYYY" allowClear />
+                    {dateRange && <Button onClick={handleResetFilter} size="small">Сбросить</Button>}
                   </Space>
                 }
               >
                 {filteredData.length > 0 ? (
                   <>
                     <div style={{ marginBottom: 16, textAlign: "right" }}>
-                      <Text type="secondary">
-                        Найдено записей: {filteredData.length} из{" "}
-                        {weeklyData.length}
-                      </Text>
+                      <Text type="secondary">Найдено записей: {filteredData.length} из {weeklyData.length}</Text>
                     </div>
-                    <Table
-                      dataSource={filteredData}
-                      columns={columns}
-                      rowKey="record_id"
-                      pagination={{ pageSize: 10, showSizeChanger: true }}
-                      scroll={{ x: true }}
-                    />
+                    <Table dataSource={filteredData} columns={columns} rowKey="record_id" pagination={{ pageSize: 10, showSizeChanger: true }} scroll={{ x: true }} />
                   </>
                 ) : (
-                  <Empty
-                    description={
-                      dateRange
-                        ? "Нет данных за выбранный период"
-                        : "Нет данных для отображения"
-                    }
-                  />
+                  <Empty description={dateRange ? "Нет данных за выбранный период" : "Нет данных для отображения"} />
                 )}
               </Card>
             </Col>
@@ -1089,6 +769,6 @@ const EmployeeDashboard = () => {
       </Layout>
     </Layout>
   );
-};;;;
+};
 
 export default EmployeeDashboard;

@@ -155,8 +155,11 @@ getMenuItem("/tasks", <CheckCircleOutlined />, "Задачи", "/tasks"),
           {user?.username}
         </div>
         <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>
-          <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
-        </div>
+  <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
+  {user?.status === 'В отпуске' && (
+    <Tag color="orange" style={{ marginLeft: 4 }}>В отпуске</Tag>
+  )}
+</div>
       </div>
       
       <Menu

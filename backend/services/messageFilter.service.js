@@ -4,7 +4,7 @@ export class MessageFilter {
   // Расширенный список запрещенных слов (ручная проверка)
   static badWords = [
     // Основные матерные слова и их формы
-    'хуй', 'хуя', 'хуе', 'хуё', 'хуи', 'хуйня', 'хуесос', 'хуево', 'хуёво',
+    'сука', 'хуй', 'хуя', 'хуе', 'хуё', 'хуи', 'хуйня', 'хуесос', 'хуево', 'хуёво',
     'пизд', 'пизда', 'пиздец', 'пиздеть', 'пиздю', 'пиздой', 'пизды',
     'бля', 'блять', 'блядь', 'блядина', 'блядство', 'блядский', 'блядью',
     'еб', 'ебать', 'ебаться', 'ебануть', 'ебанутый', 'ебучий', 'ебал', 'ебало',
@@ -56,28 +56,27 @@ export class MessageFilter {
   }
 
   // Ручная проверка на нецензурную лексику
-  static checkProfanityManual(text) {
-    console.log('🔍 [РУЧНАЯ ПРОВЕРКА] Анализ текста...');
-    const lowerText = text.toLowerCase();
-    
-    // Ищем точные совпадения слов
-    const foundWords = [];
-    for (const word of this.badWords) {
-      // Ищем слово как отдельное или как часть слова
-      const regex = new RegExp(`\\b${word}\\w*`, 'i');
-      if (regex.test(lowerText)) {
-        foundWords.push(word);
-      }
+  // Ручная проверка на нецензурную лексику (упрощённая)
+static checkProfanityManual(text) {
+  console.log('🔍 [РУЧНАЯ ПРОВЕРКА] Анализ текста...');
+  const lowerText = text.toLowerCase();
+  
+  // Простой поиск (без сложных регулярных выражений)
+  const foundWords = [];
+  for (const word of this.badWords) {
+    if (lowerText.includes(word)) {  // 👈 ПРОСТО includes, без regex
+      foundWords.push(word);
     }
-    
-    if (foundWords.length > 0) {
-      console.log(`⚠️ [РУЧНАЯ ПРОВЕРКА] Найдены запрещенные слова: ${foundWords.join(', ')}`);
-      return { hasProfanity: true, foundWords };
-    }
-    
-    console.log('✅ [РУЧНАЯ ПРОВЕРКА] Нарушений не найдено');
-    return { hasProfanity: false };
   }
+  
+  if (foundWords.length > 0) {
+    console.log(`⚠️ [РУЧНАЯ ПРОВЕРКА] Найдены запрещенные слова: ${foundWords.join(', ')}`);
+    return { hasProfanity: true, foundWords };
+  }
+  
+  console.log('✅ [РУЧНАЯ ПРОВЕРКА] Нарушений не найдено');
+  return { hasProfanity: false };
+}
 
   // Проверка через Яндекс.Спеллер (ИИ)
   static async checkProfanityAI(text) {
@@ -127,24 +126,28 @@ export class MessageFilter {
 
   // Гибридная проверка: сначала ИИ, если недоступен - ручная
   static async checkProfanity(text) {
-    console.log('\n🔍 [ГИБРИДНАЯ ПРОВЕРКА] Начинаем анализ текста...');
-    console.log('📝 Текст:', text);
-    
-    // 1. Пытаемся использовать ИИ (Яндекс.Спеллер)
-    const aiResult = await this.checkProfanityAI(text);
-    
-    // 2. Если ИИ отработал успешно - используем его результат
-    if (aiResult !== null) {
-      console.log(`✅ [ГИБРИДНАЯ ПРОВЕРКА] Используем результат ИИ (${aiResult.source})`);
-      return aiResult;
-    }
-    
-    // 3. Если ИИ недоступен - используем ручную проверку
-    console.log('🔄 [ГИБРИДНАЯ ПРОВЕРКА] ИИ недоступен, переключаемся на ручную проверку');
-    const manualResult = this.checkProfanityManual(text);
-    manualResult.source = 'manual_fallback';
-    return manualResult;
+  console.log('\n🔍 [ГИБРИДНАЯ ПРОВЕРКА] Начинаем анализ текста...');
+  console.log('📝 Текст:', text);
+  
+  // 1. Проверка через ИИ
+  const aiResult = await this.checkProfanityAI(text);
+  
+  // 2. ВСЕГДА проверяем ручным списком (для слов, которые API пропускает, например "сука")
+  const manualResult = this.checkProfanityManual(text);
+  
+  // 3. Если ИЛИ ИИ нашёл ИЛИ ручная проверка нашла - возвращаем true
+  const hasProfanity = (aiResult?.hasProfanity === true) || manualResult.hasProfanity;
+  
+  if (hasProfanity) {
+    console.log(`⚠️ [ГИБРИДНАЯ ПРОВЕРКА] Нарушение обнаружено!`);
+    if (aiResult?.hasProfanity) console.log(`   - Источник: ИИ (Яндекс)`);
+    if (manualResult.hasProfanity) console.log(`   - Источник: ручная проверка, слова: ${manualResult.foundWords?.join(', ')}`);
+  } else {
+    console.log(`✅ [ГИБРИДНАЯ ПРОВЕРКА] Нарушений не найдено`);
   }
+  
+  return { hasProfanity, source: 'hybrid' };
+}
 
   // Очистка текста от нецензурной лексики
   static censorText(text) {

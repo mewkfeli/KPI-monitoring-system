@@ -223,37 +223,38 @@ const Register = () => {
   const prev = () => setCurrent(current - 1);
 
   const onFinish = async () => {
-    setLoading(true);
+  setLoading(true);
 
-    const values = form.getFieldsValue(stepFields.flat());
+  const values = form.getFieldsValue(stepFields.flat());
 
-    const userData = {
-      username: values.username,
-      password: values.password,
-      last_name: values.lastName,
-      first_name: values.firstName,
-      middle_name: values.middleName || null,
-      group_id: parseInt(values.group_id),
-    };
-
-    try {
-      const result = await register(userData);
-
-      if (result.success) {
-        navigate("/dashboard");
-      } else {
-        message.error(result.message || "Ошибка регистрации");
-      }
-    } catch (error) {
-      if (error.response?.status === 409) {
-        message.error("Имя пользователя уже занято");
-      } else {
-        message.error("Ошибка регистрации");
-      }
-    } finally {
-      setLoading(false);
-    }
+  const userData = {
+    username: values.username,
+    password: values.password,
+    last_name: values.lastName,
+    first_name: values.firstName,
+    middle_name: values.middleName || null,
+    group_id: parseInt(values.group_id),
   };
+
+  try {
+    const result = await register(userData);
+
+    if (result.success) {
+      message.success('Регистрация успешна!');
+      navigate("/dashboard");
+    } else {
+      message.error(result.message || "Ошибка регистрации");
+    }
+  } catch (error) {
+    if (error.response?.status === 409) {
+      message.error("Имя пользователя уже занято");
+    } else {
+      message.error("Ошибка регистрации");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <RegisterContainer>

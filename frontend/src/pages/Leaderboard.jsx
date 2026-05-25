@@ -42,7 +42,7 @@ import NotificationBell from "../components/NotificationBell";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
 import Sidebar from "../components/Sidebar";
-
+import { KpiTooltip, KpiColumnTitle } from "../components/KpiTooltip";
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -277,59 +277,58 @@ const Leaderboard = () => {
       sorter: (a, b) => a.work_days - b.work_days,
       render: (days) => <Tag color="blue">{days}</Tag>,
     },
-    {
-      title: "CSAT",
-      dataIndex: "csat",
-      key: "csat",
-      align: "center",
-      width: 100,
-      sorter: (a, b) => a.csat - b.csat,
-      render: (value) => (
-        <Tag color={value >= kpiTargets.csat ? "green" : value >= kpiTargets.csat * 0.8 ? "orange" : "red"}>
-          <StarOutlined /> {value}%
-        </Tag>
-      ),
-    },
-    {
-      title: "FCR",
-      dataIndex: "fcr",
-      key: "fcr",
-      align: "center",
-      width: 100,
-      sorter: (a, b) => a.fcr - b.fcr,
-      render: (value) => (
-        <Tag color={value >= kpiTargets.fcr ? "green" : value >= kpiTargets.fcr * 0.8 ? "orange" : "red"}
->
-          <CheckCircleOutlined /> {value}%
-        </Tag>
-      ),
-    },
-    {
-      title: "Контакты/час",
-      dataIndex: "contacts_per_hour",
-      key: "contacts_per_hour",
-      align: "center",
-      width: 120,
-      sorter: (a, b) => a.contacts_per_hour - b.contacts_per_hour,
-      render: (value) => (
-        <Tag color={value >= kpiTargets.contacts_per_hour ? "green" : value >= kpiTargets.contacts_per_hour * 0.6 ? "orange" : "red"}>
-          <ClockCircleOutlined /> {value}
-        </Tag>
-      ),
-    },
-    {
-      title: "Качество",
-      dataIndex: "avg_quality",
-      key: "avg_quality",
-      align: "center",
-      width: 100,
-      sorter: (a, b) => a.avg_quality - b.avg_quality,
-      render: (value) => (
-        <Tag color={value >= 90 ? "green" : value >= 70 ? "orange" : "red"}>
-          {value}%
-        </Tag>
-      ),
-    },
+{
+  title: <KpiColumnTitle metric="csat" title="CSAT" />,
+  dataIndex: "csat",
+  key: "csat",
+  align: "center",
+  render: (value) => (
+    <KpiTooltip metric="csat">
+      <Tag color={value >= 85 ? "green" : value >= 68 ? "orange" : "red"}>
+        <StarOutlined /> {value}%
+      </Tag>
+    </KpiTooltip>
+  ),
+},
+{
+  title: <KpiColumnTitle metric="fcr" title="FCR" />,
+  dataIndex: "fcr",
+  key: "fcr",
+  align: "center",
+  render: (value) => (
+    <KpiTooltip metric="fcr">
+      <Tag color={value >= 75 ? "green" : value >= 60 ? "orange" : "red"}>
+        <CheckCircleOutlined /> {value}%
+      </Tag>
+    </KpiTooltip>
+  ),
+},
+{
+  title: <KpiColumnTitle metric="contacts_per_hour" title="Контакты/час" />,
+  dataIndex: "contacts_per_hour",
+  key: "contacts_per_hour",
+  align: "center",
+  render: (value) => (
+    <KpiTooltip metric="contacts_per_hour">
+      <Tag color={value >= 8 ? "green" : value >= 5 ? "orange" : "red"}>
+        <ClockCircleOutlined /> {value}
+      </Tag>
+    </KpiTooltip>
+  ),
+},
+{
+  title: <KpiColumnTitle metric="quality_score" title="Качество" />,
+  dataIndex: "avg_quality",
+  key: "avg_quality",
+  align: "center",
+  render: (value) => (
+    <KpiTooltip metric="quality_score">
+      <Tag color={value >= 90 ? "green" : value >= 70 ? "orange" : "red"}>
+        {value}%
+      </Tag>
+    </KpiTooltip>
+  ),
+},
     {
       title: "Всего запросов",
       dataIndex: "total_requests",

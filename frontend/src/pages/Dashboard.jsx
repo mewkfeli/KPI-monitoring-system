@@ -40,6 +40,7 @@ import {
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
 import Sidebar from "../components/Sidebar";
+import { KpiTooltip } from "../components/KpiTooltip";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -256,98 +257,51 @@ const [kpiTargets, setKpiTargets] = useState({
                       </Card>
                     </Col>
                     <Col span={6}>
-                      <Card size="small">
-                        <Statistic
-                          title="Средний CSAT"
-                          value={stats.avg_csat || 0}
-                          suffix="%"
-                          prefix={<StarOutlined />}
-                          valueStyle={{
-                            color:
-                              stats.avg_csat >= kpiTargets.csat ? "#3f8600" : stats.avg_csat >= kpiTargets.csat * 0.8 ? "#faad14" : "#cf1322"
-                          }}
-                        />
-                        <Progress
-                          percent={stats.avg_csat || 0}
-                          status={
-                            stats.avg_csat >= kpiTargets.csat ? "#3f8600" : stats.avg_csat >= kpiTargets.csat * 0.8 ? "#faad14" : "#cf1322"
-                          }
-                          size="small"
-                        />
-                      </Card>
-                    </Col>
+  <Card size="small">
+    <Statistic
+      title={<KpiTooltip metric="csat">Средний CSAT</KpiTooltip>}
+      value={stats.avg_csat || 0}
+      suffix="%"
+      prefix={<StarOutlined />}
+      valueStyle={{ color: stats.avg_csat >= kpiTargets.csat ? "#3f8600" : "#faad14" }}
+    />
+    <Progress percent={stats.avg_csat || 0} size="small" />
+  </Card>
+</Col>
                     <Col span={6}>
-                      <Card size="small">
-                        <Statistic
-                          title="Среднее качество"
-                          value={stats.avg_quality || 0}
-                          suffix="%"
-                          prefix={<TrophyOutlined />}
-                          valueStyle={{
-                            color:
-                              stats.avg_quality >= kpiTargets.quality_score ? "#3f8600" : stats.avg_quality >= kpiTargets.quality_score * 0.8 ? "#faad14" : "#cf1322"
-                          }}
-                        />
-                        <Progress
-                          percent={stats.avg_quality || 0}
-                          status={
-                            stats.avg_quality >= 85
-                              ? "success"
-                              : stats.avg_quality >= 70
-                                ? "normal"
-                                : "exception"
-                          }
-                          size="small"
-                        />
-                      </Card>
-                    </Col>
-
+  <Card size="small">
+    <Statistic
+      title={<KpiTooltip metric="quality_score">Среднее качество</KpiTooltip>}
+      value={stats.avg_quality || 0}
+      suffix="%"
+      prefix={<TrophyOutlined />}
+      valueStyle={{ color: stats.avg_quality >= kpiTargets.quality_score ? "#3f8600" : "#faad14" }}
+    />
+    <Progress percent={stats.avg_quality || 0} size="small" />
+  </Card>
+</Col>
                     <Col span={6}>
-                      <Card size="small">
-                        <Statistic
-                          title="Средние контакты в час"
-                          value={stats.avg_contacts_per_hour || 0}
-                          prefix={<ClockCircleOutlined />}
-                          valueStyle={{
-                            color:
-                              stats.avg_contacts_per_hour >= 8
-                                ? "#3f8600"
-                                : stats.avg_contacts_per_hour >= 5
-                                  ? "#faad14"
-                                  : "#cf1322",
-                          }}
-                        />
-                      </Card>
-                    </Col>
+  <Card size="small">
+    <Statistic
+      title={<KpiTooltip metric="contacts_per_hour">Средние контакты в час</KpiTooltip>}
+      value={stats.avg_contacts_per_hour || 0}
+      prefix={<ClockCircleOutlined />}
+      valueStyle={{ color: stats.avg_contacts_per_hour >= 8 ? "#3f8600" : "#faad14" }}
+    />
+  </Card>
+</Col>
                     <Col span={6}>
-                      <Card size="small">
-                        <Statistic
-                          title="Средний FCR"
-                          value={stats.avg_fcr || 0}
-                          suffix="%"
-                          prefix={<CheckCircleOutlined />}
-                          valueStyle={{
-                            color:
-                              stats.avg_fcr >= 75
-                                ? "#3f8600"
-                                : stats.avg_fcr >= 60
-                                  ? "#faad14"
-                                  : "#cf1322",
-                          }}
-                        />
-                        <Progress
-                          percent={stats.avg_fcr || 0}
-                          status={
-                            stats.avg_fcr >= 75
-                              ? "success"
-                              : stats.avg_fcr >= 60
-                                ? "normal"
-                                : "exception"
-                          }
-                          size="small"
-                        />
-                      </Card>
-                    </Col>
+  <Card size="small">
+    <Statistic
+      title={<KpiTooltip metric="fcr">Средний FCR</KpiTooltip>}
+      value={stats.avg_fcr || 0}
+      suffix="%"
+      prefix={<CheckCircleOutlined />}
+      valueStyle={{ color: stats.avg_fcr >= 75 ? "#3f8600" : "#faad14" }}
+    />
+    <Progress percent={stats.avg_fcr || 0} size="small" />
+  </Card>
+</Col>
                     <Col span={6}>
                       <Card size="small">
                         <Statistic

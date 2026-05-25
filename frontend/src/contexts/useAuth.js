@@ -88,44 +88,44 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (userData) => {
-    if (authLoading) {
-      return { success: false, error: "Запрос уже выполняется" };
-    }
+  if (authLoading) {
+    return { success: false, error: "Запрос уже выполняется" };
+  }
 
-    setAuthLoading(true);
+  setAuthLoading(true);
 
-    try {
-      console.log("Отправляем на сервер:", userData);
+  try {
+    console.log("Отправляем на сервер:", userData);
 
-      const res = await fetch("http://localhost:5000/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userData),
-      });
+    const res = await fetch("http://localhost:5000/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
 
-      if (res.ok) {
-        const result = await res.json();
-        console.log("Регистрация успешна:", result);
-        message.success('Регистрация успешна!');
-        
-        const loginResult = await login(userData.username, userData.password);
-        
-        setAuthLoading(false);
-        return { success: true, data: result };
-      } else {
-        const errorData = await res.json();
-        console.error("Ошибка регистрации с сервера:", errorData);
-        message.error(errorData.message || "Ошибка регистрации");
-        setAuthLoading(false);
-        return { success: false, error: errorData.message };
-      }
-    } catch (error) {
-      console.error("Ошибка регистрации:", error);
-      message.error('Ошибка соединения с сервером');
+    if (res.ok) {
+      const result = await res.json();
+      console.log("Регистрация успешна:", result);
+
+      
+      const loginResult = await login(userData.username, userData.password);
+      
       setAuthLoading(false);
-      return { success: false, error: 'Ошибка соединения' };
+      return { success: true, data: result };
+    } else {
+      const errorData = await res.json();
+      console.error("Ошибка регистрации с сервера:", errorData);
+      message.error(errorData.message || "Ошибка регистрации");
+      setAuthLoading(false);
+      return { success: false, error: errorData.message };
     }
-  };
+  } catch (error) {
+    console.error("Ошибка регистрации:", error);
+    message.error('Ошибка соединения с сервером');
+    setAuthLoading(false);
+    return { success: false, error: 'Ошибка соединения' };
+  }
+};
 
   // Добавляем функцию обновления пользователя (для аватарки)
   const updateUser = (updatedData) => {

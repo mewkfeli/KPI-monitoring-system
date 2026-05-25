@@ -4,6 +4,7 @@ import { saveAs } from "file-saver";
 import { DownloadOutlined } from "@ant-design/icons";
 import NotificationBell from "../components/NotificationBell";
 import VacationManager from "../components/VacationManager";
+import { KpiTooltip, KpiColumnTitle } from "../components/KpiTooltip";
 
 import {
   LineChart,
@@ -440,154 +441,116 @@ const GroupLeaderDashboard = () => {
 
   // Колонки для таблицы KPI
   const kpiColumns = [
-    {
-      title: "Сотрудник",
-      dataIndex: "employee_name",
-      key: "employee_name",
-      render: (text, record) => {
-        const employee = groupData?.employees?.find(
-          (e) => e.employee_id === record.employee_id,
-        );
-        return employee ? (
-          <Space>
-            <Avatar size="small">{employee.last_name[0]}</Avatar>
-            <span>{`${employee.last_name} ${employee.first_name[0]}.`}</span>
-          </Space>
-        ) : (
-          "Неизвестно"
-        );
-      },
+  {
+    title: "Сотрудник",
+    dataIndex: "employee_name",
+    key: "employee_name",
+    render: (text, record) => {
+      const employee = groupData?.employees?.find(e => e.employee_id === record.employee_id);
+      return employee ? (
+        <Space>
+          <Avatar size="small">{employee.last_name[0]}</Avatar>
+          <span>{`${employee.last_name} ${employee.first_name[0]}.`}</span>
+        </Space>
+      ) : "Неизвестно";
     },
-    {
-      title: "Обработано",
-      dataIndex: "processed_requests",
-      key: "processed_requests",
-      align: "center",
-    },
-    {
-      title: "CSAT",
-      dataIndex: "csat_percentage",
-      key: "csat_percentage",
-      align: "center",
-      render: (value, record) => {
-        const actualValue =
-          value ||
-          (record.total_feedbacks > 0
-            ? Math.round(
-                (record.positive_feedbacks / record.total_feedbacks) * 100,
-              )
-            : 0);
-        return (
-          <div>
-            <Text strong>{actualValue}%</Text>
-            <Progress
-              percent={actualValue}
-              size="small"
-              status={
-                actualValue >= kpiTargets.csat ? "success" : actualValue >= kpiTargets.csat * 0.8 ? "normal" : "exception"
-              }
-              style={{ margin: "4px 0" }}
-            />
-          </div>
-        );
-      },
-    },
-    {
-      title: "FCR",
-      dataIndex: "fcr_percentage",
-      key: "fcr_percentage",
-      align: "center",
-      render: (value, record) => {
-        const actualValue =
-          value ||
-          (record.total_requests > 0
-            ? Math.round(
-                (record.first_contact_resolved / record.total_requests) * 100,
-              )
-            : 0);
-        return (
-          <div>
-            <Text strong>{actualValue}%</Text>
-            <Progress
-              percent={actualValue}
-              size="small"
-              status={
-                actualValue >= kpiTargets.fcr ? "success" : actualValue >= kpiTargets.fcr * 0.8 ? "normal" : "exception"
-              }
-              style={{ margin: "4px 0" }}
-            />
-          </div>
-        );
-      },
-    },
-   {
-  title: "Качество",
-  dataIndex: "quality_score",
-  key: "quality_score",
-  align: "center",
-  render: (value, record) => {
-    // Принудительно преобразуем в число
-    let score = Number(record.quality_score) || Number(value) || 0;
-    // Если все еще не число
-    if (isNaN(score)) score = 0;
-    
-    return (
-      <div>
-        <Text strong>{score.toFixed(1)}/5</Text>
-        <Progress 
-          percent={score * 20} 
-          size="small" 
-          status={score >= 4.5 ? "success" : score >= 3.5 ? "normal" : "exception"}
-          style={{ margin: "4px 0" }}
-        />
-      </div>
-    );
   },
-},
-    {
-      title: "Производительность",
-      dataIndex: "productivity",
-      key: "productivity",
-      align: "center",
-      render: (value, record) => {
-        const actualValue =
-          value ||
-          (record.work_minutes > 0
-            ? Math.round(
-                (record.processed_requests / (record.work_minutes / 60)) * 100,
-              ) / 100
-            : 0);
-        return (
-          <Tag
-            color={
-              actualValue >= kpiTargets.contacts_per_hour ? "green" : actualValue >= kpiTargets.contacts_per_hour * 0.6 ? "orange" : "red"
-            }
-          >
+  {
+    title: <KpiColumnTitle metric="processed_requests" title="Обработано" />,
+    dataIndex: "processed_requests",
+    key: "processed_requests",
+    align: "center",
+  },
+  {
+    title: <KpiColumnTitle metric="csat" title="CSAT" />,
+    dataIndex: "csat_percentage",
+    key: "csat_percentage",
+    align: "center",
+    render: (value, record) => {
+      const actualValue = value || (record.total_feedbacks > 0
+        ? Math.round((record.positive_feedbacks / record.total_feedbacks) * 100)
+        : 0);
+      return (
+        <KpiTooltip metric="csat">
+          <div>
+            <Text strong>{actualValue}%</Text>
+            <Progress percent={actualValue} size="small" status={actualValue >= 85 ? "success" : actualValue >= 68 ? "normal" : "exception"} style={{ margin: "4px 0" }} />
+          </div>
+        </KpiTooltip>
+      );
+    },
+  },
+  {
+    title: <KpiColumnTitle metric="fcr" title="FCR" />,
+    dataIndex: "fcr_percentage",
+    key: "fcr_percentage",
+    align: "center",
+    render: (value, record) => {
+      const actualValue = value || (record.total_requests > 0
+        ? Math.round((record.first_contact_resolved / record.total_requests) * 100)
+        : 0);
+      return (
+        <KpiTooltip metric="fcr">
+          <div>
+            <Text strong>{actualValue}%</Text>
+            <Progress percent={actualValue} size="small" status={actualValue >= 75 ? "success" : actualValue >= 60 ? "normal" : "exception"} style={{ margin: "4px 0" }} />
+          </div>
+        </KpiTooltip>
+      );
+    },
+  },
+  {
+    title: <KpiColumnTitle metric="quality_score" title="Качество" />,
+    dataIndex: "quality_score",
+    key: "quality_score",
+    align: "center",
+    render: (value, record) => {
+      let score = Number(record.quality_score) || Number(value) || 0;
+      if (isNaN(score)) score = 0;
+      return (
+        <KpiTooltip metric="quality_score">
+          <div>
+            <Text strong>{score.toFixed(1)}/5</Text>
+            <Progress percent={score * 20} size="small" status={score >= 4.5 ? "success" : score >= 3.5 ? "normal" : "exception"} style={{ margin: "4px 0" }} />
+          </div>
+        </KpiTooltip>
+      );
+    },
+  },
+  {
+    title: <KpiColumnTitle metric="contacts_per_hour" title="Производительность" />,
+    dataIndex: "productivity",
+    key: "productivity",
+    align: "center",
+    render: (value, record) => {
+      const actualValue = value || (record.work_minutes > 0
+        ? Math.round((record.processed_requests / (record.work_minutes / 60)) * 100) / 100
+        : 0);
+      return (
+        <KpiTooltip metric="contacts_per_hour">
+          <Tag color={actualValue >= 8 ? "green" : actualValue >= 5 ? "orange" : "red"}>
             {actualValue} обраб/час
           </Tag>
-        );
-      },
+        </KpiTooltip>
+      );
     },
-    {
-      title: "Статус",
-      dataIndex: "verification_status",
-      key: "verification_status",
-      align: "center",
-      render: (status) => {
-        const statusConfig = {
-          Одобрено: { color: "green", icon: <CheckCircleOutlined /> },
-          Отклонено: { color: "red", icon: <CloseCircleOutlined /> },
-          Ожидание: { color: "orange", icon: <ClockCircleOutlined /> },
-        };
-        const config = statusConfig[status] || { color: "default", icon: null };
-        return (
-          <Tag color={config.color} icon={config.icon}>
-            {status}
-          </Tag>
-        );
-      },
-    }
-  ];
+  },
+  {
+    title: "Статус",
+    dataIndex: "verification_status",
+    key: "verification_status",
+    align: "center",
+    render: (status) => {
+      const statusConfig = {
+        Одобрено: { color: "green", icon: <CheckCircleOutlined /> },
+        Отклонено: { color: "red", icon: <CloseCircleOutlined /> },
+        Ожидание: { color: "orange", icon: <ClockCircleOutlined /> },
+      };
+      const config = statusConfig[status] || { color: "default", icon: null };
+      return <Tag color={config.color} icon={config.icon}>{status}</Tag>;
+    },
+  }
+];
 
   // Колонки для ожидающих проверки
   const pendingReviewColumns = [

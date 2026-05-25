@@ -466,9 +466,13 @@ router.post("/vacation/create", async (req, res) => {
     return res.status(400).json({ error: "Не указаны обязательные параметры" });
   }
 
+  const connection = await db.getConnection();
+  
   try {
+    await connection.beginTransaction();
+
     // Проверяем, что руководитель имеет право управлять этим сотрудником
-    const [leaderCheck] = await db.query(
+    const [leaderCheck] = await connection.query(
       `SELECT e1.employee_id, e1.group_id, e1.role
        FROM employees e1
        JOIN employees e2 ON e2.employee_id = ?
@@ -480,38 +484,74 @@ router.post("/vacation/create", async (req, res) => {
     );
 
     if (leaderCheck.length === 0) {
+      await connection.rollback();
       return res.status(403).json({ error: "У вас нет прав для управления отпуском этого сотрудника" });
     }
 
     // Проверяем, что сотрудник активен
-    const [employeeCheck] = await db.query(
-      `SELECT status, last_name, first_name FROM employees WHERE employee_id = ?`,
+    const [employeeCheck] = await connection.query(
+      `SELECT status, last_name, first_name, group_id FROM employees WHERE employee_id = ?`,
       [employee_id]
     );
 
     if (employeeCheck.length === 0) {
+      await connection.rollback();
       return res.status(404).json({ error: "Сотрудник не найден" });
     }
 
     if (employeeCheck[0].status === 'В отпуске') {
+      await connection.rollback();
       return res.status(400).json({ error: "Сотрудник уже находится в отпуске" });
     }
 
-    // Создаем запись об отпуске
-    await db.query(
+    // ============ ПЕРЕНАЗНАЧЕНИЕ ЗАДАЧ ============
+    
+    // 1. Находим руководителя группы
+    const [groupLeader] = await connection.query(
+      `SELECT employee_id FROM employees 
+       WHERE group_id = ? AND role = 'Руководитель группы' AND status = 'Активен'
+       LIMIT 1`,
+      [employeeCheck[0].group_id]
+    );
+    
+    const reassignToId = groupLeader.length > 0 ? groupLeader[0].employee_id : leader_id;
+    
+    // 2. Получаем список активных задач сотрудника
+    const [activeTasks] = await connection.query(
+      `SELECT task_id, title FROM tasks 
+       WHERE assigned_to = ? AND status IN ('todo', 'in_progress', 'review')`,
+      [employee_id]
+    );
+    
+    const reassignedTasks = [];
+    
+    // 3. Переназначаем каждую задачу (БЕЗ КОЛОНКИ comment)
+    for (const task of activeTasks) {
+      await connection.query(
+        `UPDATE tasks 
+         SET assigned_to = ?, 
+             updated_at = NOW()
+         WHERE task_id = ?`,
+        [reassignToId, task.task_id]
+      );
+      reassignedTasks.push(task.title);
+    }
+    
+    // 4. Создаем запись об отпуске
+    await connection.query(
       `INSERT INTO vacations (employee_id, start_date, end_date, created_by) 
        VALUES (?, ?, ?, ?)`,
       [employee_id, start_date, end_date, leader_id]
     );
 
-    // Меняем статус сотрудника
-    await db.query(
+    // 5. Меняем статус сотрудника
+    await connection.query(
       `UPDATE employees SET status = 'В отпуске' WHERE employee_id = ?`,
       [employee_id]
     );
 
     // Получаем информацию о руководителе
-    const [leaderInfo] = await db.query(
+    const [leaderInfo] = await connection.query(
       `SELECT first_name, last_name FROM employees WHERE employee_id = ?`,
       [leader_id]
     );
@@ -519,25 +559,84 @@ router.post("/vacation/create", async (req, res) => {
     const leaderName = `${leaderInfo[0].first_name} ${leaderInfo[0].last_name}`;
     const startDateFormatted = new Date(start_date).toLocaleDateString('ru-RU');
     const endDateFormatted = new Date(end_date).toLocaleDateString('ru-RU');
+    
+    // 6. Формируем сообщение о переназначенных задачах
+    let tasksMessage = '';
+    if (reassignedTasks.length > 0) {
+      tasksMessage = `\n\n📋 Переназначенные задачи (${reassignedTasks.length}):\n${reassignedTasks.map(t => `  • ${t}`).join('\n')}`;
+    }
 
-    // Уведомление сотруднику
+    // 7. Уведомление сотруднику
+    const { NotificationService } = await import('./notification.service.js');
+    
     await NotificationService.createNotification(
       employee_id,
       "🏖 Отправление в отпуск",
-      `Вы отправлены в отпуск руководителем ${leaderName}.\n\n📅 Период: ${startDateFormatted} - ${endDateFormatted}\n\nХорошего отдыха!`,
+      `Вы отправлены в отпуск руководителем ${leaderName}.\n\n📅 Период: ${startDateFormatted} - ${endDateFormatted}\n\nВаши активные задачи переданы руководителю.${tasksMessage}\n\nХорошего отдыха!`,
       "info",
       "vacation",
       null
     );
+    
+    // 8. Уведомление руководителю (если были переназначены задачи)
+    if (reassignedTasks.length > 0) {
+      await NotificationService.createNotification(
+        reassignToId,
+        "📋 Задачи переназначены",
+        `Сотрудник ${employeeCheck[0].last_name} ${employeeCheck[0].first_name} уходит в отпуск.\n\nЕго активные задачи (${reassignedTasks.length}) переназначены на вас:\n${reassignedTasks.map(t => `  • ${t}`).join('\n')}`,
+        "warning",
+        "vacation",
+        null
+      );
+    }
 
+    await connection.commit();
+    
+    let responseMessage = `${employeeCheck[0].last_name} ${employeeCheck[0].first_name} отправлен в отпуск с ${startDateFormatted} по ${endDateFormatted}`;
+    if (reassignedTasks.length > 0) {
+      responseMessage += `. Переназначено задач: ${reassignedTasks.length}`;
+    }
+    
     res.json({ 
       success: true, 
-      message: `${employeeCheck[0].last_name} ${employeeCheck[0].first_name} отправлен в отпуск с ${startDateFormatted} по ${endDateFormatted}` 
+      message: responseMessage,
+      reassigned_tasks_count: reassignedTasks.length
     });
 
   } catch (error) {
+    await connection.rollback();
     console.error("Ошибка создания отпуска:", error);
     res.status(500).json({ error: "Ошибка сервера", details: error.message });
+  } finally {
+    connection.release();
+  }
+});
+
+// Проверить активные задачи сотрудника (перед отправкой в отпуск)
+router.get("/vacation/check-tasks", async (req, res) => {
+  const { employee_id } = req.query;
+
+  if (!employee_id) {
+    return res.status(400).json({ error: "Не указан ID сотрудника" });
+  }
+
+  try {
+    const [activeTasks] = await db.query(
+      `SELECT task_id, title, status, priority, due_date 
+       FROM tasks 
+       WHERE assigned_to = ? AND status IN ('todo', 'in_progress', 'review')
+       ORDER BY FIELD(priority, 'urgent', 'high', 'medium', 'low'), due_date ASC`,
+      [employee_id]
+    );
+
+    res.json({ 
+      has_active_tasks: activeTasks.length > 0,
+      tasks: activeTasks,
+      count: activeTasks.length
+    });
+  } catch (error) {
+    console.error("Ошибка проверки задач:", error);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 

@@ -53,6 +53,7 @@ import Sidebar from "../components/Sidebar";
 import dayjs from "dayjs";
 import "dayjs/locale/ru";
 import { Progress } from 'antd';
+import { KpiTooltip } from "../components/KpiTooltip";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -1032,7 +1033,7 @@ const fetchKpiNorms = async () => {
                     {newPassword}
                   </div>
                   <p style={{ marginTop: 12, color: "var(--text-secondary)" }}>
-                    ⚠️ Сообщите пароль сотруднику. Он будет обязан сменить его при следующем входе (если настроено).
+                    ⚠️ Сообщите пароль сотруднику.
                   </p>
                 </div>
               }

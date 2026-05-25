@@ -113,9 +113,9 @@ io.use(async (socket, next) => {
   
   try {
     const [rows] = await db.query(
-      `SELECT e.employee_id, e.group_id, e.last_name, e.first_name, e.role 
+      `SELECT e.employee_id, e.group_id, e.last_name, e.first_name, e.role, e.status 
        FROM employees e 
-       WHERE e.employee_id = ? AND e.status = 'Активен'`,
+       WHERE e.employee_id = ?`,
       [employeeId]
     );
     
@@ -123,11 +123,14 @@ io.use(async (socket, next) => {
       return next(new Error("Сотрудник не найден"));
     }
     
+    // 👇 ИЗМЕНЕНИЕ: разрешаем подключение даже если в отпуске
+    // Статус сохраняем, но не блокируем подключение
     socket.user = {
       employee_id: rows[0].employee_id,
       group_id: rows[0].group_id,
       full_name: `${rows[0].first_name} ${rows[0].last_name}`,
       role: rows[0].role,
+      status: rows[0].status, // добавляем статус
     };
     next();
   } catch (error) {
@@ -226,9 +229,18 @@ io.on("connection", (socket) => {
 });
 
 // Отправка сообщения
+// Отправка сообщения
 socket.on("send_message", async (data) => {
-const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id, reply_to_id } = data;  
+  const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, chat_id, reply_to_id } = data;  
   console.log('📨 send_message:', { chat_type, chat_id, sender: user.full_name, tempId: _tempId, reply_to_id });
+  
+  // 👇 ПРЕДУПРЕЖДЕНИЕ ОБ ОТПУСКЕ (НЕ БЛОКИРУЕМ)
+  if (socket.user.status === 'В отпуске') {
+    socket.emit("message_warning", { 
+      _tempId, 
+      warning: "Вы находитесь в отпуске. Сообщение будет отправлено, но учтите, что вы не должны работать." 
+    });
+  }
   
   try {
     let queryResult;
@@ -238,61 +250,56 @@ const { message, attachment_url, attachment_type, is_image, _tempId, chat_type, 
     
     // Применяем фильтрацию только для текстовых сообщений в кастомных группах
     if ((chat_type === 'custom' || chat_type === 'group') && finalMessage && finalMessage.trim()) {
-  let shouldFilter = false;
-  
-  if (chat_type === 'group') {
-    // Для рабочих групп - ВСЕГДА фильтруем
-    shouldFilter = true;
-    console.log('🔍 Рабочая группа - фильтрация включена принудительно');
-  } else if (chat_type === 'custom') {
-    // Для кастомных групп - проверяем настройку
-    const [groupInfo] = await db.query(
-      `SELECT has_filter FROM custom_groups WHERE group_id = ?`,
-      [chat_id]
-    );
-    shouldFilter = groupInfo[0]?.has_filter === 1;
-    console.log('🔍 Кастомная группа - фильтрация:', shouldFilter ? 'включена' : 'выключена');
-  }
-  
-  if (shouldFilter) {
-    const filterResult = await MessageFilter.filterMessage(finalMessage, chat_id, db);
-    
-    if (!filterResult.allowed) {
-      socket.emit("message_blocked", { _tempId, reason: filterResult.reason });
-      return;
-    }
-    
-    finalMessage = filterResult.message;
-    wasFiltered = filterResult.wasFiltered || false;
-    
-    if (wasFiltered) {
-      socket.emit("message_censored", { _tempId, censoredMessage: finalMessage });
-    }
+      let shouldFilter = false;
+      
+      if (chat_type === 'group') {
+        shouldFilter = true;
+        console.log('🔍 Рабочая группа - фильтрация включена принудительно');
+      } else if (chat_type === 'custom') {
+        const [groupInfo] = await db.query(
+          `SELECT has_filter FROM custom_groups WHERE group_id = ?`,
+          [chat_id]
+        );
+        shouldFilter = groupInfo[0]?.has_filter === 1;
+        console.log('🔍 Кастомная группа - фильтрация:', shouldFilter ? 'включена' : 'выключена');
+      }
+      
+      if (shouldFilter) {
+        const filterResult = await MessageFilter.filterMessage(finalMessage, chat_id, db);
+        
+        if (!filterResult.allowed) {
+          socket.emit("message_blocked", { _tempId, reason: filterResult.reason });
+          return;
+        }
+        
+        finalMessage = filterResult.message;
+        wasFiltered = filterResult.wasFiltered || false;
+        
         if (wasFiltered) {
-          // Уведомляем отправителя, что сообщение было отцензурено
-          socket.emit("message_censored", { _tempId });
+          socket.emit("message_censored", { _tempId, censoredMessage: finalMessage });
         }
       }
     }
+    
     // Определяем group_id для сообщения
     if (chat_type === 'group') {
       groupId = chat_id;
     }
     
     // Сохраняем сообщение в БД
-if (chat_type === 'group') {
-  [queryResult] = await db.query(
-    `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [chat_type, chat_id, groupId, user.employee_id, finalMessage || '', attachment_url || null, attachment_type || null, reply_to_id || null]
-  );
-} else {
-  [queryResult] = await db.query(
-    `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
-     VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
-    [chat_type, chat_id, user.employee_id, finalMessage || '', attachment_url || null, attachment_type || null, reply_to_id || null]
-  );
-}
+    if (chat_type === 'group') {
+      [queryResult] = await db.query(
+        `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [chat_type, chat_id, groupId, user.employee_id, finalMessage || '', attachment_url || null, attachment_type || null, reply_to_id || null]
+      );
+    } else {
+      [queryResult] = await db.query(
+        `INSERT INTO chat_messages (chat_type, chat_id, group_id, sender_id, message, attachment_url, attachment_type, reply_to_id) 
+         VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
+        [chat_type, chat_id, user.employee_id, finalMessage || '', attachment_url || null, attachment_type || null, reply_to_id || null]
+      );
+    }
     
     const [senderInfo] = await db.query(
       `SELECT avatar_url FROM employees WHERE employee_id = ?`, 
@@ -320,9 +327,8 @@ if (chat_type === 'group') {
       was_filtered: wasFiltered
     };
     
-    // ✅ ОПРЕДЕЛЯЕМ КОМНАТЫ ДЛЯ ОТПРАВКИ
+    // Определяем комнаты для отправки
     if (chat_type === 'private') {
-      // Для личных чатов: находим второго участника и отправляем ему в его персональную комнату
       const [participants] = await db.query(
         `SELECT user_id FROM private_chat_participants WHERE chat_id = ? AND user_id != ?`,
         [chat_id, user.employee_id]
@@ -331,26 +337,19 @@ if (chat_type === 'group') {
       if (participants.length > 0) {
         const otherUserId = participants[0].user_id;
         const otherUserRoom = `user_${otherUserId}`;
-        
         console.log(`📨 Отправляем в личную комнату пользователя ${otherUserId}: ${otherUserRoom}`);
-        
-        // Отправляем другому пользователю в его персональную комнату
         io.to(otherUserRoom).emit("new_message", messageData);
       }
       
-      // Отправляем отправителю подтверждение
       socket.emit("message_sent", messageData);
       
     } else if (chat_type === 'custom') {
       const roomName = `custom_${chat_id}`;
-  // Отправляем всем КРОМЕ отправителя, чтобы не дублировать
-  socket.to(roomName).emit("new_message", messageData);
-  // Отправителю отправляем отдельно с подтверждением
-  socket.emit("message_sent", { ...messageData, _tempId });
+      socket.to(roomName).emit("new_message", messageData);
+      socket.emit("message_sent", { ...messageData, _tempId });
       
     } else {
       const roomName = `group_${chat_id}`;
-      // Отправляем всем в комнате группы
       io.to(roomName).emit("new_message", messageData);
       socket.emit("message_sent", messageData);
     }

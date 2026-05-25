@@ -1046,7 +1046,18 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
 });
   newSocket.on("unread_count_update", () => loadChatsList());
   newSocket.on("error", ({ message: errorMsg }) => message.error(errorMsg));
+  newSocket.on("message_warning", ({ _tempId, warning }) => {
+  message.warning(warning, 3);
   
+  // Обновляем статус сообщения, если нужно
+  if (_tempId) {
+    setMessages(prev => prev.map(msg => 
+      msg._tempId === _tempId 
+        ? { ...msg, status: 'sent', warning_shown: true }
+        : msg
+    ));
+  }
+});
   setSocket(newSocket);
   
   return () => { 
