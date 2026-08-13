@@ -283,18 +283,21 @@ router.get("/unread-count", async (req, res) => {
 });
 
 // ============= ИСТОРИЯ СООБЩЕНИЙ =============
+// backend/chat.routes.js
+
 router.get("/history", async (req, res) => {
   const { chat_type, chat_id, limit = 200 } = req.query;
 
-  console.log('📜 Запрос истории:', { chat_type, chat_id, limit });
+  console.log('📜 HISTORY запрос:', { chat_type, chat_id, limit });
 
   if (!chat_type || !chat_id) {
     return res.status(400).json({ error: "Не указаны параметры chat_type и chat_id" });
   }
 
   try {
-    const query = `
-      SELECT 
+    // Простой запрос без лишних джойнов для теста
+    const [rows] = await db.query(
+      `SELECT 
         cm.message_id,
         cm.chat_type,
         cm.chat_id,
@@ -310,21 +313,21 @@ router.get("/history", async (req, res) => {
         e.first_name,
         e.middle_name,
         e.role,
-        e.avatar_url as sender_avatar_url,
-        (SELECT COUNT(*) FROM chat_read_receipts WHERE message_id = cm.message_id) as read_count
+        e.avatar_url as sender_avatar_url
       FROM chat_messages cm
-      JOIN employees e ON cm.sender_id = e.employee_id
-      WHERE cm.chat_type = ? AND cm.chat_id = ?
-      ORDER BY cm.created_at ASC
-      LIMIT ?
-    `;
-    const params = [chat_type, chat_id, parseInt(limit)];
+      LEFT JOIN employees e ON cm.sender_id = e.employee_id
+      WHERE cm.chat_type = ? AND cm.chat_id = ? AND (cm.is_deleted = FALSE OR cm.is_deleted IS NULL)
+      ORDER BY cm.created_at DESC
+      LIMIT ?`,
+      [chat_type, chat_id, parseInt(limit)]
+    );
 
-    const [rows] = await db.query(query, params);
+    console.log(`📜 Найдено сообщений: ${rows.length}`);
+    if (rows.length > 0) {
+      console.log(`📜 Первое сообщение: ${rows[0].message} (${rows[0].created_at})`);
+    }
 
-    console.log(`📜 Найдено ${rows.length} сообщений`);
-
-    // Получаем реакции отдельно
+    // Получаем реакции
     const messagesWithReactions = [];
     for (const row of rows) {
       const [reactions] = await db.query(
@@ -353,7 +356,7 @@ router.get("/history", async (req, res) => {
         reply_to_id: row.reply_to_id,
         edited_at: row.edited_at,
         is_deleted: row.is_deleted,
-        read_count: row.read_count,
+        read_count: 0,
         reactions: reactionMap,
         status: 'sent',
       });
@@ -362,7 +365,7 @@ router.get("/history", async (req, res) => {
     res.json(messagesWithReactions);
   } catch (error) {
     console.error("Ошибка получения истории:", error);
-    res.status(500).json({ error: "Ошибка сервера", details: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 

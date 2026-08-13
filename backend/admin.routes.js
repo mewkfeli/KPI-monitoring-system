@@ -464,5 +464,187 @@ router.put('/kpi-targets/:id', isAdmin, async (req, res) => {
   
   res.json({ success: true });
 });
+// Статистика по отделам
+router.get('/department-stats', isAdmin, async (req, res) => {
+  const [stats] = await db.query(`
+    SELECT 
+      d.department_id,
+      d.department_name,
+      ad.direction_name,
+      COUNT(DISTINCT e.employee_id) as employees_count,
+      COUNT(DISTINCT t.ticket_id) as tickets_count,
+      ROUND(AVG(t.satisfaction_rating), 2) as avg_rating
+    FROM departments d
+    LEFT JOIN work_groups wg ON d.department_id = wg.department_id
+    LEFT JOIN employees e ON wg.group_id = e.group_id
+    LEFT JOIN tickets t ON t.group_id = wg.group_id AND t.status = 'closed'
+    LEFT JOIN activity_directions ad ON d.direction_id = ad.direction_id
+    GROUP BY d.department_id
+  `);
+  res.json(stats);
+});
 
+// Управление категориями (группами)
+router.get('/categories', isAdmin, async (req, res) => {
+  const [categories] = await db.query(`
+    SELECT wg.*, d.department_name, ad.direction_name
+    FROM work_groups wg
+    LEFT JOIN departments d ON wg.department_id = d.department_id
+    LEFT JOIN activity_directions ad ON d.direction_id = ad.direction_id
+    ORDER BY ad.direction_name, d.department_name, wg.group_name
+  `);
+  res.json(categories);
+});
+
+router.put('/categories/:id', isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { category, is_default_for_tickets } = req.body;
+  
+  await db.query(
+    `UPDATE work_groups SET category = ?, is_default_for_tickets = ? WHERE group_id = ?`,
+    [category, is_default_for_tickets ? 1 : 0, id]
+  );
+  res.json({ success: true });
+});
+
+// backend/admin.routes.js - добавь эти эндпоинты
+
+// Обновить категорию группы
+router.put('/groups/:id/category', isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { category, admin_id } = req.body;
+  
+  await db.query(
+    'UPDATE work_groups SET category = ? WHERE group_id = ?',
+    [category || null, id]
+  );
+  
+  await db.query(
+    `INSERT INTO admin_logs (admin_id, action_type, target_type, target_id, new_value)
+     VALUES (?, 'edit_group_category', 'group', ?, ?)`,
+    [admin_id, id, category]
+  );
+  
+  res.json({ success: true });
+});
+
+// Установить группу по умолчанию
+router.put('/groups/:id/default', isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { is_default, admin_id } = req.body;
+  
+  // Сначала сбрасываем все группы
+  await db.query('UPDATE work_groups SET is_default_for_tickets = 0');
+  
+  // Затем устанавливаем выбранную
+  if (is_default) {
+    await db.query('UPDATE work_groups SET is_default_for_tickets = 1 WHERE group_id = ?', [id]);
+  }
+  
+  await db.query(
+    `INSERT INTO admin_logs (admin_id, action_type, target_type, target_id, new_value)
+     VALUES (?, 'set_default_group', 'group', ?, ?)`,
+    [admin_id, id, is_default ? 'default' : 'not_default']
+  );
+  
+  res.json({ success: true });
+});
+
+// Обновить SLA для приоритета
+router.put('/sla/:priority', isAdmin, async (req, res) => {
+  const { priority } = req.params;
+  const { minutes, admin_id } = req.body;
+  
+  await db.query(
+    `INSERT INTO kpi_targets (metric_name, target_value, description, updated_by, updated_at)
+     VALUES (?, ?, ?, ?, NOW())
+     ON DUPLICATE KEY UPDATE target_value = ?, updated_by = ?, updated_at = NOW()`,
+    [`sla_${priority}`, minutes, `SLA для приоритета ${priority} (минуты)`, admin_id, minutes, admin_id]
+  );
+  
+  res.json({ success: true });
+});
+
+router.get('/sla', isAdmin, async (req, res) => {
+  const [rows] = await db.query(
+    `SELECT * FROM kpi_targets WHERE metric_name LIKE 'sla_%'`
+  );
+  res.json(rows);
+});
+// ============ УПРАВЛЕНИЕ НОРМОЙ ОБРАЩЕНИЙ В ДЕНЬ ============
+
+// Получить текущую норму обращений в день
+router.get('/kpi/tickets-per-day', async (req, res) => {
+  try {
+    const [row] = await db.query(
+      `SELECT target_value as value, description FROM kpi_targets WHERE metric_name = 'tickets_per_day'`
+    );
+    res.json(row[0] || { value: 20, description: 'Дневная норма обращений для сотрудников' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Обновить норму обращений в день
+router.put('/kpi/tickets-per-day', isAdmin, async (req, res) => {
+  const { value, admin_id } = req.body;
+  
+  if (!value || value < 1 || value > 100) {
+    return res.status(400).json({ error: 'Норма должна быть от 1 до 100' });
+  }
+  
+  try {
+    await db.query(
+      `UPDATE kpi_targets 
+       SET target_value = ?, updated_by = ?, updated_at = NOW()
+       WHERE metric_name = 'tickets_per_day'`,
+      [value, admin_id || req.admin_id]
+    );
+    
+    await db.query(
+      `INSERT INTO admin_logs (admin_id, action_type, target_type, new_value)
+       VALUES (?, 'update_tickets_per_day', 'kpi', ?)`,
+      [admin_id || req.admin_id, value]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Получить максимальный лимит обращений в день
+router.get('/kpi/max-tickets-per-day', async (req, res) => {
+  try {
+    const [row] = await db.query(
+      `SELECT target_value as value FROM kpi_targets WHERE metric_name = 'max_tickets_per_day'`
+    );
+    res.json({ value: row[0]?.value || 30 });
+  } catch (error) {
+    res.json({ value: 30 });
+  }
+});
+
+// Обновить максимальный лимит
+router.put('/kpi/max-tickets-per-day', isAdmin, async (req, res) => {
+  const { value, admin_id } = req.body;
+  
+  if (!value || value < 1) {
+    return res.status(400).json({ error: 'Лимит должен быть больше 0' });
+  }
+  
+  try {
+    await db.query(
+      `INSERT INTO kpi_targets (metric_name, target_value, description, updated_by, updated_at)
+       VALUES ('max_tickets_per_day', ?, 'Максимум обращений в день (при превышении - блокировка)', ?, NOW())
+       ON DUPLICATE KEY UPDATE 
+         target_value = ?, updated_by = ?, updated_at = NOW()`,
+      [value, admin_id || req.admin_id, value, admin_id || req.admin_id]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 export default router;

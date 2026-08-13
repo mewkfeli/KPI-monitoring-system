@@ -31,6 +31,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (user.role === "Администратор") {
       return <Navigate to="/admin" replace />;
     }
+    // 👇 ДОБАВЬ РЕДИРЕКТ ДЛЯ КЛИЕНТА
+    if (user.role === "Клиент") {
+      return <Navigate to="/client" replace />;
+    }
     // Для руководителей перенаправляем на их дашборд
     if (
       user.role === "Руководитель группы" ||

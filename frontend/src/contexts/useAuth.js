@@ -44,11 +44,15 @@ export const AuthProvider = ({ children }) => {
       });
       
       if (res.ok) {
-        const userData = await res.json();
-        console.log("Данные пользователя при логине:", userData);
-        
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+const userData = await res.json();
+  
+  // Сохраняем дату первой регистрации
+  if (!localStorage.getItem('user_registered_date')) {
+    localStorage.setItem('user_registered_date', new Date().toISOString());
+  }
+  
+  setUser(userData);
+  localStorage.setItem('user', JSON.stringify(userData));
         
         if (!messageShownRef.current) {
           messageShownRef.current = true;

@@ -13,11 +13,15 @@ import {
   SettingOutlined,
   CheckCircleOutlined,
   BulbFilled,
+  CustomerServiceOutlined,
+  FolderOpenOutlined,
+  BarChartOutlined,  // 👈 ОБЪЕДИНИ С ОСТАЛЬНЫМИ ИМПОРТАМИ
 } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../contexts/NotificationContext';
+import { CalendarOutlined } from '@ant-design/icons';
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -41,7 +45,7 @@ const Sidebar = () => {
   const location = useLocation();
   const [avatarKey, setAvatarKey] = useState(Date.now());
   const isLeader = user?.role === "Руководитель группы" || user?.role === "Руководитель отдела";
-const { hasNewChatMessages, hasNewTasks } = useNotifications();
+  const { hasNewChatMessages, hasNewTasks } = useNotifications();
 
   useEffect(() => {
     setAvatarKey(Date.now());
@@ -73,7 +77,7 @@ const { hasNewChatMessages, hasNewTasks } = useNotifications();
     return null;
   };
 
-  // Функция для создания элемента меню с бейджем (красный кружок БЕЗ цифры)
+  // Функция для создания элемента меню с бейджем
   const getMenuItem = (key, icon, label, link, hasBadge = false) => {
     const iconWithBadge = hasBadge ? (
       <Badge dot offset={[5, -5]} size="small">
@@ -89,35 +93,51 @@ const { hasNewChatMessages, hasNewTasks } = useNotifications();
   };
 
   const getMenuItems = () => {
-    const baseItems = [
-      getMenuItem("/profile", <UserOutlined />, "Личный профиль", "/profile"),
-      getMenuItem("/chat", <MessageOutlined />, "Чаты", "/chat", hasNewChatMessages),
-getMenuItem("/tasks", <CheckCircleOutlined />, "Задачи", "/tasks"),
-      getMenuItem("/knowledge", <BookOutlined />, "База знаний", "/knowledge"),
+  // Клиент - только обращения
+  if (user?.role === 'Клиент') {
+    return [
+      getMenuItem("/client", <FolderOpenOutlined />, "Мои обращения", "/client"),
     ];
+  }
 
-    if (user?.role === 'Администратор') {
-      return [
-        ...baseItems,
-        getMenuItem("/admin", <SettingOutlined />, "Администрирование", "/admin"),
-      ];
-    }
+  // Базовые пункты для всех (кроме клиента)
+  const baseItems = [
+    getMenuItem("/profile", <UserOutlined />, "Личный профиль", "/profile"),
+    getMenuItem("/chat", <MessageOutlined />, "Чаты", "/chat", hasNewChatMessages),
+    getMenuItem("/tasks", <CheckCircleOutlined />, "Задачи", "/tasks"),
+    getMenuItem("/knowledge", <BookOutlined />, "База знаний", "/knowledge"),
+  ];
 
-    const leaderItems = [
-      getMenuItem("/group-leader", <TeamOutlined />, "Дашборд группы", "/group-leader"),
-      getMenuItem("/leaderboard", <TrophyOutlined />, "Рейтинг сотрудников", "/leaderboard"),
+  // Администратор
+  if (user?.role === 'Администратор') {
+    return [
+      ...baseItems,
+      getMenuItem("/admin", <SettingOutlined />, "Администрирование", "/admin"),
     ];
+  }
 
-    const employeeItems = [
-      getMenuItem("/dashboard", <DashboardOutlined />, "Показатели", "/dashboard"),
-    ];
+  // Пункты для руководителей
+  const leaderItems = [
+    getMenuItem("/group-leader", <TeamOutlined />, "Дашборд группы", "/group-leader"),
+    getMenuItem("/leaderboard", <TrophyOutlined />, "Рейтинг сотрудников", "/leaderboard"),
+    getMenuItem("/tickets/operator", <CustomerServiceOutlined />, "Обращения", "/tickets/operator"),
+    { key: "/reports", icon: <BarChartOutlined />, label: <Link to="/reports">Аналитика</Link> },
+  ];
 
-    if (isLeader) {
-      return [...baseItems, ...leaderItems];
-    } else {
-      return [...baseItems, ...employeeItems];
-    }
-  };
+  // Пункты для обычных сотрудников
+  const employeeItems = [
+    getMenuItem("/dashboard", <DashboardOutlined />, "Показатели", "/dashboard"),
+    getMenuItem("/tickets/operator", <CustomerServiceOutlined />, "Обращения", "/tickets/operator"),
+  ];
+
+  if (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела') {
+    return [...baseItems, ...leaderItems];
+  } else if (user?.role === 'Сотрудник') {
+    return [...baseItems, ...employeeItems];
+  }
+
+  return baseItems;
+};
 
   const menuItems = getMenuItems();
   const selectedKey = menuItems.find(item => location.pathname === item.key)?.key || location.pathname;
@@ -155,11 +175,11 @@ getMenuItem("/tasks", <CheckCircleOutlined />, "Задачи", "/tasks"),
           {user?.username}
         </div>
         <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>
-  <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
-  {user?.status === 'В отпуске' && (
-    <Tag color="orange" style={{ marginLeft: 4 }}>В отпуске</Tag>
-  )}
-</div>
+          <Tag color={getRoleColor(user?.role)}>{user?.role}</Tag>
+          {user?.status === 'В отпуске' && (
+            <Tag color="orange" style={{ marginLeft: 4 }}>В отпуске</Tag>
+          )}
+        </div>
       </div>
       
       <Menu

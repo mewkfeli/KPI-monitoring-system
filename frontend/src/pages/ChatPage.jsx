@@ -1,17 +1,20 @@
 // frontend/src/pages/ChatPage.jsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { io } from "socket.io-client"; // 👈 ДОБАВЬТЕ ЭТОТ ИМПОРТ
+import { io } from "socket.io-client";
 import {
   Layout, Avatar, Typography, Button, Card, Input, List, Space, Tag,
   Spin, Empty, message, Badge, Tooltip, Divider, Modal, Upload, Popover,
-  Progress as AntProgress, Drawer, Form, Select, Alert, Dropdown, Checkbox, Switch
+  Progress, Drawer, Form, Select, Alert, Dropdown, Checkbox, Switch, Statistic, Row, Col
 } from "antd";
 import {
   UserOutlined, TeamOutlined, LogoutOutlined, SendOutlined, MessageOutlined,
   WifiOutlined, ClockCircleOutlined, SmileOutlined, PaperClipOutlined,
   EditOutlined, DeleteOutlined, SearchOutlined, FileTextOutlined, CloseOutlined,
   CheckOutlined, ArrowLeftOutlined, PlusOutlined, UserAddOutlined, LinkOutlined,
-  CopyOutlined, SettingOutlined, PushpinOutlined, CameraOutlined, SafetyOutlined  
+  CopyOutlined, SettingOutlined, PushpinOutlined, CameraOutlined, SafetyOutlined,
+  MoreOutlined, PlusCircleOutlined, DashboardOutlined, ThunderboltOutlined,
+  GifOutlined,
+  EyeOutlined
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 import { useTheme } from "../contexts/ThemeContext";
@@ -42,7 +45,6 @@ const getRoleColor = (role) => {
   }
 };
 
-// Функция для форматирования даты в заголовок (как в Telegram)
 const formatDateHeader = (date) => {
   const msgDate = dayjs(date);
   const today = dayjs().startOf('day');
@@ -58,13 +60,12 @@ const formatDateHeader = (date) => {
   }
 };
 
-// Функция для группировки сообщений по датам
 const groupMessagesByDate = (messages) => {
   const groups = [];
   let currentDate = null;
   let currentGroup = null;
   
-  for (const msg of messages) {
+  for (const msg of messages) {  // Проходим в том порядке, который пришел с сервера
     const msgDate = dayjs(msg.created_at).startOf('day').format('YYYY-MM-DD');
     
     if (msgDate !== currentDate) {
@@ -92,7 +93,7 @@ const groupMessagesByDate = (messages) => {
 const ChatPage = () => {
   const { user, logout } = useAuth();
   const { isDark } = useTheme();
-  const { resetChatIndicator } = useNotifications(); // 👈 ИСПРАВЛЕНО: resetChatIndicator вместо resetChatCount
+  const { resetChatIndicator } = useNotifications();
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [chats, setChats] = useState([]);
@@ -129,6 +130,15 @@ const ChatPage = () => {
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [addMemberVisible, setAddMemberVisible] = useState(false);
   const [selectedNewMembers, setSelectedNewMembers] = useState([]);
+  const [hasFilter, setHasFilter] = useState(false);
+  const [actionMenuVisible, setActionMenuVisible] = useState(false);
+  
+  const [dashboardStats, setDashboardStats] = useState({
+  onlineOperators: 4,
+  avgResponseTime: "1м 15с",
+  queueMessages: 0,
+  responseStatus: "Отлично!"
+});
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -138,11 +148,9 @@ const ChatPage = () => {
   const uploadingRef = useRef(false);
   const currentChatRef = useRef(null);
   const searchUsersRef = useRef(null);
-  const [hasFilter, setHasFilter] = useState(false);
-  // Сгруппированные сообщения
-  const groupedMessages = useMemo(() => {
-    return groupMessagesByDate(messages);
-  }, [messages]);
+
+
+  const groupedMessages = useMemo(() => groupMessagesByDate(messages), [messages]);
   
   const filteredChats = useMemo(() => {
     if (!chatSearch.trim()) return chats;
@@ -153,12 +161,59 @@ const ChatPage = () => {
   useEffect(() => {
     currentChatRef.current = currentChat;
   }, [currentChat]);
-  
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+  // Добавить функцию загрузки
+const fetchDashboardStats = useCallback(async () => {
+  try {
+    const response = await fetch('http://localhost:5000/api/tickets/dashboard-stats', {
+      headers: { 'user-id': user?.employee_id }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      setDashboardStats(data);
     }
-  }, []);
+  } catch (error) {
+    console.error("Ошибка загрузки статистики:", error);
+  }
+}, [user?.employee_id]);
+// Функция для группировки сообщений от одного автора подряд
+const groupMessagesByAuthor = (messages) => {
+  const groups = [];
+  let currentGroup = null;
+  
+  for (const msg of messages) {
+    if (!currentGroup || currentGroup.sender_id !== msg.sender_id) {
+      if (currentGroup) {
+        groups.push(currentGroup);
+      }
+      currentGroup = {
+        sender_id: msg.sender_id,
+        sender_name: msg.sender_name,
+        sender_role: msg.sender_role,
+        sender_avatar_url: msg.sender_avatar_url,
+        messages: [msg]
+      };
+    } else {
+      currentGroup.messages.push(msg);
+    }
+  }
+  
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+  
+  return groups;
+};
+// Вызвать при загрузке страницы
+useEffect(() => {
+  if (user?.employee_id) {
+    fetchDashboardStats();
+  }
+}, [user?.employee_id]);
+const scrollToBottom = useCallback(() => {
+  if (messagesEndRef.current) {
+    messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }
+}, []);
 
   const scrollToMessage = useCallback((messageId) => {
     setTimeout(() => {
@@ -175,76 +230,122 @@ const ChatPage = () => {
   }, []);
   
   const loadChatsList = useCallback(async () => {
-    if (!user?.employee_id) return;
-    try {
-      const response = await fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`);
-      if (response.ok) {
-        const data = await response.json();
-        const uniqueChats = [];
-        const seen = new Set();
-        for (const chat of data) {
-          const key = `${chat.type}_${chat.id}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            uniqueChats.push(chat);
+  if (!user?.employee_id) return;
+  try {
+    const response = await fetch(`http://localhost:5000/api/chat/list?user_id=${user.employee_id}`);
+    if (response.ok) {
+      const data = await response.json();
+      const uniqueChats = [];
+      const seen = new Set();
+      
+      for (const chat of data) {
+        const key = `${chat.type}_${chat.id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          
+          // Загружаем последнее сообщение для каждого чата
+          try {
+            const historyResponse = await fetch(
+              `http://localhost:5000/api/chat/history?chat_type=${chat.type}&chat_id=${chat.id}&limit=1`
+            );
+            if (historyResponse.ok) {
+              const history = await historyResponse.json();
+              if (history.length > 0) {
+                const lastMsg = history[0];
+                chat.last_message = {
+                  text: lastMsg.message || (lastMsg.attachment_url ? '📎 Вложение' : ''),
+                  sender: lastMsg.sender_name,
+                  time: lastMsg.created_at,
+                  isMine: lastMsg.sender_id === user?.employee_id
+                };
+              } else {
+                chat.last_message = null;
+              }
+            }
+          } catch (err) {
+            chat.last_message = null;
           }
+          
+          uniqueChats.push(chat);
         }
-        const sortedChats = uniqueChats.sort((a, b) => {
-          if (a.unread_count > 0 && b.unread_count === 0) return -1;
-          if (a.unread_count === 0 && b.unread_count > 0) return 1;
-          return (a.name || '').localeCompare(b.name || '');
-        });
-        setChats(sortedChats);
       }
-    } catch (error) {
-      console.error("Ошибка загрузки чатов:", error);
+      
+      const sortedChats = uniqueChats.sort((a, b) => {
+        const timeA = a.last_message?.time ? new Date(a.last_message.time) : new Date(0);
+        const timeB = b.last_message?.time ? new Date(b.last_message.time) : new Date(0);
+        if (a.unread_count > 0 && b.unread_count === 0) return -1;
+        if (a.unread_count === 0 && b.unread_count > 0) return 1;
+        return timeB - timeA;
+      });
+      
+      console.log('📊 Загружено уникальных чатов:', sortedChats.length);
+      setChats(sortedChats);
     }
-  }, [user?.employee_id]);
+  } catch (error) {
+    console.error("Ошибка загрузки чатов:", error);
+  }
+}, [user?.employee_id]);
   
-  const loadPinnedMessages = useCallback(async (chat) => {
-    if (!chat) return;
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/chat/messages/pinned?chat_type=${chat.type}&chat_id=${chat.id}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setPinnedMessages(data);
+ // Обновление последнего сообщения в списке чатов
+const updateLastMessageInChats = useCallback((chatId, chatType, message, isSent = false) => {
+  console.log('🔄 Обновление последнего сообщения:', { chatId, chatType, message, isSent });
+  
+  setChats(prev => {
+    const updated = prev.map(chat => {
+      if (chat.id === chatId && chat.type === chatType) {
+        let text = message.message || (message.attachment_url ? '📎 Вложение' : '');
+        if (isSent && !message.message && message.attachment_url) {
+          text = '📎 Вложение';
+        }
+        
+        // Сравниваем время, чтобы не перезаписать более новое сообщение
+        const newTime = new Date(message.created_at);
+        const currentTime = chat.last_message?.time ? new Date(chat.last_message.time) : new Date(0);
+        
+        if (newTime > currentTime || isSent) {
+          return {
+            ...chat,
+            last_message: {
+              text: text,
+              sender: message.sender_name,
+              time: message.created_at,
+              isMine: isSent || message.sender_id === user?.employee_id
+            },
+            unread_count: isSent ? chat.unread_count : (chat.unread_count || 0) + 1
+          };
+        }
+        return chat;
       }
-    } catch (error) {
-      console.error('Ошибка загрузки закрепленных:', error);
-    }
-  }, []);
-  
+      return chat;
+    });
+    return [...updated];
+  });
+}, [user?.employee_id]);
   const loadMessagesForChat = useCallback(async (chat) => {
-    if (!chat) return;
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/chat/history?chat_type=${chat.type}&chat_id=${chat.id}&limit=200`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
-        if (socket && data.length > 0) {
-          const unreadMessages = data.filter(msg => 
-            msg.sender_id !== user?.employee_id && 
-            !msg.is_deleted &&
-            (!msg.read_count || msg.read_count === 0)
-          );
-          unreadMessages.forEach(msg => {
-            socket.emit("mark_read", { message_id: msg.message_id });
-          });
-          if (unreadMessages.length > 0) {
-            setTimeout(() => loadChatsList(), 500);
-          }
-        }
-        loadPinnedMessages(chat);
-        setTimeout(() => scrollToBottom(), 100);
+  if (!chat) return;
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/chat/history?chat_type=${chat.type}&chat_id=${chat.id}&limit=200`
+    );
+    if (response.ok) {
+      const data = await response.json();
+      setMessages([...data].reverse());
+      if (socket && data.length > 0) {
+        const unreadMessages = data.filter(msg => 
+          msg.sender_id !== user?.employee_id && 
+          !msg.is_deleted &&
+          (!msg.read_count || msg.read_count === 0)
+        );
+        unreadMessages.forEach(msg => {
+          socket.emit("mark_read", { message_id: msg.message_id });
+        });
       }
-    } catch (error) {
-      console.error("Ошибка загрузки сообщений:", error);
+      setTimeout(() => scrollToBottom(), 100);
     }
-  }, [user?.employee_id, socket, loadChatsList, scrollToBottom, loadPinnedMessages]);
+  } catch (error) {
+    console.error("Ошибка загрузки сообщений:", error);
+  }
+}, [user?.employee_id, socket, scrollToBottom]);
   
   const loadAllEmployees = useCallback(async () => {
     setEmployeesLoading(true);
@@ -254,7 +355,6 @@ const ChatPage = () => {
         const data = await response.json();
         setAllEmployees(data);
       } else {
-        console.error("Ошибка загрузки сотрудников:", await response.text());
         setAllEmployees([]);
       }
     } catch (error) {
@@ -291,54 +391,61 @@ const ChatPage = () => {
   };
 
   const handleDeleteMessage = (messageId) => {
-    Modal.confirm({
-      title: "Удалить сообщение?",
-      content: "Сообщение будет удалено безвозвратно.",
-      okText: "Удалить",
-      okType: "danger",
-      cancelText: "Отмена",
-      onOk: () => {
-        if (socket) {
-          socket.emit("delete_message", { message_id: messageId });
-          setMessages(prev => prev.filter(msg => msg.message_id !== messageId));
-          message.success("Сообщение удалено");
-        } else {
-          message.error("Нет подключения к серверу");
-        }
-      },
-    });
-  };
+  Modal.confirm({
+    title: "Удалить сообщение?",
+    content: "Сообщение будет удалено безвозвратно.",
+    okText: "Удалить",
+    okType: "danger",
+    cancelText: "Отмена",
+    onOk: () => {
+      if (socket) {
+        socket.emit("delete_message", { message_id: messageId });
+        setMessages(prev => prev.filter(msg => msg.message_id !== messageId));
+        message.success("Сообщение удалено");
+        
+      } else {
+        message.error("Нет подключения к серверу");
+      }
+    },
+  });
+};
 
   const handlePinMessage = (messageId, isPinned) => {
-    if (!socket) {
-      message.error("Нет подключения к серверу");
+  if (!socket) {
+    message.error("Нет подключения к серверу");
+    return;
+  }
+  
+  if (!currentChat) {
+    message.error("Чат не выбран");
+    return;
+  }
+  
+  if (currentChat.type === 'group') {
+    const isLeader = user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела';
+    if (!isLeader) {
+      message.error('Только руководитель может закреплять сообщения');
       return;
     }
-    
-    if (!currentChat) {
-      message.error("Чат не выбран");
-      return;
-    }
-    
-    if (currentChat.type === 'group') {
-      const isLeader = user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела';
-      if (!isLeader) {
-        message.error('Только руководитель может закреплять сообщения');
-        return;
-      }
-    }
-    
-    if (currentChat.type === 'custom' && currentGroupInfo && !currentGroupInfo?.can_edit) {
-      message.error('Только администратор может закреплять сообщения');
-      return;
-    }
+  }
+  
+  if (currentChat.type === 'custom' && currentGroupInfo && !currentGroupInfo?.can_edit) {
+    message.error('Только администратор может закреплять сообщения');
+    return;
+  }
 
-    socket.emit("pin_message", { 
-      message_id: messageId, 
-      chat_type: currentChat.type, 
-      chat_id: currentChat.id 
-    });
-  };
+  socket.emit("pin_message", { 
+    message_id: messageId, 
+    chat_type: currentChat.type, 
+    chat_id: currentChat.id 
+  });
+  
+  // Находим сообщение и обновляем его статус is_pinned в превью
+  const msg = messages.find(m => m.message_id === messageId);
+  if (msg) {
+    updateLastMessageInChats(currentChat.id, currentChat.type, msg, false);
+  }
+};
 
   const handleGroupAvatarUpload = async (file) => {
     const formData = new FormData();
@@ -447,7 +554,16 @@ const ChatPage = () => {
         reply_to_id: replyTo?.message_id,
         _tempId: tempId,
       });
-      
+      const optimisticLastMessage = {
+  text: messageText,
+  sender_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+  created_at: new Date().toISOString(),
+  sender_id: user.employee_id
+  
+};
+
+// Оптимистично обновляем последнее сообщение
+updateLastMessageInChats(currentChat.id, currentChat.type, optimisticLastMessage, true);
       if (currentChat.type === 'private' && currentChat.is_new) {
         setCurrentChat(prev => ({ ...prev, is_new: false }));
         setChats(prev => {
@@ -566,7 +682,8 @@ const ChatPage = () => {
           name: `${employee.first_name} ${employee.last_name}`,
           avatar: employee.avatar_url, 
           unread_count: 0,
-          is_new: data.is_new
+          is_new: data.is_new,
+          last_message: null
         };
         
         setCurrentChat(newChat);
@@ -734,15 +851,25 @@ const ChatPage = () => {
   };
 
   const handleEditMessage = async () => {
-    if (!editMessage || !editMessage.newMessage?.trim() || !socket) return;
-    
-    socket.emit("edit_message", { 
-      message_id: editMessage.id, 
-      message: editMessage.newMessage.trim() 
-    });
-    
-    setEditMessage(null);
-  };
+  if (!editMessage || !editMessage.newMessage?.trim() || !socket) return;
+  
+  socket.emit("edit_message", { 
+    message_id: editMessage.id, 
+    message: editMessage.newMessage.trim() 
+  });
+  
+  // Обновляем превью с отредактированным текстом
+  if (currentChat) {
+    updateLastMessageInChats(currentChat.id, currentChat.type, { 
+      message: editMessage.newMessage.trim(),
+      sender_name: user?.first_name + ' ' + user?.last_name,
+      created_at: new Date().toISOString(),
+      sender_id: user?.employee_id
+    }, true);
+  }
+  
+  setEditMessage(null);
+};
 
   const isImageFile = (filename) => {
     if (!filename) return false;
@@ -754,12 +881,6 @@ const ChatPage = () => {
     if (msg.attachment_type?.startsWith('image/')) return true;
     if (msg.is_image) return true;
     return isImageFile(msg.attachment_url);
-  };
-
-  // Только время для отображения под сообщением
-  const formatTimeOnly = (date) => {
-    if (!date) return "";
-    return dayjs(date).format("HH:mm");
   };
 
   const getReactionButtons = (messageId, currentReactions = {}) => (
@@ -791,7 +912,6 @@ const ChatPage = () => {
     }}
   ];
 
-  // 👈 СБРОС ИНДИКАТОРА ПРИ ОТКРЫТИИ СТРАНИЦЫ
   useEffect(() => {
     resetChatIndicator();
   }, [resetChatIndicator]);
@@ -802,15 +922,17 @@ const ChatPage = () => {
   }, [loadChatsList]);
 
   useEffect(() => {
-    if (currentChat) {
-      setCurrentGroupInfo(null);
-      loadMessagesForChat(currentChat);
-      setPinnedMessages([]);
-      if (currentChat.type !== 'private') {
-        fetchGroupInfoSilent(currentChat.id);
-      }
+  if (currentChat) {
+    setCurrentGroupInfo(null);
+    loadMessagesForChat(currentChat);
+    setPinnedMessages([]);
+    if (currentChat.type !== 'private') {
+      fetchGroupInfoSilent(currentChat.id);
     }
-  }, [currentChat?.id, currentChat?.type]);
+    // Прокручиваем вниз после загрузки сообщений
+    setTimeout(() => scrollToBottom(), 200);
+  }
+}, [currentChat?.id, currentChat?.type]);
 
   useEffect(() => {
     const openChat = sessionStorage.getItem('openChat');
@@ -818,18 +940,15 @@ const ChatPage = () => {
         try {
             const chat = JSON.parse(openChat);
             sessionStorage.removeItem('openChat');
-            // 👈 ИСПРАВЛЕНО: resetChatIndicator вместо resetChatCount
             resetChatIndicator();
             setChats(prev => {
                 const exists = prev.some(c => c.id === chat.id && c.type === chat.type);
                 if (!exists) return [chat, ...prev];
                 return prev;
             });
-            
             setTimeout(() => {
                 setCurrentChat(chat);
             }, 500);
-            
         } catch (e) {
             sessionStorage.removeItem('openChat');
         }
@@ -842,231 +961,149 @@ const ChatPage = () => {
     }
   }, [createGroupVisible, addMemberVisible, loadAllEmployees]);
 
-  // ==================== SOCKET.IO SETUP ====================
-useEffect(() => {
-  if (!user?.employee_id) return;
-  
-  const newSocket = io("http://localhost:5000", {
-    auth: { employeeId: user.employee_id },
-    transports: ['websocket', 'polling'],
-  });
-  
-  newSocket.on("connect", () => { 
-    setConnected(true); 
-    console.log("✅ Socket connected");
-  });
-  
-  newSocket.on("disconnect", () => { 
-    setConnected(false); 
-  });
-  
-  newSocket.on("new_message", (message) => {
-    if (!currentChatRef.current) return;
+  useEffect(() => {
+    if (!user?.employee_id) return;
     
-    if (message.chat_type !== currentChatRef.current.type || 
-        message.chat_id !== currentChatRef.current.id) {
-        return;
-    }
-    
-    if (message.sender_id === user?.employee_id && message._tempId) {
-        return;
-    }
-    
-    setMessages(prev => {
-        const existsById = prev.some(m => m.message_id === message.message_id);
-        if (existsById) return prev;
-        
-        const tempIndex = prev.findIndex(m => m._tempId === message._tempId);
-        
-        if (tempIndex !== -1) {
-          const newMessages = [...prev];
-          newMessages[tempIndex] = { ...message, status: 'sent', _tempId: undefined };
-          setTimeout(() => scrollToBottom(), 100);
-          return newMessages;
-        }
-        
-        setTimeout(() => scrollToBottom(), 100);
-        return [...prev, { ...message, status: 'sent', _tempId: undefined }];
+    const newSocket = io("http://localhost:5000", {
+      auth: { employeeId: user.employee_id },
+      transports: ['websocket', 'polling'],
     });
     
-    if (message.sender_id !== user?.employee_id) {
-      newSocket.emit("mark_read", { message_id: message.message_id });
-    }
+    newSocket.on("connect", () => { setConnected(true); });
+    newSocket.on("disconnect", () => { setConnected(false); });
     
-    loadChatsList();
-  });
+    newSocket.on("new_message", (message) => {
+  console.log('📨 Получено новое сообщение:', message);
   
-  // 👇 ОБРАБОТЧИК ЦЕНЗУРЫ (ТОЛЬКО ОДИН РАЗ)
-  newSocket.on("message_censored", ({ _tempId, censoredMessage }) => {
-  console.log('🔍 Сообщение отцензурено, новая версия:', censoredMessage);
+  // Всегда обновляем последнее сообщение в списке чатов, даже если это не текущий чат
+  updateLastMessageInChats(message.chat_id, message.chat_type, message, false);
   
-  setMessages(prev => prev.map(msg => {
-    if (msg._tempId === _tempId) {
-      return { 
-        ...msg, 
-        message: censoredMessage,
-        was_filtered: true,
-        status: 'sent'
-      };
-    }
-    return msg;
-  }));
-  });
+  if (!currentChatRef.current) return;
   
-  // 👇 ОБРАБОТЧИК ПОДТВЕРЖДЕНИЯ ОТПРАВКИ (ТОЛЬКО ОДИН РАЗ)
-  newSocket.on("message_sent", (message) => {
-    if (message._tempId) {
-      pendingMessagesRef.current.delete(message._tempId);
-    }
-    
-    if (currentChatRef.current && 
-        message.chat_type === currentChatRef.current.type && 
-        message.chat_id === currentChatRef.current.id) {
-      
-      setMessages(prev => {
-        return prev.map(msg => {
-          if (msg._tempId === message._tempId) {
-            return { 
-              ...msg, 
-              status: 'sent', 
-              _tempId: undefined, 
-              message_id: message.message_id,
-              message: message.message,
-              was_filtered: message.was_filtered || false
-            };
-          }
-          return msg;
-        });
-      });
-    }
-  });
+  const isCurrentChat = message.chat_type === currentChatRef.current.type && 
+                        message.chat_id === currentChatRef.current.id;
   
-  newSocket.on("read_update", ({ message_id, read_count }) => {
-    setMessages(prev => prev.map(msg =>
-      msg?.message_id === message_id ? { ...msg, read_count } : msg
-    ));
-  });
+  if (message.sender_id === user?.employee_id && message._tempId) {
+    return;
+  }
   
-  newSocket.on("message_deleted", ({ message_id, deleted }) => {
-    if (deleted) {
-      setMessages(prev => prev.filter(msg => msg.message_id !== message_id));
-      setPinnedMessages(prev => prev.filter(msg => msg.message_id !== message_id));
-      loadChatsList();
-    }
-  });
+  if (isCurrentChat) {
+    setMessages(prev => [...prev, { ...message, status: 'sent', _tempId: undefined }]);
+    setTimeout(() => scrollToBottom(), 100);
+  }
   
-newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
-  setMessages(prev => prev.map(msg => 
-    msg?.message_id === message_id 
-      ? { ...msg, message: newMsg, edited_at } 
-      : msg
-  ));
-});
-newSocket.on("message_edit_censored", ({ message_id, censoredMessage }) => {
-  console.log('🔍 Отредактированное сообщение отцензурено:', censoredMessage);
-  
-  setMessages(prev => prev.map(msg => 
-    msg?.message_id === message_id 
-      ? { ...msg, message: censoredMessage, was_filtered: true } 
-      : msg
-  ));
-  
-  message.warning('Редактируемое сообщение содержало нецензурную лексику и было отфильтровано', 2);
-});
-  newSocket.on("message_edit_blocked", ({ message_id, reason }) => {
-  message.error(`Редактирование заблокировано: ${reason}`);
-});
-  newSocket.on("reaction_update", ({ message_id, reactions }) => {
-    setMessages(prev => prev.map(msg => 
-      msg?.message_id === message_id ? { ...msg, reactions } : msg
-    ));
-  });
-  
-  newSocket.on("message_pinned", (pinnedMessage) => {
-    if (currentChatRef.current && 
-        pinnedMessage.chat_type === currentChatRef.current.type && 
-        pinnedMessage.chat_id === currentChatRef.current.id) {
-      
-      setPinnedMessages(prev => {
-        if (!prev.some(m => m.message_id === pinnedMessage.message_id)) {
-          return [pinnedMessage, ...prev];
-        }
-        return prev;
-      });
-      
-      setMessages(prev => prev.map(msg => 
-        msg.message_id === pinnedMessage.message_id 
-          ? { ...msg, is_pinned: true } 
-          : msg
-      ));
-    }
-  });
-  
-  newSocket.on("message_unpinned", ({ message_id }) => {
-    if (currentChatRef.current) {
-      setPinnedMessages(prev => prev.filter(m => m.message_id !== message_id));
-      setMessages(prev => prev.map(msg => 
-        msg.message_id === message_id 
-          ? { ...msg, is_pinned: false } 
-          : msg
-      ));
-    }
-  });
-  
-  newSocket.on("message_error", ({ error, _tempId }) => {
-    message.error(error);
-    if (_tempId) {
-      setMessages(prev => prev.filter(msg => msg._tempId !== _tempId));
-    }
-  });
-  
-  newSocket.on("new_chat_created", (newChat) => {
-    setChats(prev => {
-      if (prev.some(c => c.id === newChat.id && c.type === newChat.type)) return prev;
-      return [newChat, ...prev];
-    });
-    message.info(`Вас добавили в группу: ${newChat.name}`);
-  });
-  
-  newSocket.on("group_deleted", ({ group_id, chat_type }) => {
-    setChats(prev => prev.filter(chat => !(chat.id === group_id && chat.type === chat_type)));
-    if (currentChat?.id === group_id && currentChat?.type === chat_type) setCurrentChat(null);
-  });
-  
-  newSocket.on("chat_removed", ({ chat_id, chat_type }) => {
-    setChats(prev => prev.filter(chat => !(chat.id === chat_id && chat.type === chat_type)));
-    if (currentChat?.id === chat_id && currentChat?.type === chat_type) setCurrentChat(null);
-  });
-newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_filtered }) => {
-  setMessages(prev => prev.map(msg => 
-    msg?.message_id === message_id 
-      ? { ...msg, message: newMsg, edited_at, was_filtered: was_filtered || msg.was_filtered } 
-      : msg
-  ));
-});
-  newSocket.on("unread_count_update", () => loadChatsList());
-  newSocket.on("error", ({ message: errorMsg }) => message.error(errorMsg));
-  newSocket.on("message_warning", ({ _tempId, warning }) => {
-  message.warning(warning, 3);
-  
-  // Обновляем статус сообщения, если нужно
-  if (_tempId) {
-    setMessages(prev => prev.map(msg => 
-      msg._tempId === _tempId 
-        ? { ...msg, status: 'sent', warning_shown: true }
-        : msg
-    ));
+  if (message.sender_id !== user?.employee_id) {
+    newSocket.emit("mark_read", { message_id: message.message_id });
   }
 });
-  setSocket(newSocket);
+    
+  newSocket.on("message_sent", (message) => {
+  console.log('✅ Сообщение отправлено:', message);
   
-  return () => { 
-    newSocket.disconnect(); 
-  };
+  if (message._tempId) pendingMessagesRef.current.delete(message._tempId);
   
-}, [user?.employee_id]);
+  if (currentChatRef.current && 
+      message.chat_type === currentChatRef.current.type && 
+      message.chat_id === currentChatRef.current.id) {
+    
+    setMessages(prev => prev.map(msg => 
+      msg._tempId === message._tempId ? { 
+        ...msg, 
+        status: 'sent', 
+        _tempId: undefined, 
+        message_id: message.message_id, 
+        message: message.message, 
+        was_filtered: message.was_filtered || false 
+      } : msg
+    ));
+  }
+  
+  // Обновляем последнее сообщение в списке чатов
+  updateLastMessageInChats(message.chat_id, message.chat_type, message, true);
+  
+});
+    
+    newSocket.on("read_update", ({ message_id, read_count }) => {
+      setMessages(prev => prev.map(msg => msg?.message_id === message_id ? { ...msg, read_count } : msg));
+    });
+    
+    newSocket.on("message_deleted", ({ message_id, deleted }) => {
+      if (deleted) {
+        setMessages(prev => prev.filter(msg => msg.message_id !== message_id));
+        setPinnedMessages(prev => prev.filter(msg => msg.message_id !== message_id));
+        loadChatsList();
+      }
+    });
+    
+    newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at }) => {
+      setMessages(prev => prev.map(msg => msg?.message_id === message_id ? { ...msg, message: newMsg, edited_at } : msg));
+      loadChatsList();
+    });
+    
+    newSocket.on("message_edit_censored", ({ message_id, censoredMessage }) => {
+      setMessages(prev => prev.map(msg => msg?.message_id === message_id ? { ...msg, message: censoredMessage, was_filtered: true } : msg));
+    });
+    
+    newSocket.on("message_edit_blocked", ({ message_id, reason }) => {
+      message.error(`Редактирование заблокировано: ${reason}`);
+    });
+    
+    newSocket.on("reaction_update", ({ message_id, reactions }) => {
+      setMessages(prev => prev.map(msg => msg?.message_id === message_id ? { ...msg, reactions } : msg));
+    });
+    
+    newSocket.on("message_pinned", (pinnedMessage) => {
+      if (currentChatRef.current && pinnedMessage.chat_type === currentChatRef.current.type && pinnedMessage.chat_id === currentChatRef.current.id) {
+        setPinnedMessages(prev => prev.some(m => m.message_id === pinnedMessage.message_id) ? prev : [pinnedMessage, ...prev]);
+        setMessages(prev => prev.map(msg => msg.message_id === pinnedMessage.message_id ? { ...msg, is_pinned: true } : msg));
+      }
+    });
+    
+    newSocket.on("message_unpinned", ({ message_id }) => {
+      if (currentChatRef.current) {
+        setPinnedMessages(prev => prev.filter(m => m.message_id !== message_id));
+        setMessages(prev => prev.map(msg => msg.message_id === message_id ? { ...msg, is_pinned: false } : msg));
+      }
+    });
+    
+    newSocket.on("message_error", ({ error, _tempId }) => {
+      message.error(error);
+      if (_tempId) {
+        setMessages(prev => prev.filter(msg => msg._tempId !== _tempId));
+      }
+    });
+    
+    newSocket.on("new_chat_created", (newChat) => {
+      setChats(prev => prev.some(c => c.id === newChat.id && c.type === newChat.type) ? prev : [newChat, ...prev]);
+      message.info(`Вас добавили в группу: ${newChat.name}`);
+      loadChatsList();
+    });
+    
+    newSocket.on("group_deleted", ({ group_id, chat_type }) => {
+      setChats(prev => prev.filter(chat => !(chat.id === group_id && chat.type === chat_type)));
+      if (currentChat?.id === group_id && currentChat?.type === chat_type) setCurrentChat(null);
+      loadChatsList();
+    });
+    
+    newSocket.on("chat_removed", ({ chat_id, chat_type }) => {
+      setChats(prev => prev.filter(chat => !(chat.id === chat_id && chat.type === chat_type)));
+      if (currentChat?.id === chat_id && currentChat?.type === chat_type) setCurrentChat(null);
+      loadChatsList();
+    });
+    
+    newSocket.on("unread_count_update", () => loadChatsList());
+    newSocket.on("error", ({ message: errorMsg }) => message.error(errorMsg));
+    newSocket.on("message_warning", ({ _tempId, warning }) => {
+      message.warning(warning, 3);
+      if (_tempId) {
+        setMessages(prev => prev.map(msg => msg._tempId === _tempId ? { ...msg, status: 'sent', warning_shown: true } : msg));
+      }
+    });
+    
+    setSocket(newSocket);
+    return () => { newSocket.disconnect(); };
+  }, [user?.employee_id, updateLastMessageInChats]);
 
-  // ==================== PASTE HANDLER ====================
   useEffect(() => {
     const handlePaste = async (e) => {
       if (isPasteProcessingRef.current) return;
@@ -1091,7 +1128,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
     return () => document.removeEventListener('paste', handlePaste);
   }, [currentChat]);
 
-  // ==================== KEYBOARD SHORTCUTS ====================
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setSearchModalVisible(true); }
@@ -1104,10 +1140,7 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
 
   useEffect(() => {
     if (currentChat && socket) {
-        socket.emit("join_chat", { 
-            chat_type: currentChat.type, 
-            chat_id: currentChat.id 
-        });
+        socket.emit("join_chat", { chat_type: currentChat.type, chat_id: currentChat.id });
     }
   }, [currentChat?.id, currentChat?.type, socket]);
 
@@ -1116,7 +1149,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
     resetChatIndicator();
     if (socket) {
         const rooms = socket.rooms || new Set();
-        
         rooms.forEach(room => {
             if (room.startsWith('private_') || room.startsWith('custom_') || room.startsWith('group_')) {
                 const parts = room.split('_');
@@ -1125,11 +1157,7 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                 socket.emit("leave_chat", { chat_type: chatType, chat_id: chatId });
             }
         });
-        
-        socket.emit("join_chat", { 
-            chat_type: chat.type, 
-            chat_id: chat.id 
-        });
+        socket.emit("join_chat", { chat_type: chat.type, chat_id: chat.id });
     }
   };
   
@@ -1138,13 +1166,12 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Header style={{ background: "#fff", padding: "0 24px" }}>
+          <Header style={{ background: "var(--bg-content)", padding: "0 24px" }}>
             <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>Чат</Title>
           </Header>
-          <Content style={{ margin: "24px", padding: "24px", background: "#fff" }}>
+          <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)" }}>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
               <Spin size="large" />
-              <div style={{ marginLeft: 16 }}>Загрузка чатов...</div>
             </div>
           </Content>
         </Layout>
@@ -1165,76 +1192,89 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
             <Tooltip title="Поиск (Ctrl+K)"><Button icon={<SearchOutlined />} onClick={() => setSearchModalVisible(true)}>Поиск</Button></Tooltip>
             <NotificationBell userId={user?.employee_id} />
             <Button onClick={logout} icon={<LogoutOutlined />}>Выйти</Button>
-                    </Space>
+          </Space>
         </Header>
         
         <Layout style={{ flexDirection: "row", height: "calc(100vh - 64px)" }}>
           {/* Левая панель - список чатов */}
-          <div style={{ width: 350, minWidth: 350, flexShrink: 0, background: "var(--bg-sidebar)", borderRight: "1px solid var(--border-color)", overflowY: "auto", display: "flex", flexDirection: "column", height: "100%" }}>
-            <div style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-sidebar)", flexShrink: 0 }}>
-              <Space direction="vertical" style={{ width: "100%" }} size={12}>
+          <div style={{ 
+            width: 360, 
+            minWidth: 360, 
+            flexShrink: 0, 
+            background: isDark ? 'var(--bg-sidebar)' : '#ffffff',
+            borderRight: `1px solid ${isDark ? 'var(--border-color)' : '#f0f0f0'}`,
+            overflowY: "auto", 
+            display: "flex", 
+            flexDirection: "column"
+          }}>
+            {/* Поиск с кнопкой действий */}
+            <div style={{ padding: "16px", borderBottom: `1px solid ${isDark ? 'var(--border-color)' : '#f0f0f0'}`, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <Input 
                   placeholder="Поиск чатов..." 
-                  prefix={<SearchOutlined />} 
+                  prefix={<SearchOutlined style={{ color: '#999' }} />} 
                   value={chatSearch} 
                   onChange={(e) => setChatSearch(e.target.value)} 
                   allowClear 
                   style={{ 
-                    backgroundColor: "var(--input-bg)", 
-                    color: "var(--text-primary)",
-                    borderColor: "var(--border-color)"
+                    flex: 1,
+                    backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5',
+                    borderColor: isDark ? '#2d2d2d' : '#e8e8e8',
+                    borderRadius: 12
                   }}
                 />
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)} style={{ flex: 1 }}>
-                    Создать группу
-                  </Button>
+                <Dropdown 
+                  menu={{
+                    items: [
+                      { key: 'create', icon: <PlusOutlined />, label: 'Создать группу', onClick: () => setCreateGroupVisible(true) },
+                      { key: 'join', icon: <UserAddOutlined />, label: 'Присоединиться', onClick: () => setJoinCodeVisible(true) }
+                    ]
+                  }}
+                  trigger={['click']}
+                  placement="bottomRight"
+                >
                   <Button 
-                    icon={<UserAddOutlined />} 
-                    onClick={() => setJoinCodeVisible(true)} 
-                    style={{ flex: 1, backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}
-                  >
-                    Присоединиться
-                  </Button>
-                </div>
-              </Space>
+                    icon={<PlusCircleOutlined />} 
+                    style={{ 
+                      borderRadius: 12,
+                      backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5',
+                      borderColor: isDark ? '#2d2d2d' : '#e8e8e8'
+                    }}
+                  />
+                </Dropdown>
+              </div>
             </div>
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              <List 
-                dataSource={filteredChats} 
-                renderItem={(chat) => (
+            
+            {/* Список чатов */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
+              {filteredChats.map((chat) => {
+                  console.log('🎨 Рендер чата:', chat.id, chat.name, chat.last_message);
+
+                const isActive = currentChat?.id === chat.id && currentChat?.type === chat.type;
+                
+                return (
                   <div 
+                    key={`${chat.type}_${chat.id}`}
                     onClick={() => handleSelectChat(chat)}
                     style={{ 
-                      padding: "12px 16px", 
-                      cursor: "pointer", 
-                      background: currentChat?.id === chat.id && currentChat?.type === chat.type ? "var(--menu-active-bg)" : "transparent", 
-                      borderBottom: "1px solid var(--border-color)", 
-                      transition: "background 0.2s" 
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      background: isActive ? (isDark ? 'rgba(255,255,255,0.05)' : '#f0f7ff') : 'transparent',
+                      borderRadius: 12,
+                      marginBottom: 4,
+                      transition: "all 0.2s"
                     }}
                     onMouseEnter={(e) => { 
-                      if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) 
-                        e.currentTarget.style.background = "var(--hover-bg)"; 
+                      if (!isActive) e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.03)' : '#fafafa';
                     }}
                     onMouseLeave={(e) => { 
-                      if (currentChat?.id !== chat.id || currentChat?.type !== chat.type) 
-                        e.currentTarget.style.background = "transparent"; 
+                      if (!isActive) e.currentTarget.style.background = 'transparent';
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (chat.type === 'private') {
-                            navigate(`/employee/${chat.id}`);
-                          }
-                        }}
-                        style={{ cursor: chat.type === 'private' ? 'pointer' : 'default' }}
-                      >
-                        <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="red">
-                          {renderChatAvatar(chat)}
-                        </Badge>
-                      </span>
+                      <Badge dot={chat.unread_count > 0} offset={[-5, 5]} color="#ff4d4f">
+                        {renderChatAvatar(chat)}
+                      </Badge>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                           <Text strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>
@@ -1244,19 +1284,28 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                             <Badge count={chat.unread_count} size="small" style={{ backgroundColor: "#ff4d4f", flexShrink: 0 }} />
                           )}
                         </div>
-                        <Text type="secondary" style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                          {chat.type === "group" ? "🏢 Рабочая группа" : chat.type === "custom" ? "👥 Группа" : "💬 Личный чат"}
-                        </Text>
+                        
+                        {/* Последнее сообщение */}
+                        {chat.last_message ? (
+                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {chat.last_message.isMine && <span style={{ color: '#1890ff' }}>Вы: </span>}
+                            {chat.last_message.text || '📎 Вложение'}
+                          </Text>
+                        ) : (
+                          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 2 }}>
+                            Нет сообщений
+                          </Text>
+                        )}
                       </div>
                     </div>
                   </div>
-                )} 
-              />
+                );
+              })}
             </div>
           </div>
           
           {/* Правая панель - область чата */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "var(--bg-content)", height: "100%", overflow: "hidden" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "var(--bg-content)", overflow: "hidden" }}>
             {currentChat ? (
               <>
                 {/* Верхняя панель чата */}
@@ -1329,17 +1378,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                             {msg.message?.substring(0, 100)}
                           </Text>
                         </Space>
-                        {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
-                          (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
-                          <Button 
-                            size="small" 
-                            type="text" 
-                            icon={<PushpinOutlined style={{ color: '#faad14' }} />}
-                            onClick={(e) => { e.stopPropagation(); handlePinMessage(msg.message_id, true); }}
-                            style={{ flexShrink: 0 }} 
-                            title="Открепить" 
-                          />
-                        )}
                       </div>
                     ))}
                   </div>
@@ -1347,319 +1385,267 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                 
                 {/* Сообщения с группировкой по датам */}
                 <div 
-                  ref={messagesContainerRef} 
-                  style={{ 
-                    flex: 1, 
-                    overflowY: "auto", 
-                    padding: "24px", 
-                    background: "var(--bg-secondary)", 
-                    display: "flex", 
-                    flexDirection: "column", 
-                    minHeight: 0 
-                  }}
-                >
-                  {groupedMessages.length === 0 ? (
-                    <Empty description="Нет сообщений. Напишите что-нибудь!" style={{ marginTop: 100 }} />
-                  ) : (
-                    groupedMessages.map((group, groupIdx) => (
-                      <div key={group.date} style={{ marginBottom: groupIdx < groupedMessages.length - 1 ? 24 : 0 }}>
-                        {/* Заголовок даты */}
-                        <div style={{ textAlign: "center", marginBottom: 16 }}>
-                          <Tag style={{ 
-                            backgroundColor: "var(--hover-bg)", 
-                            border: "none", 
-                            borderRadius: 16, 
-                            padding: "4px 12px",
-                            color: "var(--text-secondary)",
-                            fontSize: 12
-                          }}>
-                            {group.dateLabel}
-                          </Tag>
+  ref={messagesContainerRef} 
+  style={{ 
+    flex: 1, 
+    overflowY: "auto", 
+    padding: "24px 24px 24px 24px", 
+    background: "var(--bg-secondary)", 
+    display: "flex", 
+    flexDirection: "column", 
+    minHeight: 0 
+  }}
+>
+  {groupedMessages.length === 0 ? (
+    <Empty description="Нет сообщений. Напишите что-нибудь!" style={{ marginTop: 100 }} />
+  ) : (
+    groupedMessages.map((group, groupIdx) => (
+      <div key={group.date} style={{ marginBottom: groupIdx < groupedMessages.length - 1 ? 24 : 0 }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <Tag style={{ 
+            backgroundColor: "var(--hover-bg)", 
+            border: "none", 
+            borderRadius: 16, 
+            padding: "4px 12px",
+            color: "var(--text-secondary)",
+            fontSize: 12
+          }}>
+            {group.dateLabel}
+          </Tag>
+        </div>
+        
+        {/* Группируем сообщения по автору внутри дня */}
+        {groupMessagesByAuthor(group.messages).map((authorGroup, authorIdx) => {
+          const isMine = authorGroup.sender_id === user?.employee_id;
+          const isFirstInGroup = authorIdx === 0;
+          const isLastInGroup = authorIdx === groupMessagesByAuthor(group.messages).length - 1;
+          
+          return (
+            <div key={authorIdx} style={{ marginBottom: authorIdx < group.messages.length - 1 ? 4 : 16 }}>
+              {authorGroup.messages.map((msg, msgIdx) => {
+                const isFirst = msgIdx === 0;
+                const isLast = msgIdx === authorGroup.messages.length - 1;
+                const isImage = isMessageImage(msg);
+                const imageUrl = msg.attachment_url ? `http://localhost:5000${msg.attachment_url}` : null;
+                const repliedMsg = msg.reply_to_id ? messages.find(m => m.message_id === msg.reply_to_id) : null;
+                
+                // Определяем скругления в зависимости от позиции сообщения
+                let borderRadius = '16px';
+                if (isMine) {
+                  if (isFirst && isLast) borderRadius = '16px';
+                  else if (isFirst) borderRadius = '16px 16px 4px 16px';
+                  else if (isLast) borderRadius = '16px 4px 16px 16px';
+                  else borderRadius = '16px 4px 4px 16px';
+                } else {
+                  if (isFirst && isLast) borderRadius = '16px';
+                  else if (isFirst) borderRadius = '16px 16px 16px 4px';
+                  else if (isLast) borderRadius = '4px 16px 16px 16px';
+                  else borderRadius = '4px 16px 16px 4px';
+                }
+                
+                return (
+                  <div 
+                    key={msg.message_id} 
+                    id={`message-${msg.message_id}`}
+                    className="message-wrapper"
+                    style={{ 
+                      display: "flex", 
+                      justifyContent: isMine ? "flex-end" : "flex-start", 
+                      marginBottom: isLast ? 8 : 2,
+                      position: "relative"
+                    }}
+                  >
+                    <div style={{ 
+                      maxWidth: "70%", 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      alignItems: isMine ? "flex-end" : "flex-start",
+                      position: "relative"
+                    }}>
+                      {/* Аватар и имя - только для первого сообщения в группе от автора */}
+                      {!isMine && isFirst && (
+                        <div style={{ marginBottom: 4, marginLeft: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Avatar 
+                            size={28} 
+                            src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} 
+                            style={{ 
+                              backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => navigate(`/employee/${msg.sender_id}`)}
+                          >
+                            {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
+                          </Avatar>
+                          <div>
+                            <Text strong style={{ fontSize: 13, color: "var(--text-primary)" }}>
+                              {msg.sender_name}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+                              {dayjs(msg.created_at).format("HH:mm")}
+                            </Text>
+                          </div>
                         </div>
-                        
-                        {/* Сообщения за эту дату */}
-                        {group.messages.map((msg) => {
-                          const isMine = msg.sender_id === user?.employee_id;
-                          const isImage = isMessageImage(msg);
-                          const imageUrl = msg.attachment_url ? `http://localhost:5000${msg.attachment_url}` : null;
-                          const repliedMsg = msg.reply_to_id ? messages.find(m => m.message_id === msg.reply_to_id) : null;
-                          
-                          return (
-                            <div 
-                              key={msg.message_id} 
-                              id={`message-${msg.message_id}`}
-                              style={{ 
-                                display: "flex", 
-                                justifyContent: isMine ? "flex-end" : "flex-start", 
-                                marginBottom: 8,
-                                transition: 'background-color 0.3s',
-                                backgroundColor: replyTo?.message_id === msg.message_id ? "rgba(24, 144, 255, 0.1)" : "transparent",
-                                borderRadius: 12,
-                                padding: "4px 0",
-                                margin: replyTo?.message_id === msg.message_id ? "0 -8px 8px -8px" : "0",
-                              }}
-                              onMouseEnter={() => { 
-                                if (socket && !isMine && !msg.is_deleted) 
-                                  socket.emit("mark_read", { message_id: msg.message_id }); 
-                              }}
-                            >
-                              <div style={{ 
-                                maxWidth: "70%", 
-                                display: "flex", 
-                                flexDirection: "column", 
-                                alignItems: isMine ? "flex-end" : "flex-start" 
-                              }}>
-                                {!isMine && (
-                                  <div style={{ marginBottom: 4, fontSize: 12, marginLeft: 12 }}>
-                                    <Space size={4}>
-                                      <Avatar 
-                                        size="small" 
-                                        src={msg.sender_avatar_url ? `http://localhost:5000${msg.sender_avatar_url}` : null} 
-                                        style={{ 
-                                          backgroundColor: !msg.sender_avatar_url ? "#1890ff" : "transparent",
-                                          cursor: 'pointer'
-                                        }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigate(`/employee/${msg.sender_id}`);
-                                        }}
-                                      >
-                                        {!msg.sender_avatar_url && (msg.sender_name?.[0]?.toUpperCase() || "U")}
-                                      </Avatar>
-                                      <Text 
-                                        strong 
-                                        style={{ fontSize: 12, cursor: 'pointer', color: "var(--text-primary)" }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigate(`/employee/${msg.sender_id}`);
-                                        }}
-                                      >
-                                        {msg.sender_name}
-                                      </Text>
-                                    </Space>
-                                  </div>
-                                )}
-                                
-                                {/* Блок сообщения */}
-                                <div
-                                  style={{
-                                    position: "relative",
-                                    padding: "8px 12px 6px 12px",
-                                    borderRadius: 16,
-                                    maxWidth: "100%",
-                                    wordBreak: "break-word",
-                                    backgroundColor: isMine ? (isDark ? "#3a6b8c" : "#2b527c") : (isDark ? "#3d3d3d" : "#f5f5f5"),
-                                    color: isMine ? "#ffffff" : "var(--text-primary)",
-                                    boxShadow: !isMine ? "0 1px 2px rgba(0, 0, 0, 0.1)" : "none",
-                                    border: isMine ? (msg.is_pinned ? "1px solid #ffe58f" : "none") : (isDark ? "1px solid #4a4a4a" : (msg.is_pinned ? "1px solid #ffe58f" : "none")),
-                                  }}
-                                >
-                                  {/* Цитата исходного сообщения */}
-                                  {repliedMsg && !repliedMsg.is_deleted && (
-                                    <div 
-                                      style={{ 
-                                        marginBottom: 8,
-                                        paddingLeft: 10,
-                                        borderLeft: `3px solid ${isMine ? "#ffffff80" : "#e0e0e0"}`,
-                                        cursor: "pointer"
-                                      }}
-                                      onClick={() => {
-                                        const element = document.getElementById(`message-${repliedMsg.message_id}`);
-                                        if (element) {
-                                          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                          element.style.transition = 'background-color 0.3s';
-                                          element.style.backgroundColor = 'rgba(24, 144, 255, 0.15)';
-                                          setTimeout(() => {
-                                            element.style.backgroundColor = '';
-                                          }, 2000);
-                                        }
-                                      }}
-                                    >
-                                      <div style={{ 
-                                        fontSize: 12, 
-                                        fontWeight: 500,
-                                        color: isMine ? "rgba(255,255,255,0.8)" : "var(--text-secondary)",
-                                        marginBottom: 2
-                                      }}>
-                                        {repliedMsg.sender_name}
-                                      </div>
-                                      <div style={{ 
-                                        fontSize: 12, 
-                                        color: isMine ? "rgba(255,255,255,0.6)" : "var(--text-secondary)",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap"
-                                      }}>
-                                        {repliedMsg.message?.length > 80 ? repliedMsg.message.substring(0, 80) + "..." : repliedMsg.message || "📎 Медиа"}
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Изображение или текст */}
-                                  {isImage && imageUrl ? (
-                                    <div>
-                                      <img 
-                                        src={imageUrl} 
-                                        alt="Изображение" 
-                                        style={{ 
-                                          maxWidth: "100%", 
-                                          maxHeight: 300, 
-                                          borderRadius: 12, 
-                                          cursor: "pointer",
-                                          display: "block"
-                                        }} 
-                                        onClick={() => setPreviewImage(imageUrl)} 
-                                      />
-                                      {msg.message && msg.message.trim() !== "" && (
-                                        <div style={{ marginTop: 8, fontSize: 13, paddingRight: 60, color: isMine ? "#ffffff" : "var(--text-primary)" }}>
-                                          {msg.message}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <Text style={{ 
-                                      color: isMine ? "#ffffff" : "var(--text-primary)", 
-                                      fontSize: 14, 
-                                      whiteSpace: "pre-wrap",
-                                      margin: 0,
-                                      lineHeight: 1.4,
-                                      paddingRight: 45
-                                    }}>
-                                      {msg.is_pinned && <PushpinOutlined style={{ marginRight: 4 }} />}
-                                      {msg.message}
-                                      {msg.was_filtered && (
-    <Tooltip title="Сообщение было автоматически отфильтровано от нецензурной лексики">
-      <span style={{ fontSize: 10, marginLeft: 8, color: '#faad14' }}>
-        🛡️
-      </span>
+                      )}
+                      
+                      {/* Для своих сообщений - время справа от блока */}
+                      {isMine && isFirst && (
+                        <div style={{ marginBottom: 4, marginRight: 8 }}>
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            {dayjs(msg.created_at).format("HH:mm")}
+                          </Text>
+                        </div>
+                      )}
+                      
+                      {/* Блок сообщения с цитатой внутри одного баббла */}
+{/* Блок сообщения с цитатой внутри одного баббла */}
+<div 
+  className={`message-bubble-container ${isMine ? 'message-mine' : 'message-other'}`}
+  style={{ position: 'relative', maxWidth: "70%", display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}
+  onMouseEnter={(e) => {
+    const actions = e.currentTarget.querySelector('.message-actions');
+    if (actions) actions.style.opacity = '1';
+  }}
+  onMouseLeave={(e) => {
+    const actions = e.currentTarget.querySelector('.message-actions');
+    if (actions) actions.style.opacity = '0';
+  }}
+>
+  {/* Кнопки действий */}
+  <div className="message-actions">
+    <Tooltip title="Ответить">
+      <Button size="small" type="text" icon={<ArrowLeftOutlined style={{ transform: "rotate(180deg)" }} />} onClick={() => { setReplyTo(msg); setTimeout(() => inputRef.current?.focus(), 200); }} />
     </Tooltip>
+    {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
+      (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
+      <Tooltip title={msg.is_pinned ? "Открепить" : "Закрепить"}>
+        <Button size="small" type="text" icon={<PushpinOutlined style={{ color: msg.is_pinned ? '#faad14' : undefined }} />} onClick={() => handlePinMessage(msg.message_id, msg.is_pinned)} />
+      </Tooltip>
+    )}
+    {isMine && !msg.is_deleted && (
+      <>
+        <Tooltip title="Редактировать">
+          <Button size="small" type="text" icon={<EditOutlined />} onClick={() => setEditMessage({ id: msg.message_id, message: msg.message, newMessage: msg.message })} />
+        </Tooltip>
+        <Tooltip title="Удалить">
+          <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteMessage(msg.message_id)} />
+        </Tooltip>
+      </>
+    )}
+  </div>
+
+  {/* Основной баббл */}
+  <div className={`message-bubble ${isMine ? 'message-bubble-mine' : 'message-bubble-other'}`}>
+    {/* Цитата (если есть) */}
+    {repliedMsg && !repliedMsg.is_deleted && (
+      <div 
+        className="message-quote"
+        onClick={() => {
+          const element = document.getElementById(`message-${repliedMsg.message_id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.style.transition = 'background-color 0.3s';
+            element.style.backgroundColor = 'rgba(24, 144, 255, 0.15)';
+            setTimeout(() => {
+              element.style.backgroundColor = '';
+            }, 2000);
+          }
+        }}
+      >
+        <div className="message-quote-author">
+          {repliedMsg.sender_name}
+        </div>
+        <div className="message-quote-text">
+          {repliedMsg.is_deleted ? "⚠️ Сообщение удалено" : (
+            repliedMsg.attachment_url && !repliedMsg.message ? (
+              repliedMsg.attachment_type?.startsWith('image/') ? "📷 Фото" :
+              repliedMsg.attachment_type?.startsWith('video/') ? "🎥 Видео" :
+              repliedMsg.attachment_type?.startsWith('audio/') ? "🎵 Аудио" : "📎 Файл"
+            ) : (
+              repliedMsg.message?.length > 100 ? repliedMsg.message.substring(0, 100) + "..." : repliedMsg.message || "📎 Медиа"
+            )
+          )}
+        </div>
+      </div>
+    )}
+    
+    {/* Основной текст сообщения */}
+    <div className="message-text">
+      {msg.is_pinned && <PushpinOutlined style={{ marginRight: 6, fontSize: 12 }} />}
+      {isImage && imageUrl ? (
+        <div>
+          <img 
+            src={imageUrl} 
+            alt="Изображение" 
+            style={{ 
+              maxWidth: "100%", 
+              maxHeight: 300, 
+              borderRadius: 12, 
+              cursor: "pointer",
+              display: "block"
+            }} 
+            onClick={() => setPreviewImage(imageUrl)} 
+          />
+          {msg.message && msg.message.trim() !== "" && (
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              {msg.message}
+            </div>
+          )}
+        </div>
+      ) : (
+        <span>
+          {msg.message}
+          {msg.was_filtered && (
+            <Tooltip title="Сообщение было автоматически отфильтровано от нецензурной лексики">
+              <span style={{ fontSize: 10, marginLeft: 8, color: '#faad14' }}>🛡️</span>
+            </Tooltip>
+          )}
+        </span>
+      )}
+    </div>
+  </div>
+  
+  {/* Реакции под сообщением */}
+  {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+    <div className="message-reactions">
+      {Object.entries(msg.reactions).map(([emoji, count]) => (
+        <Tag key={emoji} style={{ margin: 0, cursor: "pointer", borderRadius: 12, fontSize: 11, padding: "0 6px", backgroundColor: "var(--hover-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }} onClick={() => handleAddReaction(msg.message_id, emoji)}>
+          {emoji} {count}
+        </Tag>
+      ))}
+    </div>
   )}
-                                    </Text>
-                                  )}
-                                  
-                                  {/* Время */}
-                                  <div 
-                                    style={{ 
-                                      position: "absolute",
-                                      bottom: 4,
-                                      right: 6,
-                                      fontSize: 11,
-                                      color: isMine ? "rgba(255, 255, 255, 0.7)" : "var(--text-secondary)",
-                                      lineHeight: 1.2,
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 4
-                                    }}
-                                  >
-                                    <span>{formatTimeOnly(msg.created_at)}</span>
-                                    {msg.edited_at && (
-                                      <Tooltip title={`Отредактировано ${dayjs(msg.edited_at).format("DD.MM.YY HH:mm")}`}>
-                                        <span style={{ fontSize: 10 }}>ред.</span>
-                                      </Tooltip>
-                                    )}
-                                    {isMine && msg.read_count > 0 && (
-                                      <Tooltip title={`Прочитано ${msg.read_count} участниками`}>
-                                        <CheckOutlined style={{ fontSize: 10 }} />
-                                      </Tooltip>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                {/* Реакции и действия */}
-                                <div style={{ marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                  {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                                    <div style={{ display: "flex", gap: 4 }}>
-                                      {Object.entries(msg.reactions).map(([emoji, count]) => (
-                                        <Tag 
-                                          key={emoji} 
-                                          style={{ 
-                                            margin: 0, 
-                                            cursor: "pointer", 
-                                            borderRadius: 12,
-                                            fontSize: 12,
-                                            padding: "0 6px",
-                                            backgroundColor: "var(--hover-bg)",
-                                            borderColor: "var(--border-color)",
-                                            color: "var(--text-primary)"
-                                          }} 
-                                          onClick={() => handleAddReaction(msg.message_id, emoji)}
-                                        >
-                                          {emoji} {count}
-                                        </Tag>
-                                      ))}
-                                    </div>
-                                  )}
-                                  
-                                  <Space size={4}>
-                                    <Popover content={getReactionButtons(msg.message_id, msg.reactions)} trigger="click" placement="top">
-                                      <Button size="small" type="text" icon={<SmileOutlined />} style={{ fontSize: 12, color: "var(--text-secondary)" }} />
-                                    </Popover>
-                                    <Tooltip title="Ответить">
-                                      <Button 
-                                        size="small" 
-                                        type="text" 
-                                        icon={<ArrowLeftOutlined style={{ transform: "rotate(180deg)" }} />} 
-                                        onClick={() => {
-                                          setReplyTo(msg);
-                                          setTimeout(() => {
-                                            const element = document.getElementById(`message-${msg.message_id}`);
-                                            if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                          }, 100);
-                                          setTimeout(() => inputRef.current?.focus(), 200);
-                                        }}
-                                        style={{ color: "var(--text-secondary)" }}
-                                      />
-                                    </Tooltip>
-                                    {((currentChat?.type === 'group' && (user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела')) ||
-                                      (currentChat?.type === 'custom' && (!currentGroupInfo || currentGroupInfo?.can_edit))) && (
-                                      <Tooltip title={msg.is_pinned ? "Открепить" : "Закрепить"}>
-                                        <Button 
-                                          size="small" 
-                                          type="text" 
-                                          icon={<PushpinOutlined style={{ color: msg.is_pinned ? '#faad14' : undefined }} />} 
-                                          onClick={() => handlePinMessage(msg.message_id, msg.is_pinned)} 
-                                          style={{ fontSize: 12, color: "var(--text-secondary)" }}
-                                        />
-                                      </Tooltip>
-                                    )}
-                                    {isMine && !msg.is_deleted && (
-                                      <>
-                                        <Tooltip title="Редактировать">
-                                          <Button 
-                                            size="small" 
-                                            type="text" 
-                                            icon={<EditOutlined />} 
-                                            onClick={() => setEditMessage({ 
-                                              id: msg.message_id, 
-                                              message: msg.message,
-                                              newMessage: msg.message 
-                                            })} 
-                                            style={{ fontSize: 12, color: "var(--text-secondary)" }}
-                                          />
-                                        </Tooltip>
-                                        <Tooltip title="Удалить">
-                                          <Button 
-                                            size="small" 
-                                            type="text" 
-                                            danger 
-                                            icon={<DeleteOutlined />} 
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.message_id); }} 
-                                            style={{ fontSize: 12 }}
-                                          />
-                                        </Tooltip>
-                                      </>
-                                    )}
-                                  </Space>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
+  
+  {/* Панель реакций (при наведении) */}
+  <div className="reaction-panel">
+    {REACTIONS.map(emoji => (
+      <Button key={emoji} size="small" type="text" onClick={() => handleAddReaction(msg.message_id, emoji)} style={{ padding: '0 4px', fontSize: 14 }}>
+        {emoji}
+      </Button>
+    ))}
+  </div>
+</div>
+                      
+                      {/* Для своих сообщений - время под блоком (если не первое) */}
+                      {isMine && !isFirst && (
+                        <div style={{ marginTop: 2, marginRight: 8 }}>
+                          <Text type="secondary" style={{ fontSize: 10 }}>
+                            {dayjs(msg.created_at).format("HH:mm")}
+                            {msg.edited_at && <span style={{ marginLeft: 4 }}>(ред.)</span>}
+                          </Text>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    ))
+  )}
+  <div ref={messagesEndRef} />
+</div>
                 
                 {/* Индикатор печати */}
                 {typingUsers.size > 0 && (
@@ -1686,7 +1672,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                   background: "var(--bg-sidebar)", 
                   flexShrink: 0 
                 }}>
-                  {/* Ответ на сообщение */}
                   {replyTo && (
                     <div style={{ 
                       background: "var(--bg-secondary)",
@@ -1708,7 +1693,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                           borderRadius: 2,
                           flexShrink: 0
                         }} />
-                        
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ 
                             fontSize: 13, 
@@ -1734,7 +1718,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                             )}
                           </div>
                         </div>
-                        
                         <Button 
                           type="text" 
                           icon={<CloseOutlined />} 
@@ -1746,7 +1729,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                     </div>
                   )}
                   
-                  {/* Редактирование сообщения */}
                   {editMessage && (
                     <div style={{ 
                       background: "var(--bg-secondary)", 
@@ -1775,14 +1757,12 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                     </div>
                   )}
                   
-                  {/* Прогресс загрузки файла */}
                   {uploading && uploadProgress !== null && (
                     <div style={{ marginBottom: 8 }}>
-                      <AntProgress percent={uploadProgress} status="active" size="small" />
+                      <Progress percent={uploadProgress} status="active" size="small" />
                     </div>
                   )}
                   
-                  {/* Поле ввода и кнопки */}
                   <div style={{ display: "flex", gap: 8 }}>
                     <Upload 
                       beforeUpload={(file) => uploadFile(file)} 
@@ -1851,47 +1831,41 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
                 </div>
               </>
             ) : (
-              // Пустое состояние - чат не выбран
+              // Мини-дашборд дня вместо пустой заглушки
               <div style={{ 
                 display: "flex", 
                 justifyContent: "center", 
                 alignItems: "center", 
                 height: "100%", 
                 flexDirection: "column", 
-                background: "var(--bg-content)" 
+                padding: "48px",
+                textAlign: "center"
               }}>
-                <MessageOutlined style={{ fontSize: 64, color: "var(--text-secondary)", marginBottom: 16 }} />
-                <Title level={4} type="secondary" style={{ color: "var(--text-secondary)" }}>
-                  Выберите чат
+                <div style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 20,
+                  background: isDark ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 24
+                }}>
+                  <UserOutlined style={{ fontSize: 32, color: '#1890ff' }} />
+                </div>
+                <Title level={3} style={{ marginBottom: 8, fontWeight: 500 }}>
+                  Привет, {user?.first_name || 'Гарри'}!
                 </Title>
-                <Text type="secondary" style={{ color: "var(--text-secondary)" }}>
-                  Начните диалог или создайте новую группу
+                <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 32 }}>
+                  Чем займёмся сегодня?
                 </Text>
-                <Space style={{ marginTop: 24 }}>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateGroupVisible(true)}>
-                    Создать группу
-                  </Button>
-                  <Button 
-                    icon={<UserAddOutlined />} 
-                    onClick={() => setJoinCodeVisible(true)} 
-                    style={{ 
-                      backgroundColor: "var(--input-bg)", 
-                      borderColor: "var(--border-color)", 
-                      color: "var(--text-primary)" 
-                    }}
-                  >
-                    Присоединиться по коду
-                  </Button>
-                </Space>
               </div>
             )}
           </div>
         </Layout>
       </Layout>
 
-      {/* ==================== МОДАЛЬНЫЕ ОКНА ==================== */}
-      
-      {/* Модальное окно поиска сотрудников */}
+      {/* Модальные окна - оставляем без изменений */}
       <Modal 
         title={<Space><SearchOutlined /><span>Поиск сотрудников</span></Space>} 
         open={searchModalVisible} 
@@ -1951,7 +1925,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
         </div>
       </Modal>
 
-      {/* Модальное окно создания группы */}
       <Modal 
         title="Создать новую группу" 
         open={createGroupVisible} 
@@ -1977,10 +1950,7 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
               showCount 
             />
           </Form.Item>
-          <Form.Item 
-            label="Участники" 
-            help="Вы можете добавить участников сейчас или пригласить их позже по коду"
-          >
+          <Form.Item label="Участники" help="Вы можете добавить участников сейчас или пригласить их позже по коду">
             <Select 
               mode="multiple" 
               placeholder="Выберите участников" 
@@ -1994,11 +1964,7 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
               style={{ width: '100%' }}
             >
               {allEmployees.map(emp => (
-                <Option 
-                  key={emp.employee_id} 
-                  value={emp.employee_id} 
-                  label={`${emp.last_name} ${emp.first_name}`}
-                >
+                <Option key={emp.employee_id} value={emp.employee_id} label={`${emp.last_name} ${emp.first_name}`}>
                   <Space>
                     <Avatar size="small" icon={<UserOutlined />} />
                     <span>{emp.last_name} {emp.first_name}</span>
@@ -2012,26 +1978,14 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
             </Select>
           </Form.Item>
           <Form.Item label="Фильтрация сообщений">
-      <Checkbox 
-        checked={hasFilter} 
-        onChange={(e) => setHasFilter(e.target.checked)}
-      >
-        Автоматическая фильтрация спама и нецензурной лексики
-      </Checkbox>
-      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-        Сообщения с нецензурной лексикой будут заменены на ***, спам-сообщения будут блокироваться
-      </Text>
-    </Form.Item>
-          <Alert 
-            message="Вы будете администратором группы" 
-            type="info" 
-            showIcon 
-            style={{ marginTop: 16, padding: "8px 12px", fontSize: 12 }} 
-          />
+            <Checkbox checked={hasFilter} onChange={(e) => setHasFilter(e.target.checked)}>
+              Автоматическая фильтрация спама и нецензурной лексики
+            </Checkbox>
+          </Form.Item>
+          <Alert message="Вы будете администратором группы" type="info" showIcon style={{ marginTop: 16 }} />
         </Form>
       </Modal>
 
-      {/* Модальное окно присоединения по коду */}
       <Modal 
         title="Присоединиться к чату" 
         open={joinCodeVisible} 
@@ -2053,7 +2007,6 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
         <Alert message="Введите код приглашения" type="info" showIcon />
       </Modal>
 
-      {/* Модальное окно с кодом приглашения */}
       <Modal 
         title={<Space><LinkOutlined /><span>Код для приглашения</span></Space>} 
         open={inviteCodeModalVisible} 
@@ -2062,145 +2015,53 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
           setInviteCode(""); 
         }}
         footer={[
-          <Button 
-            key="copy" 
-            type="primary" 
-            icon={<CopyOutlined />} 
-            onClick={() => { 
-              navigator.clipboard.writeText(inviteCode); 
-              message.success("Код скопирован!"); 
-            }}
-          >
-            Скопировать
-          </Button>,
+          <Button key="copy" type="primary" icon={<CopyOutlined />} onClick={() => { navigator.clipboard.writeText(inviteCode); message.success("Код скопирован!"); }}>Скопировать</Button>,
           <Button key="close" onClick={() => setInviteCodeModalVisible(false)}>Закрыть</Button>
         ]} 
         width={500}
       >
-        <div style={{ 
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", 
-          padding: "20px", 
-          borderRadius: 12, 
-          textAlign: "center", 
-          marginBottom: 16 
-        }}>
-          <Text style={{ 
-            fontFamily: "monospace", 
-            fontSize: 24, 
-            fontWeight: "bold", 
-            color: "white", 
-            letterSpacing: 2, 
-            wordBreak: "break-all" 
-          }}>
+        <div style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", padding: "20px", borderRadius: 12, textAlign: "center", marginBottom: 16 }}>
+          <Text style={{ fontFamily: "monospace", fontSize: 24, fontWeight: "bold", color: "white", letterSpacing: 2, wordBreak: "break-all" }}>
             {inviteCode || "Ошибка"}
           </Text>
         </div>
         <Alert message="Код действителен 7 дней" type="info" showIcon />
       </Modal>
 
-      {/* Drawer информации о группе */}
-      <Drawer 
-        title="Информация о группе" 
-        placement="right" 
-        onClose={() => setGroupInfoDrawerVisible(false)} 
-        open={groupInfoDrawerVisible} 
-        width={400}
-      >
+      <Drawer title="Информация о группе" placement="right" onClose={() => setGroupInfoDrawerVisible(false)} open={groupInfoDrawerVisible} width={400}>
         {currentGroupInfo && (
           <>
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               {currentGroupInfo.is_custom && currentGroupInfo.can_edit ? (
-                <Upload 
-                  showUploadList={false} 
-                  beforeUpload={(file) => { 
-                    handleGroupAvatarUpload(file); 
-                    return false; 
-                  }} 
-                  accept="image/*"
-                >
+                <Upload showUploadList={false} beforeUpload={(file) => { handleGroupAvatarUpload(file); return false; }} accept="image/*">
                   <div style={{ cursor: 'pointer', display: 'inline-block' }}>
-                    <Avatar 
-                      size={80} 
-                      src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} 
-                      icon={<TeamOutlined />} 
-                      style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} 
-                    />
+                    <Avatar size={80} src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} icon={<TeamOutlined />} style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} />
                     <div style={{ marginTop: 8 }}><CameraOutlined /> Изменить</div>
                   </div>
                 </Upload>
               ) : (
-                <Avatar 
-                  size={80} 
-                  src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} 
-                  icon={<TeamOutlined />} 
-                  style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} 
-                />
+                <Avatar size={80} src={currentGroupInfo.group_avatar ? `http://localhost:5000${currentGroupInfo.group_avatar}` : null} icon={<TeamOutlined />} style={{ backgroundColor: !currentGroupInfo.group_avatar ? "#1890ff" : "transparent" }} />
               )}
               <Title level={4} style={{ marginTop: 12 }}>{currentGroupInfo.group_name}</Title>
-              <Text type="secondary">
-                Создана {currentGroupInfo.created_at ? dayjs(currentGroupInfo.created_at).format("DD.MM.YYYY") : "Неизвестно"}
-              </Text>
+              <Text type="secondary">Создана {currentGroupInfo.created_at ? dayjs(currentGroupInfo.created_at).format("DD.MM.YYYY") : "Неизвестно"}</Text>
             </div>
             {currentGroupInfo.can_edit && (
               <div style={{ marginBottom: 16 }}>
-                <Button type="dashed" block icon={<UserAddOutlined />} onClick={() => setAddMemberVisible(true)}>
-                  Добавить участников
-                </Button>
+                <Button type="dashed" block icon={<UserAddOutlined />} onClick={() => setAddMemberVisible(true)}>Добавить участников</Button>
               </div>
             )}
-            {currentGroupInfo.is_custom && currentGroupInfo.can_edit && (
-        <div style={{ marginBottom: 16 }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Divider style={{ margin: '12px 0' }}>Настройки</Divider>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>
-                <SafetyOutlined /> Фильтрация сообщений
-              </span>
-              <Switch
-                checked={currentGroupInfo.has_filter}
-                onChange={async (checked) => {
-                  try {
-                    const response = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo.group_id}/filter`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ admin_id: user.employee_id, has_filter: checked })
-                    });
-                    if (response.ok) {
-                      message.success(checked ? 'Фильтрация включена' : 'Фильтрация выключена');
-                      setCurrentGroupInfo(prev => ({ ...prev, has_filter: checked }));
-                    }
-                  } catch (error) {
-                    message.error('Ошибка изменения настроек');
-                  }
-                }}
-              />
-            </div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              🛡️ Защищает от нецензурной лексики и автоматически блокирует спам
-            </Text>
-          </Space>
-        </div>
-      )}
             <Divider>Участники ({currentGroupInfo.members?.length || 0})</Divider>
             <List 
               dataSource={currentGroupInfo.members} 
               renderItem={(member) => (
-                <List.Item 
-                  actions={currentGroupInfo.can_edit && member.role !== 'admin' ? [
-                    <a key="remove" onClick={() => handleRemoveMember(member.user_id)}>Удалить</a>
-                  ] : []}
-                >
+                <List.Item actions={currentGroupInfo.can_edit && member.role !== 'admin' ? [<a key="remove" onClick={() => handleRemoveMember(member.user_id)}>Удалить</a>] : []}>
                   <List.Item.Meta 
                     avatar={<Avatar src={member.avatar_url ? `http://localhost:5000${member.avatar_url}` : null} icon={<UserOutlined />} />} 
                     title={`${member.last_name} ${member.first_name}`}
                     description={
                       <Space>
-                        <Tag color={member.role === 'admin' ? 'gold' : 'default'}>
-                          {member.role === 'admin' ? 'Администратор' : 'Участник'}
-                        </Tag>
-                        <Text type="secondary">
-                          {member.joined_at ? dayjs(member.joined_at).format("DD.MM.YYYY") : ""}
-                        </Text>
+                        <Tag color={member.role === 'admin' ? 'gold' : 'default'}>{member.role === 'admin' ? 'Администратор' : 'Участник'}</Tag>
+                        <Text type="secondary">{member.joined_at ? dayjs(member.joined_at).format("DD.MM.YYYY") : ""}</Text>
                       </Space>
                     } 
                   />
@@ -2211,41 +2072,18 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
         )}
       </Drawer>
 
-      {/* Модальное окно добавления участников */}
       <Modal 
         title="Добавить участников" 
         open={addMemberVisible} 
         onOk={async () => {
-          if (selectedNewMembers.length === 0) { 
-            message.warning("Выберите участников"); 
-            return; 
-          }
+          if (selectedNewMembers.length === 0) { message.warning("Выберите участников"); return; }
           try {
-            const res = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo?.group_id}/add-members`, { 
-              method: "POST", 
-              headers: { "Content-Type": "application/json" }, 
-              body: JSON.stringify({ 
-                admin_id: user.employee_id, 
-                member_ids: selectedNewMembers 
-              }) 
-            });
-            if (res.ok) { 
-              message.success("Участники добавлены!"); 
-              setAddMemberVisible(false); 
-              setSelectedNewMembers([]); 
-              fetchGroupInfo(currentGroupInfo?.group_id); 
-              loadChatsList();
-            } else {
-              message.error("Ошибка");
-            }
-          } catch (error) { 
-            message.error("Ошибка"); 
-          }
+            const res = await fetch(`http://localhost:5000/api/chat/group/${currentGroupInfo?.group_id}/add-members`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_id: user.employee_id, member_ids: selectedNewMembers }) });
+            if (res.ok) { message.success("Участники добавлены!"); setAddMemberVisible(false); setSelectedNewMembers([]); fetchGroupInfo(currentGroupInfo?.group_id); loadChatsList(); }
+            else { message.error("Ошибка"); }
+          } catch (error) { message.error("Ошибка"); }
         }} 
-        onCancel={() => { 
-          setAddMemberVisible(false); 
-          setSelectedNewMembers([]); 
-        }} 
+        onCancel={() => { setAddMemberVisible(false); setSelectedNewMembers([]); }} 
         okText="Добавить" 
         cancelText="Отмена"
       >
@@ -2258,46 +2096,25 @@ newSocket.on("message_edited", ({ message_id, message: newMsg, edited_at, was_fi
               onChange={setSelectedNewMembers} 
               loading={employeesLoading} 
               showSearch 
-              filterOption={(input, option) => 
-                (option?.label?.toString().toLowerCase() || '').includes(input.toLowerCase())
-              } 
+              filterOption={(input, option) => (option?.label?.toString().toLowerCase() || '').includes(input.toLowerCase())} 
               style={{ width: '100%' }}
             >
-              {allEmployees
-                .filter(emp => !currentGroupInfo?.members?.some(m => m.user_id === emp.employee_id))
-                .map(emp => (
-                  <Option 
-                    key={emp.employee_id} 
-                    value={emp.employee_id} 
-                    label={`${emp.last_name} ${emp.first_name}`}
-                  >
-                    <Space>
-                      <Avatar size="small" icon={<UserOutlined />} />
-                      <span>{emp.last_name} {emp.first_name}</span>
-                      <Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>
-                        {emp.role}
-                      </Tag>
-                    </Space>
-                  </Option>
-                ))}
+              {allEmployees.filter(emp => !currentGroupInfo?.members?.some(m => m.user_id === emp.employee_id)).map(emp => (
+                <Option key={emp.employee_id} value={emp.employee_id} label={`${emp.last_name} ${emp.first_name}`}>
+                  <Space>
+                    <Avatar size="small" icon={<UserOutlined />} />
+                    <span>{emp.last_name} {emp.first_name}</span>
+                    <Tag color={getRoleColor(emp.role)} style={{ fontSize: 10 }}>{emp.role}</Tag>
+                  </Space>
+                </Option>
+              ))}
             </Select>
           </Form.Item>
         </Form>
       </Modal>
 
-      {/* Модальное окно предпросмотра изображения */}
-      <Modal 
-        open={!!previewImage} 
-        footer={null} 
-        onCancel={() => setPreviewImage(null)} 
-        width="auto" 
-        style={{ maxWidth: "90vw" }}
-      >
-        <img 
-          alt="preview" 
-          src={previewImage} 
-          style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }} 
-        />
+      <Modal open={!!previewImage} footer={null} onCancel={() => setPreviewImage(null)} width="auto" style={{ maxWidth: "90vw" }}>
+        <img alt="preview" src={previewImage} style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }} />
       </Modal>
     </Layout>
   );

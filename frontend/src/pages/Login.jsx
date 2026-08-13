@@ -1,8 +1,7 @@
-// frontend/src/pages/Login.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Form, Input, Button, Card, Typography, message } from "antd";
-import { UserOutlined, LockOutlined } from "@ant-design/icons";
+import { Form, Input, Button, Card, Typography, message, Divider, Space  } from "antd";  // 👈 ДОБАВЬТЕ Divider
+import { UserOutlined, LockOutlined, GoogleOutlined } from "@ant-design/icons";  // 👈 ДОБАВЬТЕ GoogleOutlined
 import { useAuth } from "../contexts/useAuth";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -128,16 +127,34 @@ const Login = () => {
             >
               Войти
             </Button>
+            <div style={{ marginTop: 16 }}>
+  <Divider>или</Divider>
+  <Button 
+    type="default" 
+    size="large" 
+    block
+    icon={<GoogleOutlined />}
+    onClick={() => {
+      window.location.href = 'http://localhost:5000/api/auth/google';
+    }}
+    style={{ 
+      backgroundColor: '#fff', 
+      color: '#333',
+      borderColor: '#ddd'
+    }}
+  >
+    Войти через Google
+  </Button>
+</div>
           </Form.Item>
 
-          <div style={{ textAlign: "center", marginTop: "20px" }}>
-            <Text style={{ color: isDark ? "#a0a0a0" : "#666" }}>
-              Нет аккаунта?{" "}
-            </Text>
-            <a href="/register" style={{ color: "#1890ff" }}>
-              Зарегистрироваться
-            </a>
-          </div>
+<div style={{ textAlign: "center", marginTop: 20 }}>
+  <Text type="secondary">Нет аккаунта? </Text>
+  <Space split={<span>|</span>}>
+    <a href="/register">Регистрация сотрудника</a>
+    <a href="/client-register">Регистрация клиента</a>
+  </Space>
+</div>
         </Form>
       </Card>
     </div>

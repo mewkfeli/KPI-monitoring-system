@@ -68,7 +68,6 @@ const TasksPage = () => {
 
   const isLeader = user?.role === 'Руководитель группы' || user?.role === 'Руководитель отдела' || user?.role === 'Администратор';
 
-
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
@@ -192,16 +191,29 @@ const TasksPage = () => {
     }
   };
 
-  const moveTask = async (task, newStatus) => {
+  // Drag & Drop handlers for Kanban
+  const onDragStart = (e, task, sourceStatus) => {
+    e.dataTransfer.setData('taskId', task.task_id);
+    e.dataTransfer.setData('sourceStatus', sourceStatus);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onDrop = async (e, targetStatus) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('taskId');
+    const sourceStatus = e.dataTransfer.getData('sourceStatus');
+    
+    if (sourceStatus === targetStatus) return;
+    
     try {
-      const response = await fetch(`http://localhost:5000/api/tasks/tasks/${task.task_id}`, {
+      const response = await fetch(`http://localhost:5000/api/tasks/tasks/${taskId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: targetStatus })
       });
       
       if (response.ok) {
-        message.success(`Задача перемещена в "${statusLabels[newStatus]}"`);
+        message.success(`Задача перемещена в "${statusLabels[targetStatus]}"`);
         await fetchTasks();
         await fetchStats();
       } else {
@@ -211,6 +223,11 @@ const TasksPage = () => {
       console.error('Fetch error:', error);
       message.error('Ошибка соединения с сервером');
     }
+  };
+
+  const onDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
   // Загрузка данных при монтировании
@@ -226,9 +243,9 @@ const TasksPage = () => {
 
   const getKanbanColumns = () => {
     const columns = {
-      todo: { title: 'К выполнению', tasks: [], color: '#d9d9d9' },
-      in_progress: { title: 'В работе', tasks: [], color: '#1890ff' },
-      review: { title: 'На проверке', tasks: [], color: '#faad14' },
+      todo: { title: 'К выполнению', tasks: [], color: '#1890ff' },
+      in_progress: { title: 'В работе', tasks: [], color: '#faad14' },
+      review: { title: 'На проверке', tasks: [], color: '#722ed1' },
       done: { title: 'Выполнено', tasks: [], color: '#52c41a' }
     };
     
@@ -284,12 +301,14 @@ const TasksPage = () => {
     {
       title: 'Действия',
       key: 'actions',
+      className: 'task-actions-cell',
       render: (_, record) => (
-        <Space>
+        <Space className="task-actions-buttons">
           <Tooltip title="Просмотреть">
             <Button 
               icon={<CommentOutlined />} 
               size="small" 
+              type="text"
               onClick={() => { 
                 fetchTaskDetails(record.task_id);
                 setDetailsModalVisible(true); 
@@ -302,6 +321,7 @@ const TasksPage = () => {
                 <Button 
                   icon={<EditOutlined />} 
                   size="small" 
+                  type="text"
                   onClick={() => { 
                     setEditingTask(record); 
                     let formattedDate = null;
@@ -325,7 +345,7 @@ const TasksPage = () => {
                 />
               </Tooltip>
               <Popconfirm title="Удалить задачу?" onConfirm={() => handleDeleteTask(record.task_id)}>
-                <Button icon={<DeleteOutlined />} size="small" danger />
+                <Button icon={<DeleteOutlined />} size="small" type="text" danger />
               </Popconfirm>
             </>
           )}
@@ -340,7 +360,6 @@ const TasksPage = () => {
       <Layout>
         <Header style={{ background: "var(--header-bg)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px", borderBottom: "1px solid var(--border-color)" }}>
           <Space>
-            <CheckCircleOutlined style={{ fontSize: 20, color: "#1890ff" }} />
             <Title level={4} style={{ margin: 0, color: "var(--text-title)" }}>Задачи</Title>
           </Space>
           <Space>
@@ -371,64 +390,138 @@ const TasksPage = () => {
         </Header>
         
         <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)", borderRadius: "8px" }}>
-          {/* Статистика */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col span={6}><Statistic title="К выполнению" value={stats.todo || 0} prefix={<ClockCircleOutlined />} /></Col>
-            <Col span={6}><Statistic title="В работе" value={stats.in_progress || 0} prefix={<MenuOutlined />} /></Col>
-            <Col span={6}><Statistic title="На проверке" value={stats.review || 0} prefix={<ExclamationCircleOutlined />} /></Col>
-            <Col span={6}><Statistic title="Выполнено" value={stats.done || 0} prefix={<CheckCircleOutlined />} /></Col>
+          {/* NEW KPI BLOCKS - NO ICONS, LARGE NUMBERS, UPPERCASE LABELS */}
+          <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
+            <Col span={6}>
+              <div className="kpi-block">
+                <div className="kpi-value">{stats.todo || 0}</div>
+                <div className="kpi-label">К ВЫПОЛНЕНИЮ</div>
+              </div>
+            </Col>
+            <Col span={6}>
+              <div className="kpi-block">
+                <div className="kpi-value">{stats.in_progress || 0}</div>
+                <div className="kpi-label">В РАБОТЕ</div>
+              </div>
+            </Col>
+            <Col span={6}>
+              <div className="kpi-block">
+                <div className="kpi-value">{stats.review || 0}</div>
+                <div className="kpi-label">НА ПРОВЕРКЕ</div>
+              </div>
+            </Col>
+            <Col span={6}>
+              <div className="kpi-block">
+                <div className="kpi-value">{stats.done || 0}</div>
+                <div className="kpi-label">ВЫПОЛНЕНО</div>
+              </div>
+            </Col>
           </Row>
           
           {viewType === 'list' ? (
-            <Table columns={taskColumns} dataSource={tasks} rowKey="task_id" loading={loading} pagination={{ pageSize: 20 }} />
+            <Table 
+              columns={taskColumns} 
+              dataSource={tasks} 
+              rowKey="task_id" 
+              loading={loading} 
+              pagination={{ pageSize: 20 }}
+              className="tasks-table"
+              rowClassName={() => 'tasks-table-row'}
+            />
           ) : (
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div className="kanban-board">
               {Object.entries(getKanbanColumns()).map(([status, column]) => (
-                <div key={status} style={{ flex: 1, minWidth: 260, background: 'var(--bg-secondary)', borderRadius: 8, padding: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${column.color}` }}>
-                    <Text strong>{column.title}</Text>
-                    <Badge count={column.tasks.length} style={{ backgroundColor: column.color }} />
+                <div 
+                  key={status} 
+                  className="kanban-column"
+                  onDragOver={onDragOver}
+                  onDrop={(e) => onDrop(e, status)}
+                >
+                  <div className="kanban-column-header">
+                    <span className="kanban-column-title">{column.title}</span>
+                    <Badge count={column.tasks.length} className="kanban-column-badge" />
                   </div>
-                  <div style={{ minHeight: 400 }}>
+                  <div className="kanban-tasks-list">
                     {column.tasks.map((task) => (
-                      <Card key={task.task_id} size="small" style={{ marginBottom: 8 }}>
-                        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Tag color={priorityColors[task.priority]}>{priorityLabels[task.priority]}</Tag>
-                            <Space size={4}>
-                              {task.status !== 'todo' && (
-                                <Button size="small" type="text" onClick={() => moveTask(task, 'todo')}>←</Button>
-                              )}
-                              {task.status !== 'in_progress' && (
-                                <Button size="small" type="text" onClick={() => moveTask(task, 'in_progress')}>→</Button>
-                              )}
-                              {task.status !== 'review' && (
-                                <Button size="small" type="text" onClick={() => moveTask(task, 'review')}>↻</Button>
-                              )}
-                              {task.status !== 'done' && (
-                                <Button size="small" type="primary" onClick={() => moveTask(task, 'done')}>✓</Button>
-                              )}
-                            </Space>
+                      <Card 
+                        key={task.task_id} 
+                        size="small" 
+                        className="kanban-card"
+                        draggable={true}
+                        onDragStart={(e) => onDragStart(e, task, status)}
+                      >
+                        <div className="kanban-card-header">
+                          <Tag color={priorityColors[task.priority]} className="kanban-card-priority">
+                            {priorityLabels[task.priority]}
+                          </Tag>
+                          <div className="kanban-card-actions">
+                            <Tooltip title="Просмотреть">
+                              <Button 
+                                type="text" 
+                                size="small" 
+                                icon={<CommentOutlined />} 
+                                onClick={() => { 
+                                  fetchTaskDetails(task.task_id);
+                                  setDetailsModalVisible(true); 
+                                }}
+                              />
+                            </Tooltip>
+                            {isLeader && (
+                              <>
+                                <Tooltip title="Редактировать">
+                                  <Button 
+                                    type="text" 
+                                    size="small" 
+                                    icon={<EditOutlined />} 
+                                    onClick={() => { 
+                                      setEditingTask(task); 
+                                      let formattedDate = null;
+                                      if (task.due_date) {
+                                        const date = new Date(task.due_date);
+                                        const year = date.getFullYear();
+                                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                                        const day = String(date.getDate()).padStart(2, '0');
+                                        formattedDate = `${year}-${month}-${day}`;
+                                      }
+                                      form.setFieldsValue({
+                                        title: task.title,
+                                        description: task.description,
+                                        priority: task.priority,
+                                        status: task.status,
+                                        assigned_to: task.assigned_to,
+                                        due_date: formattedDate
+                                      }); 
+                                      setModalVisible(true); 
+                                    }}
+                                  />
+                                </Tooltip>
+                                <Popconfirm title="Удалить задачу?" onConfirm={() => handleDeleteTask(task.task_id)}>
+                                  <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+                                </Popconfirm>
+                              </>
+                            )}
                           </div>
-                          <Text strong style={{ fontSize: 14 }}>{task.title}</Text>
-                          {task.description && <Text type="secondary" style={{ fontSize: 11 }} ellipsis>{task.description}</Text>}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                            <Space size={8}>
-                              <Avatar size={20}>{task.assigned_to_name?.[0]}</Avatar>
-                              <Text type="secondary" style={{ fontSize: 11 }}>{task.assigned_to_name}</Text>
-                            </Space>
-                            <Button 
-                              size="small" 
-                              type="link" 
-                              onClick={() => { 
-                                fetchTaskDetails(task.task_id);
-                                setDetailsModalVisible(true); 
-                              }}
-                            >
-                              <CommentOutlined /> {task.comments_count || 0}
-                            </Button>
-                          </div>
-                        </Space>
+                        </div>
+                        <div className="kanban-card-title">
+                          <Text strong>{task.title}</Text>
+                        </div>
+                        {task.description && (
+                          <Text type="secondary" className="kanban-card-description" ellipsis>
+                            {task.description}
+                          </Text>
+                        )}
+                        <div className="kanban-card-footer">
+                          <Tooltip title={task.assigned_to_name}>
+                            <Avatar size={24} className="kanban-card-avatar">
+                              {task.assigned_to_name?.[0]}
+                            </Avatar>
+                          </Tooltip>
+                          {task.due_date && (
+                            <Text type="secondary" className="kanban-card-due">
+                              <CalendarOutlined /> {dayjs(task.due_date).format('DD.MM')}
+                            </Text>
+                          )}
+                        </div>
                       </Card>
                     ))}
                   </div>
@@ -439,11 +532,20 @@ const TasksPage = () => {
         </Content>
       </Layout>
       
-      {/* Модалка создания/редактирования */}
-      <Modal title={editingTask ? 'Редактировать задачу' : 'Новая задача'} open={modalVisible} onOk={() => form.submit()} onCancel={() => { setModalVisible(false); setEditingTask(null); form.resetFields(); }} width={600}>
+      {/* Modal for Create/Edit - Modernized */}
+      <Modal 
+        title={editingTask ? 'Редактировать задачу' : 'Новая задача'} 
+        open={modalVisible} 
+        onOk={() => form.submit()} 
+        onCancel={() => { setModalVisible(false); setEditingTask(null); form.resetFields(); }} 
+        width={560}
+        className="task-modal"
+        okText={editingTask ? 'Сохранить' : 'Создать'}
+        cancelText="Отмена"
+      >
         <Form form={form} layout="vertical" onFinish={editingTask ? handleUpdateTask : handleCreateTask}>
-          <Form.Item name="title" label="Название" rules={[{ required: true }]}>
-            <Input placeholder="Введите название задачи" />
+          <Form.Item name="title" label="Название" rules={[{ required: true, message: ' ' }]}>
+            <Input placeholder="Название (обязательно)" />
           </Form.Item>
           
           <Form.Item name="description" label="Описание">
@@ -451,9 +553,9 @@ const TasksPage = () => {
           </Form.Item>
           
           {isLeader && (
-            <Form.Item name="assigned_to" label="Исполнитель" rules={[{ required: true }]}>
+            <Form.Item name="assigned_to" label="Исполнитель" rules={[{ required: true, message: ' ' }]}>
               <Select 
-                placeholder="Выберите сотрудника" 
+                placeholder="Выберите сотрудника (обязательно)" 
                 showSearch 
                 loading={employeesLoading}
                 optionFilterProp="children"
@@ -506,91 +608,111 @@ const TasksPage = () => {
         </Form>
       </Modal>
       
-      {/* Модалка деталей задачи */}
-      <Modal title={selectedTask?.title} open={detailsModalVisible} onCancel={() => setDetailsModalVisible(false)} footer={null} width={600}>
+      {/* Modal for Task Details */}
+      <Modal 
+        title={selectedTask?.title} 
+        open={detailsModalVisible} 
+        onCancel={() => setDetailsModalVisible(false)} 
+        footer={null} 
+        width={640}
+        className="task-modal"
+      >
         {selectedTask && (
           <>
-            <div>
+            <div className="task-details-header">
               <Tag color={priorityColors[selectedTask.priority]}>{priorityLabels[selectedTask.priority]}</Tag>
               <Tag color={statusColors[selectedTask.status]}>{statusLabels[selectedTask.status]}</Tag>
             </div>
             
-            <div style={{ marginTop: 16 }}>
+            <div className="task-details-description">
               <Text type="secondary">Описание:</Text>
               <p>{selectedTask.description || 'Нет описания'}</p>
             </div>
             
-            <div>
-              <Text type="secondary">Исполнитель:</Text> <Text>{selectedTask.assigned_to_name}</Text>
-            </div>
+            <Divider style={{ margin: '16px 0' }} />
             
-            <div>
-              <Text type="secondary">Создал:</Text> <Text>{selectedTask.assigned_by_name}</Text>
-            </div>
-            
-            {selectedTask.due_date && (
-              <div>
-                <Text type="secondary">Срок:</Text> <Text>{dayjs(selectedTask.due_date).format('DD.MM.YYYY')}</Text>
-              </div>
-            )}
-            
-            <Divider />
-            
-            <Title level={5}>Комментарии</Title>
-            <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 16 }}>
-              {selectedTask.comments && selectedTask.comments.length > 0 ? (
-                selectedTask.comments.map(comment => (
-                  <div key={comment.comment_id} style={{ marginBottom: 12, padding: 8, background: 'var(--bg-secondary)', borderRadius: 8 }}>
-                    <Space>
-                      <Avatar size={24} src={comment.avatar_url ? `http://localhost:5000${comment.avatar_url}` : null}>
-                        {comment.user_name?.[0]}
-                      </Avatar>
-                      <Text strong>{comment.user_name}</Text>
-                      <Text type="secondary" style={{ fontSize: 11 }}>
-                        {dayjs(comment.created_at).format('DD.MM.YYYY HH:mm')}
-                      </Text>
-                    </Space>
-                    <p style={{ marginTop: 8, marginBottom: 0 }}>{comment.comment}</p>
+            <Row gutter={16}>
+              <Col span={12}>
+                <div className="task-details-meta">
+                  <Text type="secondary">Исполнитель:</Text>
+                  <Text strong>{selectedTask.assigned_to_name}</Text>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div className="task-details-meta">
+                  <Text type="secondary">Создал:</Text>
+                  <Text strong>{selectedTask.assigned_by_name}</Text>
+                </div>
+              </Col>
+              {selectedTask.due_date && (
+                <Col span={24}>
+                  <div className="task-details-meta">
+                    <Text type="secondary">Срок:</Text>
+                    <Text strong>{dayjs(selectedTask.due_date).format('DD.MM.YYYY')}</Text>
                   </div>
-                ))
-              ) : (
-                <Empty description="Нет комментариев" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                </Col>
               )}
-            </div>
+            </Row>
             
-            <Form form={commentForm} onFinish={async (values) => {
-              try {
-                const response = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}/comments`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    comment: values.comment, 
-                    user_id: user?.employee_id 
-                  })
-                });
-                
-                if (response.ok) {
-                  message.success('Комментарий добавлен');
-                  commentForm.resetFields();
-                  const updatedTask = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}`);
-                  const taskData = await updatedTask.json();
-                  setSelectedTask(taskData);
-                  fetchTasks();
-                } else {
+            <Divider style={{ margin: '16px 0' }} />
+            
+            <div className="task-details-comments">
+              <Title level={5}>Комментарии</Title>
+              <div className="comments-list">
+                {selectedTask.comments && selectedTask.comments.length > 0 ? (
+                  selectedTask.comments.map(comment => (
+                    <div key={comment.comment_id} className="comment-item">
+                      <Space>
+                        <Avatar size={24} src={comment.avatar_url ? `http://localhost:5000${comment.avatar_url}` : null}>
+                          {comment.user_name?.[0]}
+                        </Avatar>
+                        <Text strong>{comment.user_name}</Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                          {dayjs(comment.created_at).format('DD.MM.YYYY HH:mm')}
+                        </Text>
+                      </Space>
+                      <p style={{ marginTop: 8, marginBottom: 0 }}>{comment.comment}</p>
+                    </div>
+                  ))
+                ) : (
+                  <Empty description="Нет комментариев" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                )}
+              </div>
+              
+              <Form form={commentForm} onFinish={async (values) => {
+                try {
+                  const response = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}/comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                      comment: values.comment, 
+                      user_id: user?.employee_id 
+                    })
+                  });
+                  
+                  if (response.ok) {
+                    message.success('Комментарий добавлен');
+                    commentForm.resetFields();
+                    const updatedTask = await fetch(`http://localhost:5000/api/tasks/tasks/${selectedTask.task_id}`);
+                    const taskData = await updatedTask.json();
+                    setSelectedTask(taskData);
+                    fetchTasks();
+                  } else {
+                    message.error('Ошибка добавления комментария');
+                  }
+                } catch (error) {
+                  console.error('Error adding comment:', error);
                   message.error('Ошибка добавления комментария');
                 }
-              } catch (error) {
-                console.error('Error adding comment:', error);
-                message.error('Ошибка добавления комментария');
-              }
-            }}>
-              <Form.Item name="comment" rules={[{ required: true, message: 'Введите комментарий' }]}>
-                <TextArea rows={3} placeholder="Написать комментарий..." />
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit">Отправить</Button>
-              </Form.Item>
-            </Form>
+              }}>
+                <Form.Item name="comment" rules={[{ required: true, message: 'Введите комментарий' }]}>
+                  <TextArea rows={3} placeholder="Написать комментарий..." />
+                </Form.Item>
+                <Form.Item>
+                  <Button type="primary" htmlType="submit">Отправить</Button>
+                </Form.Item>
+              </Form>
+            </div>
           </>
         )}
       </Modal>

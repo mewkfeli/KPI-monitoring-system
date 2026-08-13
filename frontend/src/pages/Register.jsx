@@ -1,3 +1,4 @@
+// frontend/src/pages/Register.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
@@ -19,6 +20,7 @@ import {
   TeamOutlined,
   ArrowLeftOutlined,
   CheckCircleOutlined,
+  MailOutlined,  // 👈 ДОБАВЬ ЭТОТ ИМПОРТ
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 import axios from "axios";
@@ -151,13 +153,13 @@ const BackButton = styled(Button)`
 
 const steps = [
   { title: "Основные", description: "Персональная информация" },
-  { title: "Учетные", description: "Логин и пароль" },
+  { title: "Учетные", description: "Email и пароль" },  // 👈 ИЗМЕНИЛ
   { title: "Подтверждение", description: "Проверка" },
 ];
 
 const stepFields = [
   ["lastName", "firstName", "middleName", "group_id"],
-  ["username", "password", "confirmPassword"],
+  ["email", "password", "confirmPassword"],  // 👈 ИЗМЕНИЛ: username → email
   [],
 ];
 
@@ -225,10 +227,10 @@ const Register = () => {
   const onFinish = async () => {
   setLoading(true);
 
-  const values = form.getFieldsValue(stepFields.flat());
+  const values = form.getFieldsValue();
 
   const userData = {
-    username: values.username,
+    username: values.email,
     password: values.password,
     last_name: values.lastName,
     first_name: values.firstName,
@@ -237,20 +239,28 @@ const Register = () => {
   };
 
   try {
-    const result = await register(userData);
+    const response = await fetch("http://localhost:5000/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
 
-    if (result.success) {
-      message.success('Регистрация успешна!');
-      navigate("/dashboard");
+    const data = await response.json();
+
+    if (response.ok) {
+      message.success(data.message);
+      // 👇 ПЕРЕХОД НА СТРАНИЦУ ПОДТВЕРЖДЕНИЯ
+      navigate('/verify-email', { 
+        state: { 
+          email: userData.username,
+          password: userData.password 
+        } 
+      });
     } else {
-      message.error(result.message || "Ошибка регистрации");
+      message.error(data.error || "Ошибка регистрации");
     }
   } catch (error) {
-    if (error.response?.status === 409) {
-      message.error("Имя пользователя уже занято");
-    } else {
-      message.error("Ошибка регистрации");
-    }
+    message.error("Ошибка соединения с сервером");
   } finally {
     setLoading(false);
   }
@@ -276,7 +286,7 @@ const Register = () => {
           layout="vertical"
           scrollToFirstError
         >
-          {/* Шаг 0 */}
+          {/* Шаг 0 - Основные данные */}
           <div style={{ display: current === 0 ? "block" : "none" }}>
             <Row gutter={6}>
               <Col span={24}>
@@ -357,30 +367,25 @@ const Register = () => {
             </Form.Item>
           </div>
 
-          {/* Шаг 1 */}
+          {/* Шаг 1 - Email и пароль */}
           <div style={{ display: current === 1 ? "block" : "none" }}>
             <Form.Item
               label={
                 <Text strong style={{ fontSize: "12px" }}>
-                  Имя пользователя
+                  Email (будет использоваться как логин)
                 </Text>
               }
-              name="username"
+              name="email"
               rules={[
-                { required: true, message: "Введите имя пользователя" },
-                { min: 3, message: "Минимум 3 символа" },
-                { max: 20, message: "Максимум 20 символов" },
-                {
-                  pattern: /^[a-zA-Z0-9_.-]+$/,
-                  message: "Только латинские буквы, цифры и ._-",
-                },
+                { required: true, message: "Введите email" },
+                { type: "email", message: "Введите корректный email" }
               ]}
               hasFeedback
             >
               <Input
                 size="middle"
-                placeholder="ivanov"
-                prefix={<UserOutlined />}
+                placeholder="ivanov@example.com"
+                prefix={<MailOutlined />}
               />
             </Form.Item>
 
@@ -439,7 +444,7 @@ const Register = () => {
             </Row>
           </div>
 
-          {/* Шаг 2 */}
+          {/* Шаг 2 - Подтверждение */}
           <div
             style={{
               display: current === 2 ? "block" : "none",
@@ -483,12 +488,12 @@ const Register = () => {
             <Row gutter={6} style={{ marginBottom: "8px" }}>
               <Col span={8}>
                 <Text strong style={{ fontSize: "12px" }}>
-                  Логин:
+                  Email:
                 </Text>
               </Col>
               <Col span={16}>
                 <Text style={{ fontSize: "12px" }}>
-                  {form.getFieldValue("username")}
+                  {form.getFieldValue("email")}
                 </Text>
               </Col>
             </Row>
@@ -510,7 +515,7 @@ const Register = () => {
 
             <Alert
               message="Внимание"
-              description="После регистрации вы не сможете изменить имя пользователя."
+              description="На указанный email будет отправлен код подтверждения."
               type="info"
               showIcon
               style={{

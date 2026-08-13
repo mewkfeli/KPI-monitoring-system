@@ -7,9 +7,10 @@ import {
 import {
   UserOutlined, LogoutOutlined, CalendarOutlined,
   TeamOutlined, MessageOutlined, ArrowLeftOutlined,
+  BarChartOutlined  // 👈 ДОБАВЬТЕ ЭТУ ИКОНКУ
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";  // 👈 УБЕДИТЕСЬ, ЧТО useNavigate ИМПОРТИРОВАН
 import NotificationBell from "../components/NotificationBell";
 import Sidebar from "../components/Sidebar";
 import dayjs from "dayjs";
@@ -30,7 +31,7 @@ const getRoleColor = (role) => {
 const EmployeeProfile = () => {
   const { user, logout } = useAuth();
   const { employeeId } = useParams();
-  const navigate = useNavigate();
+  const navigate = useNavigate();  // 👈 ЭТА СТРОЧКА ДОЛЖНА БЫТЬ
   const [employeeData, setEmployeeData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -98,7 +99,7 @@ const EmployeeProfile = () => {
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Content style={{ margin: "24px", padding: "24px",background: "var(--bg-content)" }}>
+          <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)" }}>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
               <Spin size="large" />
             </div>
@@ -113,7 +114,7 @@ const EmployeeProfile = () => {
       <Sidebar />
       
       <Layout>
-        <Header style={{background: "var(--bg-content)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
+        <Header style={{ background: "var(--bg-content)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
           <Space>
             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Назад</Button>
             <Title level={4} style={{ margin: 0 }}>Профиль сотрудника</Title>
@@ -124,7 +125,7 @@ const EmployeeProfile = () => {
           </Space>
         </Header>
 
-        <Content style={{ margin: "24px", padding: "24px",background: "var(--bg-content)", borderRadius: "8px" }}>
+        <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)", borderRadius: "8px" }}>
           {employeeData && (
             <>
               <Row gutter={[24, 24]}>
@@ -167,14 +168,24 @@ const EmployeeProfile = () => {
 
               <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
                 <Col span={24} style={{ textAlign: "center" }}>
-                  <Button 
-                    type="primary" 
-                    size="large"
-                    icon={<MessageOutlined />}
-                    onClick={startChat}
-                  >
-                    Написать сообщение
-                  </Button>
+                  <Space size="middle">
+                    <Button 
+                      type="primary" 
+                      size="large"
+                      icon={<MessageOutlined />}
+                      onClick={startChat}
+                    >
+                      Написать сообщение
+                    </Button>
+                    <Button 
+                      type="default" 
+                      size="large"
+                      icon={<BarChartOutlined />}
+                      onClick={() => navigate(`/employee-stats/${employeeData.employee_id}`)}
+                    >
+                      Полная статистика
+                    </Button>
+                  </Space>
                 </Col>
               </Row>
             </>

@@ -1703,3 +1703,3771 @@ h1, h2, h3, h4, h5, h6,
 [data-theme="dark"] .ant-picker-range .ant-picker-active-bar {
   background-color: #1890ff !important;
 }
+/* ============ СООБЩЕНИЯ В ОБРАЩЕНИЯХ (TICKETS CHAT) ============ */
+
+/* Контейнер сообщений */
+.ticket-messages-container {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding: 8px;
+}
+
+/* Отдельное сообщение */
+.ticket-message {
+  display: flex;
+  margin-bottom: 16px;
+}
+
+/* Моё сообщение (справа) */
+.ticket-message-mine {
+  justify-content: flex-end;
+}
+
+/* Чужое сообщение (слева) */
+.ticket-message-other {
+  justify-content: flex-start;
+}
+
+/* Блок с содержимым сообщения */
+.ticket-message-bubble {
+  max-width: 75%;
+  position: relative;
+}
+
+/* Информация об авторе (только для чужих сообщений) */
+.ticket-message-author {
+  margin-bottom: 6px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Текст сообщения (пузырёк) */
+.ticket-message-text {
+  padding: 8px 12px;
+  border-radius: 16px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+/* Свои сообщения - синий фон, белый текст */
+.ticket-message-mine .ticket-message-text {
+  background-color: #1890ff;
+  color: white;
+}
+
+/* Чужие сообщения - светлый/тёмный фон в зависимости от темы */
+.ticket-message-other .ticket-message-text {
+  background-color: var(--bg-message-other);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+/* Время сообщения */
+.ticket-message-time {
+  font-size: 11px;
+  margin-top: 4px;
+  text-align: right;
+  color: var(--text-secondary);
+}
+
+/* Свои сообщения - время справа */
+.ticket-message-mine .ticket-message-time {
+  text-align: right;
+}
+
+/* Чужие сообщения - время слева */
+.ticket-message-other .ticket-message-time {
+  text-align: left;
+  margin-left: 12px;
+}
+
+/* Тег роли (Клиент/Оператор) */
+.ticket-message-role-tag {
+  font-size: 10px;
+  padding: 0 6px;
+  line-height: 18px;
+  border-radius: 4px;
+}
+
+/* Клиент - зелёный */
+.ticket-message-role-client {
+  background-color: #52c41a20;
+  color: #52c41a;
+  border: 1px solid #52c41a40;
+}
+
+/* Оператор - синий */
+.ticket-message-role-operator {
+  background-color: #1890ff20;
+  color: #1890ff;
+  border: 1px solid #1890ff40;
+}
+
+/* Адаптация для тёмной темы */
+[data-theme="dark"] .ticket-message-mine .ticket-message-text {
+  background-color: #1e6f9f;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ticket-message-other .ticket-message-text {
+  background-color: #3a3a3a;
+  color: #e8e8e8;
+  border-color: #4a4a4a;
+}
+
+[data-theme="dark"] .ticket-message-role-client {
+  background-color: #52c41a30;
+  color: #73d13d;
+}
+
+[data-theme="dark"] .ticket-message-role-operator {
+  background-color: #1890ff30;
+  color: #69c0ff;
+}
+
+/* Стили для списка комментариев */
+.ticket-comments-list .ant-list-item {
+  padding: 0;
+  border-bottom: none !important;
+  margin-bottom: 16px;
+}
+
+/* ============ СТАТУС ОПЕРАТОРА ============ */
+
+.operator-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.operator-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.operator-status-online .operator-status-dot {
+  background-color: #52c41a;
+  box-shadow: 0 0 4px #52c41a;
+}
+
+.operator-status-offline .operator-status-dot {
+  background-color: #8c8c8c;
+  animation: none;
+}
+
+.operator-status-away .operator-status-dot {
+  background-color: #faad14;
+  box-shadow: 0 0 4px #faad14;
+}
+
+.operator-status-vacation .operator-status-dot {
+  background-color: #ff7a45;
+  box-shadow: 0 0 4px #ff7a45;
+}
+
+.operator-status-working .operator-status-dot {
+  background-color: #1890ff;
+  box-shadow: 0 0 4px #1890ff;
+  animation: pulse 0.8s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.2); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.operator-status-online {
+  background-color: #52c41a15;
+  color: #52c41a;
+  border: 1px solid #52c41a30;
+}
+
+.operator-status-offline {
+  background-color: #8c8c8c15;
+  color: #8c8c8c;
+  border: 1px solid #8c8c8c30;
+}
+
+.operator-status-away {
+  background-color: #faad1415;
+  color: #faad14;
+  border: 1px solid #faad1430;
+}
+
+.operator-status-vacation {
+  background-color: #ff7a4515;
+  color: #ff7a45;
+  border: 1px solid #ff7a4530;
+}
+
+.operator-status-working {
+  background-color: #1890ff15;
+  color: #1890ff;
+  border: 1px solid #1890ff30;
+}
+
+/* ============ СООБЩЕНИЯ В ТИКЕТАХ (ТЁМНАЯ ТЕМА) ============ */
+
+/* Контейнер сообщений */
+.ticket-messages-container {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding: 8px;
+}
+
+/* Отдельное сообщение */
+.ticket-message {
+  display: flex;
+  margin-bottom: 16px;
+}
+
+/* Моё сообщение (справа) */
+.ticket-message-mine {
+  justify-content: flex-end;
+}
+
+/* Чужое сообщение (слева) */
+.ticket-message-other {
+  justify-content: flex-start;
+}
+
+/* Блок с содержимым сообщения */
+.ticket-message-bubble {
+  max-width: 75%;
+  position: relative;
+}
+
+/* Информация об авторе (только для чужих сообщений) */
+.ticket-message-author {
+  margin-bottom: 6px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Текст сообщения (пузырёк) */
+.ticket-message-text {
+  padding: 8px 12px;
+  border-radius: 18px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  font-size: 14px;
+}
+
+/* Свои сообщения */
+.ticket-message-mine .ticket-message-text {
+  background-color: #1890ff;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+/* Чужие сообщения - светлая тема */
+.ticket-message-other .ticket-message-text {
+  background-color: #f5f5f5;
+  color: #1a1a1a;
+  border-bottom-left-radius: 4px;
+}
+
+/* Время сообщения */
+.ticket-message-time {
+  font-size: 11px;
+  margin-top: 4px;
+  margin-left: 12px;
+  margin-right: 12px;
+  color: #8c8c8c;
+}
+
+/* Тег роли */
+.ticket-message-role-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  line-height: 18px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.ticket-message-role-client {
+  background-color: #52c41a20;
+  color: #52c41a;
+  border: 1px solid #52c41a40;
+}
+
+.ticket-message-role-operator {
+  background-color: #1890ff20;
+  color: #1890ff;
+  border: 1px solid #1890ff40;
+}
+
+/* ============ ТЁМНАЯ ТЕМА ДЛЯ СООБЩЕНИЙ ============ */
+[data-theme="dark"] .ticket-message-other .ticket-message-text {
+  background-color: #2d2d2d;
+  color: #e8e8e8;
+  border: 1px solid #3d3d3d;
+}
+
+[data-theme="dark"] .ticket-message-mine .ticket-message-text {
+  background-color: #1e6f9f;
+  color: #ffffff;
+  border: none;
+}
+
+[data-theme="dark"] .ticket-message-role-client {
+  background-color: #52c41a30;
+  color: #73d13d;
+}
+
+[data-theme="dark"] .ticket-message-role-operator {
+  background-color: #1890ff30;
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .ticket-message-time {
+  color: #6c6c6c;
+}
+
+/* Индикатор печати */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background-color: #f0f0f0;
+  border-radius: 18px;
+  font-size: 12px;
+  color: #666;
+}
+
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #999;
+  display: inline-block;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) { animation-delay: 0s; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+[data-theme="dark"] .typing-indicator {
+  background-color: #2d2d2d;
+  color: #a0a0a0;
+}
+
+[data-theme="dark"] .typing-indicator span {
+  background-color: #a0a0a0;
+}
+
+.ticket-message-text {
+  padding: 8px 12px;
+  border-radius: 18px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  font-size: 14px;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.ticket-message-bubble {
+  max-width: 70%;
+  min-width: 80px;
+}
+
+.ticket-message-author {
+  margin-bottom: 4px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Увеличение шрифта в таблицах для клиента */
+.client-table .ant-table {
+  font-size: 14px;
+}
+
+.client-table .ant-table-tbody > tr > td {
+  font-size: 14px;
+  padding: 12px 16px;
+}
+
+.client-table .ant-table-thead > tr > th {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+.client-table .ant-btn-link {
+  font-size: 14px;
+}
+
+.client-table .ant-tag {
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+.client-table .ant-space-item .ant-btn {
+  font-size: 14px;
+}
+
+.client-table .ant-rate {
+  font-size: 14px;
+}
+/* Компактные теги в таблицах */
+.ant-table-tbody .ant-tag {
+  line-height: 18px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* Фиксированная ширина для колонок */
+.ant-table-cell {
+  vertical-align: middle !important;
+}
+/* ============ ОНБОРДИНГ (ONBOARDING TOUR) ============ */
+
+/* Основной контейнер онбординга */
+.onboarding-modal .ant-modal-content {
+  background-color: var(--card-bg) !important;
+}
+
+.onboarding-modal .ant-modal-header {
+  background-color: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.onboarding-modal .ant-modal-title {
+  color: var(--text-title) !important;
+}
+
+.onboarding-modal .ant-modal-body {
+  background-color: var(--card-bg) !important;
+}
+
+/* Содержимое онбординга */
+.onboarding-modal div[style*="background: #f0f7ff"],
+.onboarding-modal div[style*="background:#f0f7ff"] {
+  background-color: #1e3a5f !important;
+  color: #e8e8e8 !important;
+}
+
+.onboarding-modal div[style*="background: #f0f7ff"] .ant-typography,
+.onboarding-modal div[style*="background:#f0f7ff"] .ant-typography {
+  color: #e8e8e8 !important;
+}
+
+/* Текст внутри онбординга */
+.onboarding-modal .ant-typography {
+  color: var(--text-primary) !important;
+}
+
+.onboarding-modal .ant-typography-secondary,
+.onboarding-modal .ant-text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* Список в онбординге */
+.onboarding-modal ul,
+.onboarding-modal li {
+  color: var(--text-primary) !important;
+}
+
+/* Блок с информацией "Это обучение займёт всего 1-2 минуты" */
+.onboarding-modal div[style*="padding: 16px"],
+.onboarding-modal div[style*="background: #f0f7ff"],
+.onboarding-modal div[style*="border-radius: 8px"] {
+  background-color: var(--hover-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.onboarding-modal div[style*="padding: 16px"] .ant-typography,
+.onboarding-modal div[style*="background: #f0f7ff"] .ant-typography {
+  color: var(--text-primary) !important;
+}
+
+/* Кнопки в онбординге */
+.onboarding-modal .ant-btn-default {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.onboarding-modal .ant-btn-default:hover {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.onboarding-modal .ant-btn-primary {
+  background-color: #1890ff !important;
+  color: #ffffff !important;
+}
+
+.onboarding-modal .ant-btn-primary:hover {
+  background-color: #40a9ff !important;
+}
+
+/* Steps (шаги) в онбординге */
+.onboarding-modal .ant-steps-item-title {
+  color: var(--text-primary) !important;
+}
+
+.onboarding-modal .ant-steps-item-description {
+  color: var(--text-secondary) !important;
+}
+
+.onboarding-modal .ant-steps-finish-icon .ant-steps-icon {
+  color: #1890ff !important;
+}
+
+.onboarding-modal .ant-steps-process .ant-steps-item-icon {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+}
+
+.onboarding-modal .ant-steps-process .ant-steps-item-icon .ant-steps-icon {
+  color: #ffffff !important;
+}
+
+/* Ширина модального окна для предотвращения обрезания текста */
+.onboarding-modal {
+  width: 700px !important;
+  max-width: calc(100vw - 40px) !important;
+}
+
+.onboarding-modal .ant-modal-body {
+  padding: 24px 32px !important;
+}
+
+/* Для мобильных устройств */
+@media (max-width: 768px) {
+  .onboarding-modal {
+    width: calc(100% - 40px) !important;
+    margin: 20px !important;
+  }
+  
+  .onboarding-modal .ant-modal-body {
+    padding: 16px 20px !important;
+  }
+  
+  .onboarding-modal .ant-steps-item-title {
+    font-size: 12px !important;
+  }
+  
+  .onboarding-modal .ant-steps-item-description {
+    display: none !important;
+  }
+  
+  /* Уменьшаем отступы в шагах для мобильных */
+  .onboarding-modal .ant-steps {
+    margin-bottom: 20px !important;
+  }
+}
+
+/* Для очень маленьких экранов */
+@media (max-width: 480px) {
+  .onboarding-modal .ant-steps {
+    transform: scale(0.9);
+  }
+  
+  .onboarding-modal .ant-steps-item-title {
+    font-size: 10px !important;
+  }
+  
+  /* Убираем лишние отступы */
+  .onboarding-modal .ant-modal-body {
+    padding: 12px 16px !important;
+  }
+}
+
+/* Тёмная тема для онбординга - дополнительные стили */
+[data-theme="dark"] .onboarding-modal .ant-steps-item-wait .ant-steps-item-icon {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .onboarding-modal .ant-steps-item-wait .ant-steps-item-icon .ant-steps-icon {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .onboarding-modal .ant-steps-item-finish .ant-steps-item-icon {
+  background-color: #1890ff20 !important;
+  border-color: #1890ff !important;
+}
+
+[data-theme="dark"] .onboarding-modal .ant-steps-item-finish .ant-steps-item-icon .ant-steps-icon {
+  color: #1890ff !important;
+}
+
+[data-theme="dark"] .onboarding-modal .ant-steps-item-wait .ant-steps-item-title {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .onboarding-modal .ant-steps-item-process .ant-steps-item-title {
+  color: #1890ff !important;
+}
+
+/* Заголовки в онбординге - предотвращаем обрезание */
+.onboarding-modal .ant-typography.ant-typography {
+  word-break: normal !important;
+  white-space: normal !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+}
+
+.onboarding-modal .ant-typography h3,
+.onboarding-modal h3 {
+  word-break: normal !important;
+  white-space: normal !important;
+}
+
+/* Кнопки в онбординге - фиксируем размер */
+.onboarding-modal .ant-modal-footer .ant-btn {
+  min-width: 80px;
+  white-space: nowrap;
+}
+/* Для Steps в онбординге - фикс обрезания текста */
+.onboarding-modal .ant-steps {
+  flex-wrap: wrap !important;
+}
+
+.onboarding-modal .ant-steps-item {
+  flex: 1 1 auto !important;
+  min-width: 100px !important;
+}
+
+.onboarding-modal .ant-steps-item-title {
+  white-space: normal !important;
+  word-break: normal !important;
+  line-height: 1.3 !important;
+}
+
+.onboarding-modal .ant-steps-item-container {
+  max-width: 100% !important;
+}
+
+/* Для мобильных - сворачиваем в 2 строки */
+@media (max-width: 600px) {
+  .onboarding-modal .ant-steps {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .onboarding-modal .ant-steps-item {
+    padding-left: 0 !important;
+  }
+  
+  .onboarding-modal .ant-steps-item-tail {
+    display: none !important;
+  }
+  
+  .onboarding-modal .ant-steps-item-icon {
+    margin-right: 8px !important;
+  }
+}
+/* ============ ОНБОРДИНГ - УВЕЛИЧЕННЫЕ ОТСТУПЫ МЕЖДУ СТРОКАМИ ============ */
+
+.onboarding-modal .ant-steps {
+  margin-bottom: 40px !important;
+}
+
+.onboarding-modal .ant-steps-item {
+  padding-bottom: 8px !important;
+}
+
+.onboarding-modal .ant-steps-item-title {
+  line-height: 1.5 !important;
+  font-size: 13px !important;
+  white-space: normal !important;
+  word-break: keep-all !important;
+  letter-spacing: 0.3px !important;
+}
+
+/* Увеличиваем отступ между иконкой и текстом */
+.onboarding-modal .ant-steps-item-icon {
+  margin-right: 12px !important;
+}
+
+/* Для мобильных устройств - вертикальное расположение */
+@media (max-width: 640px) {
+  .onboarding-modal .ant-steps {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  
+  .onboarding-modal .ant-steps-item {
+    padding-left: 0 !important;
+  }
+  
+  .onboarding-modal .ant-steps-item-tail {
+    display: none !important;
+  }
+  
+  .onboarding-modal .ant-steps-item-icon {
+    margin-right: 16px !important;
+  }
+  
+  .onboarding-modal .ant-steps-item-title {
+    font-size: 14px !important;
+  }
+}
+/* ============ ОНБОРДИНГ - УЛУЧШЕННАЯ НАВИГАЦИЯ ============ */
+
+.onboarding-modal .ant-modal-body {
+  padding: 24px 32px !important;
+}
+
+/* Анимация для иконок при наведении */
+.onboarding-modal div[style*="borderRadius: '50%'"]:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+/* Адаптация для мобильных */
+@media (max-width: 768px) {
+  .onboarding-modal {
+    width: calc(100% - 40px) !important;
+    margin: 20px !important;
+  }
+  
+  .onboarding-modal .ant-modal-body {
+    padding: 16px 20px !important;
+  }
+  
+  /* Уменьшаем размер иконок на мобильных */
+  .onboarding-modal div[style*="width: 32px"] {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 14px !important;
+  }
+  
+  /* Уменьшаем текст шагов */
+  .onboarding-modal div[style*="font-size: 12px"] {
+    font-size: 10px !important;
+  }
+}
+
+/* Тёмная тема */
+[data-theme="dark"] .onboarding-modal div[style*="backgroundColor: #f0f0f0"] {
+  background-color: #3a3a3a !important;
+}
+
+[data-theme="dark"] .onboarding-modal div[style*="color: #999"] {
+  color: #6c6c6c !important;
+}
+
+[data-theme="dark"] .onboarding-modal div[style*="backgroundColor: #e8e8e8"] {
+  background-color: #4a4a4a !important;
+}
+/* ============ AUTOCOMPLETE (подсказки) в темной теме ============ */
+
+/* Контейнер выпадающего списка */
+[data-theme="dark"] .ant-select-dropdown {
+  background-color: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Элементы списка */
+[data-theme="dark"] .ant-select-item {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-select-item-option-content {
+  color: var(--text-primary) !important;
+}
+
+/* Текст "Ничего не найдено" */
+[data-theme="dark"] .ant-select-item-empty {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .ant-empty-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Not found контент в AutoComplete */
+[data-theme="dark"] .ant-select-item-option-disabled {
+  color: var(--text-secondary) !important;
+}
+
+/* Спиннер в темной теме */
+[data-theme="dark"] .ant-spin-text {
+  color: var(--text-secondary) !important;
+}
+
+/* Дополнительно для пустого состояния */
+[data-theme="dark"] .ant-empty-normal .ant-empty-description {
+  color: var(--text-secondary) !important;
+}
+.ticket-message-role-internal {
+  background-color: #722ed120;
+  color: #722ed1;
+  border: 1px solid #722ed140;
+}
+
+[data-theme="dark"] .ticket-message-role-internal {
+  background-color: #722ed130;
+  color: #b37feb;
+}
+
+/* ============ ЗАПРОСЫ ПОМОЩИ (HELP REQUESTS) В ТЕМНОЙ ТЕМЕ ============ */
+
+/* Карточка запроса помощи в модальном окне */
+[data-theme="dark"] .help-request-card {
+  background-color: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+[data-theme="dark"] .help-request-card .ant-card-body {
+  background-color: var(--card-bg) !important;
+}
+
+/* Текст вопроса в запросе помощи */
+[data-theme="dark"] .help-request-question {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Card в модальном окне ответа на запрос */
+[data-theme="dark"] .ant-modal-body .ant-card {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .ant-modal-body .ant-card-head {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-modal-body .ant-card-body {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .ant-modal-body .ant-card-body div[style*="background-color: #fff"],
+[data-theme="dark"] .ant-modal-body .ant-card-body div[style*="backgroundColor: #fff"] {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Текст вопроса внутри карточки */
+[data-theme="dark"] .ant-modal-body .ant-card-body .ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* Select в модальном окне запроса помощи */
+[data-theme="dark"] .ant-select-dropdown {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-select-item {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-select-item-option-selected {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Таблица запросов помощи */
+[data-theme="dark"] .ant-table-tbody > tr > td {
+  background-color: var(--card-bg) !important;
+}
+
+/* Кнопка "Ответить" в таблице */
+[data-theme="dark"] .ant-btn-primary {
+  background-color: #1890ff !important;
+}
+
+/* Карточка с вопросом от коллеги */
+[data-theme="dark"] .question-card {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .question-card .ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .question-card .ant-card-body {
+  background-color: var(--bg-secondary) !important;
+}
+/* ============ КАЛЕНДАРЬ ОПЕРАТОРА (ТЕМНАЯ ТЕМА) ============ */
+
+/* Основной контейнер календаря */
+[data-theme="dark"] .ant-modal-content {
+  background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .ant-modal-header {
+  background-color: var(--card-bg) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-modal-title {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-modal-body {
+  background-color: var(--card-bg) !important;
+}
+
+/* Карточка сотрудника (градиент заменяем на темный) */
+[data-theme="dark"] .ant-card {
+  border: 1px solid var(--border-color) !important;
+}
+
+[data-theme="dark"] .ant-card .ant-typography {
+  color: #e8e8e8 !important;
+}
+
+/* Заголовки дней недели */
+[data-theme="dark"] div[style*="background: #f0f0f0"],
+[data-theme="dark"] div[style*="background-color: #f0f0f0"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] div[style*="background: #e6f7ff"],
+[data-theme="dark"] div[style*="background-color: #e6f7ff"] {
+  background-color: #1e3a5f !important;
+  color: #e8e8e8 !important;
+  border-color: #1890ff !important;
+}
+
+/* Ячейки расписания */
+[data-theme="dark"] div[style*="background: #fafafa"],
+[data-theme="dark"] div[style*="background-color: #fafafa"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] div[style*="background: #fff"],
+[data-theme="dark"] div[style*="background-color: #fff"],
+[data-theme="dark"] div[style*="background: #ffffff"] {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] div[style*="background: #fff2e8"],
+[data-theme="dark"] div[style*="background-color: #fff2e8"] {
+  background-color: #4a1a1a !important;
+}
+
+/* Границы ячеек */
+[data-theme="dark"] div[style*="border: 1px solid #e8e8e8"],
+[data-theme="dark"] div[style*="border-color: #e8e8e8"] {
+  border-color: var(--border-color) !important;
+}
+
+/* Текст в ячейках */
+[data-theme="dark"] div[style*="color: #ccc"],
+[data-theme="dark"] div[style*="color: #999"] {
+  color: var(--text-secondary) !important;
+}
+
+/* Легенда смен */
+[data-theme="dark"] div[style*="background: #f0f7ff"],
+[data-theme="dark"] div[style*="background-color: #f0f7ff"] {
+  background-color: #1e3a5f !important;
+}
+
+[data-theme="dark"] div[style*="background: #fff2e8"] {
+  background-color: #4a1a1a !important;
+}
+
+/* Селекторы */
+[data-theme="dark"] .ant-select-selector {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-select-selection-item {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-select-arrow {
+  color: var(--text-secondary) !important;
+}
+
+/* Кнопки навигации */
+[data-theme="dark"] .ant-btn-default {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-btn-default:hover {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Alert компонент */
+[data-theme="dark"] .ant-alert-info {
+  background-color: #1e3a5f !important;
+  border-color: #2b527c !important;
+}
+
+[data-theme="dark"] .ant-alert-message {
+  color: #e8e8e8 !important;
+}
+
+/* Скроллбар */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #3d3d3d;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #4d4d4d;
+}
+
+/* Divider */
+[data-theme="dark"] .ant-divider {
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-divider-inner-text {
+  color: var(--text-primary) !important;
+}
+
+/* Tooltip для календаря */
+[data-theme="dark"] .ant-tooltip-inner {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Стили для при наведении в темной теме */
+[data-theme="dark"] div[style*="background: #f0f7ff"],
+[data-theme="dark"] div[style*="background-color: #f0f7ff"] {
+  background-color: #1e3a5f !important;
+}
+
+/* Текст времени */
+[data-theme="dark"] .ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+/* Hover эффекты для сообщений */
+.message-wrapper:hover .message-actions {
+  opacity: 1 !important;
+}
+
+.message-wrapper:hover .reaction-panel {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.message-bubble-container:hover .message-actions {
+  opacity: 1 !important;
+}
+
+.message-bubble-container:hover .reaction-panel {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+/* Стили для тулбокса действий над сообщением */
+.message-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.message-bubble-container:hover .message-actions {
+  opacity: 1 !important;
+}
+
+.message-actions:hover {
+  opacity: 1 !important;
+}
+
+/* Светлая тема - кнопки в тулбоксе */
+[data-theme="light"] .message-actions .ant-btn-text {
+  color: #333 !important;
+}
+
+[data-theme="light"] .message-actions .ant-btn-text:hover {
+  background-color: #e6e6e6 !important;
+  color: #1890ff !important;
+}
+
+/* Тёмная тема - кнопки в тулбоксе */
+[data-theme="dark"] .message-actions .ant-btn-text {
+  color: #ccc !important;
+}
+
+[data-theme="dark"] .message-actions .ant-btn-text:hover {
+  background-color: #3a3a3a !important;
+  color: #1890ff !important;
+}
+/* Принудительные цвета для цитат в светлой теме */
+[data-theme="light"] .ant-typography,
+[data-theme="light"] div,
+[data-theme="light"] span {
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .ant-typography-secondary,
+[data-theme="light"] .text-secondary {
+  color: #666 !important;
+}
+
+/* Для цитат внутри сообщений */
+[data-theme="light"] div[style*="background: #e6f7ff"] div,
+[data-theme="light"] div[style*="background: #f0f0f0"] div {
+  color: #1a1a1a !important;
+}
+
+/* Для имени отправителя в цитате */
+[data-theme="light"] div[style*="font-size: 11px"] {
+  color: #333 !important;
+}
+
+/* Для текста цитаты */
+[data-theme="light"] div[style*="font-size: 12px"] {
+  color: #555 !important;
+}
+/* ============ СТИЛИ ДЛЯ СТРАНИЦЫ ЗАДАЧ ============ */
+
+/* NEW KPI BLOCKS */
+.kpi-block {
+  text-align: center;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.kpi-block .kpi-value {
+  font-size: 48px;
+  font-weight: 300;
+  line-height: 1.2;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.kpi-block .kpi-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* TABLE MODE */
+.tasks-table .ant-table-thead > tr > th {
+  background: var(--card-bg) !important;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.tasks-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f0f0f0 !important;
+  transition: background 0.2s;
+}
+
+[data-theme="dark"] .tasks-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.tasks-table-row {
+  transition: all 0.2s;
+}
+
+.task-actions-buttons {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tasks-table-row:hover .task-actions-buttons {
+  opacity: 1;
+}
+
+/* KANBAN MODE */
+.kanban-board {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.kanban-column {
+  flex: 1;
+  min-width: 300px;
+  background: var(--bg-secondary);
+  border-radius: 20px;
+  padding: 16px 12px;
+  transition: background 0.2s;
+}
+
+[data-theme="light"] .kanban-column {
+  background: #f8f9fa;
+}
+
+[data-theme="dark"] .kanban-column {
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.kanban-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 0 8px;
+}
+
+.kanban-column-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.kanban-column-badge {
+  background: transparent !important;
+}
+
+.kanban-column-badge .ant-badge-count {
+  background-color: var(--text-secondary);
+  color: var(--bg-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.kanban-tasks-list {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kanban-card {
+  cursor: grab;
+  transition: all 0.2s ease;
+  border-radius: 16px !important;
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .kanban-card {
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: #2d2d2d !important;
+}
+
+.kanban-card:active {
+  cursor: grabbing;
+}
+
+.kanban-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.kanban-card-priority {
+  margin: 0;
+  font-size: 10px;
+  border-radius: 8px;
+}
+
+.kanban-card-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.kanban-card:hover .kanban-card-actions {
+  opacity: 1;
+}
+
+.kanban-card-title {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.kanban-card-description {
+  font-size: 12px;
+  display: block;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+
+.kanban-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.kanban-card-avatar {
+  background-color: #1890ff;
+  vertical-align: middle;
+  font-size: 12px;
+}
+
+.kanban-card-due {
+  font-size: 11px;
+}
+
+/* MODAL WINDOWS (Blur effect) */
+.task-modal .ant-modal-mask {
+  backdrop-filter: blur(8px);
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.task-modal .ant-modal-content {
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.task-modal .ant-modal-header {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  padding: 20px 24px;
+}
+
+.task-modal .ant-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.task-modal .ant-modal-body {
+  padding: 24px;
+}
+
+/* Form fields without borders (Soft fill) */
+.task-modal .ant-input,
+.task-modal .ant-select-selector,
+.task-modal .ant-picker,
+.task-modal .ant-input-affix-wrapper,
+.task-modal textarea.ant-input {
+  border: none !important;
+  background-color: var(--input-bg) !important;
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
+  transition: all 0.2s;
+  box-shadow: none !important;
+}
+
+[data-theme="light"] .task-modal .ant-input,
+[data-theme="light"] .task-modal .ant-select-selector,
+[data-theme="light"] .task-modal .ant-picker,
+[data-theme="light"] .task-modal .ant-input-affix-wrapper,
+[data-theme="light"] .task-modal textarea.ant-input {
+  background-color: #f5f5f5 !important;
+}
+
+[data-theme="dark"] .task-modal .ant-input,
+[data-theme="dark"] .task-modal .ant-select-selector,
+[data-theme="dark"] .task-modal .ant-picker,
+[data-theme="dark"] .task-modal .ant-input-affix-wrapper,
+[data-theme="dark"] .task-modal textarea.ant-input {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.task-modal .ant-input:hover,
+.task-modal .ant-select-selector:hover,
+.task-modal .ant-input-affix-wrapper:hover,
+.task-modal textarea.ant-input:hover,
+.task-modal .ant-input:focus,
+.task-modal .ant-select-selector:focus,
+.task-modal .ant-input-affix-wrapper:focus,
+.task-modal textarea.ant-input:focus {
+  background-color: var(--hover-bg) !important;
+}
+
+.task-modal .ant-form-item-label > label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Hide red asterisks, use placeholder instead */
+.task-modal .ant-form-item-label > label .ant-form-item-required::before {
+  display: none !important;
+}
+
+/* Task details styles */
+.task-details-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.task-details-description {
+  margin-bottom: 20px;
+}
+
+.task-details-description p {
+  margin-top: 8px;
+  margin-bottom: 0;
+  background: var(--bg-secondary);
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.task-details-meta {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.task-details-comments .comments-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.task-details-comments .comment-item {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+/* Primary button in dark theme (muted) */
+[data-theme="dark"] .ant-btn-primary {
+  background-color: #1e6f9f !important;
+  border-color: #1e6f9f !important;
+}
+
+[data-theme="dark"] .ant-btn-primary:hover {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+}
+/* ============ СТИЛИ ДЛЯ СТРАНИЦЫ "БАЗА ЗНАНИЙ" ============ */
+
+/* Knowledge Search */
+.knowledge-search .ant-input-group-addon .ant-btn {
+  border-radius: 0 24px 24px 0 !important;
+}
+.knowledge-search .ant-input {
+  border-radius: 24px 0 0 24px !important;
+}
+
+/* Info Panels (Accent Alerts) */
+.accent-alert {
+  background-color: transparent !important;
+  border: none !important;
+  border-left: 4px solid #1890ff !important;
+  border-radius: 8px !important;
+  padding: 12px 16px !important;
+  background: rgba(24, 144, 255, 0.05) !important;
+}
+
+[data-theme="dark"] .accent-alert {
+  background: rgba(24, 144, 255, 0.1) !important;
+}
+
+.accent-alert .ant-alert-icon {
+  color: #1890ff !important;
+}
+
+/* Cards */
+.glass-card {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 16px !important;
+  transition: all 0.2s;
+}
+
+/* Role List */
+.role-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.role-description {
+  font-size: 13px !important;
+  color: var(--text-secondary) !important;
+}
+
+/* KPI Metric Cards */
+.kpi-metric-card {
+  border-radius: 16px !important;
+  height: 100%;
+}
+
+.metric-formula-block {
+  background: var(--bg-secondary);
+  padding: 12px;
+  border-radius: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.metric-formula-code {
+  display: block;
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.metric-example-block {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: transparent;
+}
+
+/* Status Table */
+.status-table .ant-table-thead > tr > th {
+  background: var(--bg-secondary) !important;
+  color: var(--text-secondary);
+  font-weight: 500;
+  border-bottom: none;
+}
+
+.status-badge {
+  border-radius: 20px !important;
+  padding: 2px 10px !important;
+  font-weight: 500;
+}
+
+.status-badge.ant-tag-green {
+  background: rgba(82, 196, 26, 0.15) !important;
+  color: #52c41a !important;
+  border: none !important;
+}
+
+.status-badge.ant-tag-orange {
+  background: rgba(250, 173, 20, 0.15) !important;
+  color: #faad14 !important;
+  border: none !important;
+}
+
+.status-badge.ant-tag-red {
+  background: rgba(255, 77, 79, 0.15) !important;
+  color: #ff4d4f !important;
+  border: none !important;
+}
+
+/* Clean Collapse (FAQ) */
+.clean-collapse {
+  background: transparent !important;
+  border: none !important;
+}
+
+.clean-collapse .ant-collapse-item {
+  border: none !important;
+  border-bottom: 1px solid #eef0f2 !important;
+  margin-bottom: 0 !important;
+  border-radius: 0 !important;
+}
+
+[data-theme="dark"] .clean-collapse .ant-collapse-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.clean-collapse .ant-collapse-header {
+  padding: 16px 0 !important;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.clean-collapse .ant-collapse-content {
+  background: transparent !important;
+  border-top: none !important;
+}
+
+.clean-collapse .ant-collapse-content-box {
+  padding: 8px 0 16px 0 !important;
+}
+
+.clean-collapse .ant-collapse-item-active .ant-collapse-header {
+  color: #1890ff;
+}
+
+/* Tabs */
+.knowledge-tabs .ant-tabs-tab {
+  font-size: 15px;
+  padding: 12px 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .kpi-metric-card .ant-card-head-title {
+    font-size: 14px;
+  }
+  .metric-formula-code {
+    font-size: 11px;
+  }
+}
+/* ============ СТИЛИ ДЛЯ БАЗЫ ЗНАНИЙ ============ */
+
+.knowledge-tabs .ant-tabs-tab {
+  font-size: 15px;
+  padding: 12px 16px;
+}
+
+/* Search */
+.knowledge-search-dropdown {
+  background: var(--card-bg) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Accent Alerts - без бордера */
+.accent-alert {
+  background: rgba(24, 144, 255, 0.05) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 12px 16px !important;
+}
+
+[data-theme="dark"] .accent-alert {
+  background: rgba(24, 144, 255, 0.1) !important;
+}
+
+.accent-alert .ant-alert-icon {
+  color: #1890ff !important;
+}
+
+/* Glass Cards */
+.glass-card {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 16px !important;
+}
+
+/* KPI Cards */
+.kpi-metric-card {
+  border-radius: 16px !important;
+  height: 100%;
+  transition: all 0.2s;
+}
+
+.metric-formula-block {
+  background: var(--bg-secondary);
+  padding: 12px;
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+.metric-formula-code {
+  display: block;
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.metric-example-block {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+/* Status Table */
+.status-table .ant-table-thead > tr > th {
+  background: var(--bg-secondary) !important;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.status-badge {
+  border-radius: 20px !important;
+  padding: 2px 10px !important;
+}
+
+.status-badge.ant-tag-green {
+  background: rgba(82, 196, 26, 0.15) !important;
+  color: #52c41a !important;
+  border: none !important;
+}
+
+.status-badge.ant-tag-orange {
+  background: rgba(250, 173, 20, 0.15) !important;
+  color: #faad14 !important;
+  border: none !important;
+}
+
+.status-badge.ant-tag-red {
+  background: rgba(255, 77, 79, 0.15) !important;
+  color: #ff4d4f !important;
+  border: none !important;
+}
+
+/* Clean Collapse (FAQ) */
+.clean-collapse {
+  background: transparent !important;
+  border: none !important;
+}
+
+.clean-collapse .ant-collapse-item {
+  border: none !important;
+  border-bottom: 1px solid #eef0f2 !important;
+  border-radius: 0 !important;
+}
+
+[data-theme="dark"] .clean-collapse .ant-collapse-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.clean-collapse .ant-collapse-header {
+  padding: 16px 0 !important;
+  font-weight: 500;
+}
+
+.clean-collapse .ant-collapse-content {
+  background: transparent !important;
+  border-top: none !important;
+}
+
+.clean-collapse .ant-collapse-content-box {
+  padding: 8px 0 16px 0 !important;
+}
+
+/* Roles */
+.role-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.role-description {
+  font-size: 13px !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .kpi-metric-card .ant-card-head-title { font-size: 14px; }
+  .metric-formula-code { font-size: 11px; }
+}
+
+/* ============ СТИЛИ ДЛЯ СТРАНИЦЫ РЕЙТИНГА ============ */
+
+/* KPI Cards */
+.kpi-card {
+  text-align: center;
+  padding: 20px 16px;
+  border-radius: 24px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.kpi-card-value {
+  font-size: 36px;
+  font-weight: 300;
+  line-height: 1.2;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.kpi-card-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* Leader Card */
+.leader-card {
+  background: linear-gradient(135deg, rgba(250, 173, 20, 0.08) 0%, rgba(250, 173, 20, 0.02) 100%);
+  border-color: rgba(250, 173, 20, 0.3);
+}
+
+[data-theme="dark"] .leader-card {
+  background: linear-gradient(135deg, rgba(250, 173, 20, 0.12) 0%, rgba(250, 173, 20, 0.03) 100%);
+  border-color: rgba(250, 173, 20, 0.2);
+}
+
+.leader-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.leader-crown {
+  font-size: 24px;
+  color: #faad14;
+  margin-bottom: 4px;
+}
+
+.leader-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.leader-label {
+  font-size: 10px;
+  color: #faad14;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Controls */
+.leaderboard-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.period-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.period-radio .ant-radio-button-wrapper {
+  background: var(--input-bg);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.period-radio .ant-radio-button-wrapper-checked {
+  background: #1890ff;
+  border-color: #1890ff;
+  color: #fff;
+}
+
+.refresh-btn {
+  background: var(--input-bg);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Leaderboard Table - Clean & Borderless */
+.leaderboard-table {
+  margin-top: 8px;
+}
+
+.leaderboard-table .ant-table {
+  background: transparent !important;
+}
+
+.leaderboard-table .ant-table-thead > tr > th {
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-weight: 500;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-color) !important;
+  padding: 16px 12px;
+}
+
+.leaderboard-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--border-light) !important;
+  padding: 16px 12px;
+  background: transparent !important;
+  transition: background 0.2s;
+}
+
+[data-theme="light"] .leaderboard-table .ant-table-tbody > tr > td {
+  border-bottom-color: #f0f0f0 !important;
+}
+
+[data-theme="dark"] .leaderboard-table .ant-table-tbody > tr > td {
+  border-bottom-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.leaderboard-table .ant-table-tbody > tr:hover > td {
+  background: var(--hover-bg) !important;
+}
+
+/* Leader row highlight (1st place) */
+.leaderboard-table .leader-row > td {
+  background: rgba(24, 144, 255, 0.04) !important;
+  position: relative;
+}
+
+[data-theme="dark"] .leaderboard-table .leader-row > td {
+  background: rgba(24, 144, 255, 0.08) !important;
+  box-shadow: 0 0 20px rgba(24, 144, 255, 0.1);
+}
+
+/* Rank styles */
+.rank-column div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-weight: 600;
+  width: 48px;
+  height: 48px;
+  border-radius: 30px;
+  margin: 0 auto;
+}
+
+.rank-1 {
+  background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%);
+  color: #fff;
+}
+
+.rank-1 span { font-size: 18px; font-weight: 700; }
+.rank-1 .anticon { font-size: 16px; }
+
+.rank-2 {
+  background: linear-gradient(135deg, #b0b0b0 0%, #c8c8c8 100%);
+  color: #fff;
+}
+
+.rank-2 span { font-size: 16px; font-weight: 600; }
+
+.rank-3 {
+  background: linear-gradient(135deg, #cd7f32 0%, #e0964a 100%);
+  color: #fff;
+}
+
+.rank-3 span { font-size: 16px; font-weight: 600; }
+
+.rank-other span {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Employee column */
+.employee-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.employee-avatar {
+  cursor: pointer;
+  background: #1890ff;
+  flex-shrink: 0;
+}
+
+.employee-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.employee-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.employee-name:hover {
+  color: #1890ff;
+}
+
+/* Stat cells */
+.stat-cell {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.stat-number {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.stat-value {
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 20px;
+  display: inline-block;
+  min-width: 65px;
+}
+
+.stat-value.high {
+  color: #52c41a;
+  background: rgba(82, 196, 26, 0.1);
+}
+
+.stat-value.medium {
+  color: #faad14;
+  background: rgba(250, 173, 20, 0.1);
+}
+
+.stat-value.low {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.1);
+}
+
+/* Dark theme specific */
+[data-theme="dark"] .stat-value.high {
+  background: rgba(82, 196, 26, 0.15);
+}
+
+[data-theme="dark"] .stat-value.medium {
+  background: rgba(250, 173, 20, 0.15);
+}
+
+[data-theme="dark"] .stat-value.low {
+  background: rgba(255, 77, 79, 0.15);
+}
+
+/* Sort icons in dark theme - make them visible */
+[data-theme="dark"] .ant-table-column-sorter {
+  color: #8c8c8c !important;
+}
+
+[data-theme="dark"] .ant-table-column-sorter:hover {
+  color: #d9d9d9 !important;
+}
+
+[data-theme="dark"] .ant-table-column-sorter-up.active,
+[data-theme="dark"] .ant-table-column-sorter-down.active {
+  color: #1890ff !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .kpi-card-value { font-size: 28px; }
+  .leader-name { font-size: 14px; max-width: 120px; }
+  .employee-name { font-size: 13px; }
+  .rank-column div { width: 36px; height: 36px; }
+  .rank-1 span { font-size: 14px; }
+  .stat-value { min-width: 55px; font-size: 12px; padding: 2px 6px; }
+}
+
+@media (max-width: 576px) {
+  .leaderboard-controls { flex-direction: column; align-items: stretch; }
+  .period-radio { width: 100%; display: flex; }
+  .period-radio .ant-radio-button-wrapper { flex: 1; text-align: center; }
+}
+/* ============ СТИЛИ ДЛЯ СТРАНИЦЫ ОБРАЩЕНИЙ ============ */
+
+/* Tables */
+.tickets-table .ant-table-thead > tr > th {
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.tickets-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--border-light) !important;
+}
+
+[data-theme="light"] .tickets-table .ant-table-tbody > tr > td {
+  border-bottom-color: #f0f0f0 !important;
+}
+
+.table-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tickets-table .ant-table-row:hover .table-actions {
+  opacity: 1;
+}
+
+/* Ticket Modal */
+.ticket-modal .ant-modal-mask {
+  backdrop-filter: blur(8px);
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.ticket-modal .ant-modal-content {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.ticket-actions-header {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Ticket Info Grid - Clean layout */
+.ticket-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px 24px;
+  margin-bottom: 24px;
+}
+
+.ticket-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ticket-info-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.ticket-info-value {
+  font-size: 14px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.ticket-divider {
+  margin: 16px 0;
+  color: var(--text-secondary);
+}
+
+.ticket-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ticket-attachment {
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  border: none;
+  transition: all 0.2s;
+}
+
+.ticket-attachment:hover {
+  background: var(--hover-bg);
+}
+
+/* Messages Container */
+.ticket-messages-container {
+  max-height: 450px;
+  overflow-y: auto;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Message Bubbles */
+.ticket-message {
+  display: flex;
+  width: 100%;
+}
+
+.ticket-message-mine {
+  justify-content: flex-end;
+}
+
+.ticket-message-other {
+  justify-content: flex-start;
+}
+
+.ticket-message-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  position: relative;
+}
+
+.ticket-message-bubble.mine {
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+
+
+.ticket-message-bubble.internal {
+  background: rgba(114, 46, 209, 0.1);
+  border-left: 3px solid #722ed1;
+}
+
+[data-theme="dark"] .ticket-message-bubble.internal {
+  background: rgba(114, 46, 209, 0.2);
+}
+
+.ticket-message-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.ticket-message-role-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.ticket-message-role-tag.client {
+  background: rgba(82, 196, 26, 0.15);
+  color: #52c41a;
+}
+
+.ticket-message-role-tag.operator {
+  background: rgba(24, 144, 255, 0.15);
+  color: #1890ff;
+}
+
+.ticket-message-role-tag.internal {
+  background: rgba(114, 46, 209, 0.15);
+  color: #722ed1;
+}
+
+.ticket-message-internal-badge {
+  font-size: 10px;
+  color: #722ed1;
+  margin-bottom: 4px;
+}
+
+.ticket-message-text {
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.ticket-message-time {
+  font-size: 10px;
+  margin-top: 6px;
+  opacity: 0.7;
+  text-align: right;
+}
+
+.ticket-message-bubble.mine .ticket-message-time {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ticket-message-bubble.other .ticket-message-time {
+  color: var(--text-secondary);
+}
+
+.edited-badge {
+  font-size: 9px;
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
+/* Reply Form */
+.ticket-reply-form {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.reply-textarea {
+  flex: 1;
+  min-width: 200px;
+}
+
+.reply-textarea textarea {
+  border-radius: 12px !important;
+}
+
+/* Templates Modal */
+.templates-modal .ant-modal-mask {
+  backdrop-filter: blur(8px);
+}
+
+.templates-modal .ant-modal-content {
+  border-radius: 20px;
+}
+
+.template-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.template-item:last-child {
+  border-bottom: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ticket-info-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .ticket-reply-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .reply-textarea {
+    width: 100%;
+  }
+  
+  .ticket-message-bubble {
+    max-width: 85%;
+  }
+}
+
+/* Ticket Modal - NO SCROLL on modal body */
+.ticket-modal .ant-modal-body {
+  padding: 24px !important;
+  overflow-y: visible !important;
+  max-height: none !important;
+}
+
+/* Messages Container - ONLY THIS SCROLLS */
+.ticket-messages-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Force transparent background for Empty component in dark theme */
+[data-theme="dark"] .ant-empty {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .ant-empty-image svg {
+  fill: #4a4a4a !important;
+  background: transparent !important;
+}
+
+[data-theme="dark"] .ant-empty-description {
+  color: #8c8c8c !important;
+}
+
+[data-theme="dark"] .ant-empty .ant-empty-image {
+  background: transparent !important;
+}
+
+/* Если не помогает - добиваем inline-стилями */
+.ticket-messages-container .ant-empty {
+  background: transparent !important;
+}
+
+.ticket-messages-container .ant-empty-image {
+  background: transparent !important;
+}
+
+.ticket-messages-container .ant-empty-description {
+  color: var(--text-secondary) !important;
+}
+/* Custom Recharts Tooltip for Dark Theme */
+.custom-tooltip {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 12px !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.custom-tooltip .tooltip-label {
+  color: var(--text-secondary) !important;
+  font-size: 11px !important;
+  margin-bottom: 4px !important;
+}
+
+.custom-tooltip .tooltip-value {
+  color: var(--text-primary) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] .recharts-default-tooltip {
+  background-color: #2d2d2d !important;
+  border: 1px solid #3d3d3d !important;
+  border-radius: 12px !important;
+}
+
+[data-theme="dark"] .recharts-tooltip-label {
+  color: #a0a0a0 !important;
+}
+
+[data-theme="dark"] .recharts-tooltip-item {
+  color: #e8e8e8 !important;
+}
+/* ============ СТИЛИ ДЛЯ СТРАНИЦЫ ПОКАЗАТЕЛЕЙ (DASHBOARD) ============ */
+
+/* Custom Progress Bar */
+.custom-progress {
+  height: 6px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.custom-progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Stat Cards */
+.stat-card {
+  transition: all 0.2s ease;
+}
+
+.stat-card .ant-card-body {
+  padding: 16px;
+}
+
+/* Activity List - New Design */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.activity-item:hover {
+  background: var(--hover-bg);
+  transform: translateX(4px);
+}
+
+.activity-date {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 120px;
+}
+
+.activity-stats {
+  flex: 1;
+}
+
+.activity-stats .ant-badge-count {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.activity-quality {
+  min-width: 140px;
+  text-align: right;
+}
+
+/* Period Radio Buttons */
+.period-radio .ant-radio-button-wrapper {
+  background: var(--input-bg);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+
+.period-radio .ant-radio-button-wrapper-checked {
+  background: #1890ff;
+  border-color: #1890ff;
+  color: #fff;
+}
+
+.period-radio .ant-radio-button-wrapper:hover {
+  color: #1890ff;
+}
+
+/* Light theme specific */
+[data-theme="light"] .stat-card {
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .activity-item {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+[data-theme="light"] .activity-item:hover {
+  border-color: #cbd5e1;
+}
+
+/* Dark theme specific - colored icons */
+[data-theme="dark"] .ant-statistic-content .anticon-star {
+  color: #fadb14 !important;
+}
+
+[data-theme="dark"] .ant-statistic-content .anticon-trophy {
+  color: #faad14 !important;
+}
+
+[data-theme="dark"] .ant-statistic-content .anticon-clock-circle {
+  color: #69c0ff !important;
+}
+
+[data-theme="dark"] .ant-statistic-content .anticon-check-circle {
+  color: #52c41a !important;
+}
+
+[data-theme="dark"] .ant-statistic-content .anticon-calendar {
+  color: #40a9ff !important;
+}
+
+[data-theme="dark"] .ant-statistic-content .anticon-history {
+  color: #b37feb !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .activity-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .activity-quality {
+    text-align: left;
+    width: 100%;
+  }
+  
+  .activity-stats {
+    width: 100%;
+  }
+  
+  .period-radio {
+    width: 100%;
+    display: flex;
+  }
+  
+  .period-radio .ant-radio-button-wrapper {
+    flex: 1;
+    text-align: center;
+  }
+}
+/* Lifecycle stages */
+.lifecycle-stages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.lifecycle-stage {
+  text-align: center;
+  flex: 1;
+  min-width: 70px;
+}
+
+.lifecycle-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lifecycle-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.lifecycle-arrow {
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.lifecycle-progress {
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .lifecycle-stages {
+    flex-direction: column;
+  }
+  .lifecycle-arrow {
+    transform: rotate(90deg);
+  }
+}
+
+/* Quality and Speed cards */
+.quality-card, .speed-card, .lifecycle-card {
+  transition: all 0.2s ease;
+}
+
+/* ============ СТИЛИ ДЛЯ ЦИТАТЫ (ОТВЕТ НА СООБЩЕНИЕ) ============ */
+
+/* Блок цитаты в сообщении */
+.message-quote {
+  background: rgba(24, 144, 255, 0.08);
+  border-left: 3px solid #1890ff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+/* Цитата в своих сообщениях (от текущего пользователя) */
+.message-mine .message-quote {
+  background: rgba(255, 255, 255, 0.15);
+  border-left-color: #ffffff;
+}
+
+/* Цитата в чужих сообщениях */
+.message-other .message-quote {
+  background: rgba(0, 0, 0, 0.04);
+  border-left-color: #1890ff;
+}
+
+/* Имя автора цитаты - светлая тема */
+.message-quote-author {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1890ff;
+}
+
+/* Текст цитаты - светлая тема (темный текст) */
+.message-quote-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #333 !important;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Свои сообщения в светлой теме - текст цитаты белый */
+.message-mine .message-quote-text {
+  color: #ffffff !important;
+  opacity: 0.9;
+}
+
+/* Чужие сообщения в светлой теме - текст цитаты темный */
+.message-other .message-quote-text {
+  color: #333 !important;
+}
+
+/* Тёмная тема - цитата */
+[data-theme="dark"] .message-quote {
+  background: rgba(24, 144, 255, 0.15);
+  border-left-color: #1890ff;
+}
+
+[data-theme="dark"] .message-mine .message-quote {
+  background: rgba(255, 255, 255, 0.1);
+  border-left-color: #69c0ff;
+}
+
+[data-theme="dark"] .message-other .message-quote {
+  background: rgba(255, 255, 255, 0.05);
+  border-left-color: #1890ff;
+}
+
+/* Тёмная тема - текст цитаты светлый */
+[data-theme="dark"] .message-quote-text {
+  color: #e8e8e8 !important;
+}
+
+[data-theme="dark"] .message-mine .message-quote-text {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .message-other .message-quote-text {
+  color: #e8e8e8 !important;
+}
+
+/* Имя автора в тёмной теме */
+[data-theme="dark"] .message-quote-author {
+  color: #69c0ff;
+}
+
+/* Имя автора в своих сообщениях */
+.message-mine .message-quote-author {
+  color: #ffffff;
+}
+
+/* Разделитель между цитатой и новым сообщением */
+.message-quote + .message-text {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .message-quote + .message-text {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+/* ============ СТИЛИ ДЛЯ ЦИТАТЫ (ОТВЕТ НА СООБЩЕНИЕ) ============ */
+
+/* Блок цитаты внутри сообщения */
+.message-quote {
+  margin-bottom: 10px;
+  padding: 8px 0 8px 12px;
+  border-left: 3px solid #1890ff;
+  border-radius: 2px;
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+/* Свои сообщения - цитата */
+.message-mine .message-quote {
+  border-left-color: #ffffff;
+}
+
+/* Чужие сообщения - цитата */
+.message-other .message-quote {
+  border-left-color: #1890ff;
+}
+
+/* Имя автора цитаты */
+.message-quote-author {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1890ff;
+}
+
+/* Свои сообщения - имя автора цитаты */
+.message-mine .message-quote-author {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Чужие сообщения - имя автора цитаты - более тёмный/акцентный */
+.message-other .message-quote-author {
+  color: #096dd9;
+}
+
+/* Текст цитаты */
+.message-quote-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+  word-break: break-word;
+  white-space: pre-wrap;
+  opacity: 0.85;
+}
+
+/* Свои сообщения - текст цитаты */
+.message-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Чужие сообщения - текст цитаты */
+.message-other .message-quote-text {
+  color: #555;
+}
+
+/* Разделитель между цитатой и новым сообщением */
+.message-quote + .message-text {
+  margin-top: 8px;
+  padding-top: 0;
+}
+
+/* Тёмная тема */
+[data-theme="dark"] .message-quote {
+  border-left-color: #1890ff;
+  background: transparent;
+}
+
+[data-theme="dark"] .message-mine .message-quote {
+  border-left-color: #69c0ff;
+}
+
+[data-theme="dark"] .message-other .message-quote {
+  border-left-color: #1890ff;
+}
+
+[data-theme="dark"] .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-other .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .message-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] .message-other .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+/* ============ СТИЛИ ДЛЯ ЦИТАТЫ (ОТВЕТ НА СООБЩЕНИЕ) ============ */
+
+/* Основной контейнер сообщения */
+.message-bubble-container {
+  position: relative;
+  max-width: 70%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Блок цитаты внутри сообщения */
+.message-quote {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 6px 0 6px 10px;
+  border-left: 3px solid #1890ff;
+  border-radius: 2px;
+  background: transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+/* Свои сообщения - цитата */
+.message-mine .message-quote {
+  border-left-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Чужие сообщения - цитата */
+.message-other .message-quote {
+  border-left-color: #1890ff;
+}
+
+/* Имя автора цитаты - без переноса */
+.message-quote-author {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1890ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+/* Свои сообщения - имя автора цитаты */
+.message-mine .message-quote-author {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Чужие сообщения - имя автора цитаты */
+.message-other .message-quote-author {
+  color: #096dd9;
+}
+
+/* Текст цитаты */
+.message-quote-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+  word-break: break-word;
+  white-space: normal;
+  opacity: 0.85;
+}
+
+/* Свои сообщения - текст цитаты */
+.message-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Чужие сообщения - текст цитаты */
+.message-other .message-quote-text {
+  color: #555;
+}
+
+/* Основной текст сообщения */
+.message-text {
+  width: 100%;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Разделитель между цитатой и новым сообщением (опционально) */
+.message-quote + .message-text {
+  margin-top: 4px;
+}
+
+/* Тёмная тема */
+[data-theme="dark"] .message-quote {
+  border-left-color: #1890ff;
+  background: transparent;
+}
+
+[data-theme="dark"] .message-mine .message-quote {
+  border-left-color: #69c0ff;
+}
+
+[data-theme="dark"] .message-other .message-quote {
+  border-left-color: #1890ff;
+}
+
+[data-theme="dark"] .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-other .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .message-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] .message-other .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Для длинных имён - добавляем троеточие */
+@media (max-width: 480px) {
+  .message-quote-author {
+    max-width: 180px;
+  }
+}
+/* ============ СТИЛИ ДЛЯ СООБЩЕНИЙ В ЧАТЕ ============ */
+
+/* Основной контейнер сообщения */
+.message-bubble-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 70%;
+}
+
+/* Сам баббл сообщения */
+.message-bubble {
+  width: max-content;
+  max-width: 100%;
+  min-width: 80px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  word-break: break-word;
+  transition: all 0.2s ease;
+}
+
+/* Свои сообщения */
+.message-mine .message-bubble {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+/* Чужие сообщения */
+.message-other .message-bubble {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-bottom-left-radius: 4px;
+}
+
+/* Блок цитаты внутри сообщения */
+.message-quote {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 6px 0 6px 10px;
+  border-left: 3px solid #1890ff;
+  border-radius: 2px;
+  background: transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+/* Свои сообщения - цитата */
+.message-mine .message-quote {
+  border-left-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Чужие сообщения - цитата */
+.message-other .message-quote {
+  border-left-color: #1890ff;
+}
+
+/* Имя автора цитаты - полное отображение */
+.message-quote-author {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1890ff;
+  white-space: normal;
+  word-break: normal;
+  overflow: visible;
+}
+
+/* Свои сообщения - имя автора цитаты */
+.message-mine .message-quote-author {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Чужие сообщения - имя автора цитаты */
+.message-other .message-quote-author {
+  color: #096dd9;
+}
+
+/* Текст цитаты */
+.message-quote-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+  word-break: break-word;
+  white-space: normal;
+  opacity: 0.85;
+}
+
+/* Свои сообщения - текст цитаты */
+.message-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Чужие сообщения - текст цитаты */
+.message-other .message-quote-text {
+  color: #555;
+}
+
+/* Основной текст сообщения */
+.message-text {
+  width: 100%;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Разделитель между цитатой и новым сообщением */
+.message-quote + .message-text {
+  margin-top: 4px;
+}
+
+/* Кнопки действий */
+.message-actions {
+  position: absolute;
+  bottom: 100%;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10;
+  background: var(--card-bg);
+  padding: 4px 8px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  border: 1px solid var(--border-color);
+}
+
+.message-mine .message-actions {
+  right: 0;
+}
+
+.message-other .message-actions {
+  left: 0;
+}
+
+.message-bubble-container:hover .message-actions {
+  opacity: 1;
+}
+
+/* Панель реакций */
+.reaction-panel {
+  position: absolute;
+  bottom: 100%;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background: var(--card-bg);
+  padding: 4px 8px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.message-mine .reaction-panel {
+  right: 0;
+}
+
+.message-other .reaction-panel {
+  left: 0;
+}
+
+.message-bubble-container:hover .reaction-panel {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Тёмная тема */
+[data-theme="dark"] .message-quote {
+  border-left-color: #1890ff;
+  background: transparent;
+}
+
+[data-theme="dark"] .message-mine .message-quote {
+  border-left-color: #69c0ff;
+}
+
+[data-theme="dark"] .message-other .message-quote {
+  border-left-color: #1890ff;
+}
+
+[data-theme="dark"] .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-other .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .message-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] .message-other .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Для экстремально длинных имён на маленьких экранах */
+@media (max-width: 480px) {
+  .message-quote-author {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+/* ============ СТИЛИ ДЛЯ СООБЩЕНИЙ В ЧАТЕ ============ */
+
+/* Основной контейнер сообщения */
+.message-wrapper {
+  display: flex;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.message-wrapper-mine {
+  justify-content: flex-end;
+}
+
+.message-wrapper-other {
+  justify-content: flex-start;
+}
+
+/* Контейнер баббла с действиями */
+.message-bubble-container {
+  position: relative;
+  max-width: 70%;
+  min-width: 150px;
+}
+
+/* Сам баббл сообщения */
+.message-bubble {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: auto;
+  min-width: 120px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 16px;
+  word-break: break-word;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+/* Свои сообщения */
+.message-bubble-mine {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+/* Чужие сообщения */
+.message-bubble-other {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-bottom-left-radius: 4px;
+}
+
+/* Блок цитаты */
+.message-quote {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 4px 0 4px 10px;
+  border-left: 3px solid #1890ff;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+/* Свои сообщения - цитата */
+.message-bubble-mine .message-quote {
+  border-left-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Чужие сообщения - цитата */
+.message-bubble-other .message-quote {
+  border-left-color: #1890ff;
+}
+
+/* Имя автора цитаты - без переноса */
+.message-quote-author {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1890ff;
+  white-space: nowrap;
+  overflow: visible;
+  width: auto;
+  display: inline-block;
+}
+
+/* Свои сообщения - имя автора цитаты */
+.message-bubble-mine .message-quote-author {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Чужие сообщения - имя автора цитаты */
+.message-bubble-other .message-quote-author {
+  color: #096dd9;
+}
+
+/* Текст цитаты - без переноса слов, растягивается */
+.message-quote-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+  white-space: nowrap;
+  overflow: visible;
+  width: auto;
+  display: inline-block;
+  opacity: 0.85;
+}
+
+/* Если текст цитаты слишком длинный - разрешаем перенос на маленьких экранах */
+@media (max-width: 480px) {
+  .message-quote-text {
+    white-space: normal;
+    word-break: break-word;
+  }
+  .message-quote-author {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Свои сообщения - текст цитаты */
+.message-bubble-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Чужие сообщения - текст цитаты */
+.message-bubble-other .message-quote-text {
+  color: #555;
+}
+
+/* Основной текст сообщения */
+.message-text {
+  width: 100%;
+  word-break: break-word;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+/* Разделитель между цитатой и новым сообщением */
+.message-quote + .message-text {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.message-bubble-mine .message-quote + .message-text {
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Кнопки действий */
+.message-actions {
+  position: absolute;
+  bottom: 100%;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10;
+  background: var(--card-bg);
+  padding: 4px 8px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  border: 1px solid var(--border-color);
+}
+
+.message-wrapper-mine .message-actions {
+  right: 0;
+}
+
+.message-wrapper-other .message-actions {
+  left: 0;
+}
+
+.message-bubble-container:hover .message-actions {
+  opacity: 1;
+}
+
+/* Панель реакций */
+.reaction-panel {
+  position: absolute;
+  bottom: 100%;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background: var(--card-bg);
+  padding: 4px 8px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.message-wrapper-mine .reaction-panel {
+  right: 0;
+}
+
+.message-wrapper-other .reaction-panel {
+  left: 0;
+}
+
+.message-bubble-container:hover .reaction-panel {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Реакции под сообщением */
+.message-reactions {
+  margin-top: 4px;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-start;
+}
+
+.message-wrapper-mine .message-reactions {
+  justify-content: flex-end;
+}
+
+/* Тёмная тема */
+[data-theme="dark"] .message-quote {
+  border-left-color: #1890ff;
+}
+
+[data-theme="dark"] .message-bubble-mine .message-quote {
+  border-left-color: #69c0ff;
+}
+
+[data-theme="dark"] .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-bubble-other .message-quote-author {
+  color: #69c0ff;
+}
+
+[data-theme="dark"] .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .message-bubble-mine .message-quote-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] .message-bubble-other .message-quote-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+/* Имя автора цитаты - отдельная строка */
+.message-quote-author {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #1890ff;
+  white-space: normal;
+  word-break: normal;
+  overflow: visible;
+  display: block;
+  line-height: 1.3;
+}
+
+/* Текст цитаты - отдельная строка */
+.message-quote-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+  white-space: normal;
+  word-break: break-word;
+  overflow: visible;
+  display: block;
+  opacity: 0.85;
+}
+/* ============ СТИЛИ ДЛЯ СООБЩЕНИЙ В ЧАТЕ ============ */
+
+/* Свои сообщения - менее яркие, приглушённые */
+.message-bubble-mine {
+  background: rgba(24, 144, 255, 0.85);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+/* Тёмная тема - свои сообщения */
+[data-theme="dark"] .message-bubble-mine {
+  background: #1e6f9f;
+  color: #ffffff;
+}
+
+/* Чужие сообщения - светлой теме, более заметные */
+.message-bubble-other {
+  background: #e6e9ef;
+  color: #1a1a1a;
+  border: 1px solid #d0d5dd;
+  border-bottom-left-radius: 4px;
+}
+
+/* Тёмная тема - чужие сообщения, более заметные */
+[data-theme="dark"] .message-bubble-other {
+  background: #3a3a4a;
+  color: #e8e8e8;
+  border: 1px solid #4a4a5a;
+}
+
+/* Свои сообщения в светлой теме - альтернативный вариант (если синий слишком яркий) */
+/* Раскомментируйте если хотите вместо синего использовать другой цвет */
+/*
+.message-bubble-mine {
+  background: #b3d4ff;
+  color: #1a1a1a;
+}
+*/
+/* Свои сообщения с градиентом - менее контрастные */
+.message-bubble-mine {
+  background: linear-gradient(135deg, #69c0ff 0%, #40a9ff 100%);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+/* Тёмная тема - свои сообщения */
+[data-theme="dark"] .message-bubble-mine {
+  background: linear-gradient(135deg, #1e6f9f 0%, #0d5a8a 100%);
+  color: #e8e8e8;
+}
+/* ============ СТИЛИ ДЛЯ СООБЩЕНИЙ В ЧАТЕ ============ */
+
+/* Свои сообщения - голубой, приглушённый */
+.message-bubble-mine {
+  background: rgba(24, 144, 255, 0.85);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+/* Свои сообщения в светлой теме - голубой */
+[data-theme="light"] .message-bubble-mine {
+  background: #69c0ff;
+  color: #1a1a1a;
+}
+
+/* Свои сообщения в тёмной теме - тёмно-голубой */
+[data-theme="dark"] .message-bubble-mine {
+  background: #1e6f9f;
+  color: #e8e8e8;
+}
+
+/* Чужие сообщения - светлой теме */
+[data-theme="light"] .message-bubble-other {
+  background: #e6e9ef;
+  color: #1a1a1a;
+  border: 1px solid #d0d5dd;
+  border-bottom-left-radius: 4px;
+}
+
+/* Чужие сообщения - тёмной теме (тёплый серый вместо фиолетового) */
+[data-theme="dark"] .message-bubble-other {
+  background: #3a3a4a;
+  color: #e8e8e8;
+  border: 1px solid #4a4a5a;
+  border-bottom-left-radius: 4px;
+}
+
+/* Альтернативный вариант для тёмной темы - более голубоватый оттенок */
+[data-theme="dark"] .message-bubble-other {
+  background: #2d3a4a;
+  color: #e8e8e8;
+  border: 1px solid #3d4a5a;
+}
+/* Имя автора цитаты - голубой цвет вместо фиолетового */
+.message-quote-author {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #1890ff;
+  white-space: normal;
+  word-break: normal;
+  overflow: visible;
+  display: block;
+  line-height: 1.3;
+}
+
+/* Светлая тема - имя автора цитаты */
+[data-theme="light"] .message-quote-author {
+  color: #096dd9;
+}
+
+/* Тёмная тема - имя автора цитаты (голубой вместо фиолетового) */
+[data-theme="dark"] .message-quote-author {
+  color: #69c0ff;
+}
+
+/* Текст цитаты */
+.message-quote-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+  white-space: normal;
+  word-break: break-word;
+  overflow: visible;
+  display: block;
+  opacity: 0.85;
+}
+
+/* Светлая тема - текст цитаты */
+[data-theme="light"] .message-quote-text {
+  color: #555;
+}
+
+/* Тёмная тема - текст цитаты (светлый) */
+[data-theme="dark"] .message-quote-text {
+  color: #a0a0a0;
+}
+/* ============ ПЕРЕОПРЕДЕЛЕНИЕ СТИЛЕЙ СООБЩЕНИЙ ============ */
+
+/* СВЕТЛАЯ ТЕМА - свои сообщения (менее контрастные) */
+[data-theme="light"] .message-bubble-mine {
+  background: #b3d4ff !important;
+  color: #1a1a1a !important;
+  border-bottom-right-radius: 4px !important;
+}
+
+/* СВЕТЛАЯ ТЕМА - чужие сообщения (более заметные) */
+[data-theme="light"] .message-bubble-other {
+  background: #e6e9ef !important;
+  color: #1a1a1a !important;
+  border: 1px solid #c8ccd0 !important;
+  border-bottom-left-radius: 4px !important;
+}
+
+/* ТЁМНАЯ ТЕМА - свои сообщения */
+[data-theme="dark"] .message-bubble-mine {
+  background: #1e6f9f !important;
+  color: #e8e8e8 !important;
+  border-bottom-right-radius: 4px !important;
+}
+
+/* ТЁМНАЯ ТЕМА - чужие сообщения */
+[data-theme="dark"] .message-bubble-other {
+  background: #3a3a4a !important;
+  color: #e8e8e8 !important;
+  border: 1px solid #4a4a5a !important;
+  border-bottom-left-radius: 4px !important;
+}
+
+/* Имя автора цитаты */
+[data-theme="light"] .message-quote-author {
+  color: #096dd9 !important;
+}
+
+[data-theme="dark"] .message-quote-author {
+  color: #69c0ff !important;
+}
+
+/* Текст цитаты */
+[data-theme="light"] .message-quote-text {
+  color: #555 !important;
+}
+
+[data-theme="dark"] .message-quote-text {
+  color: #a0a0a0 !important;
+}
+
+/* Левая линия цитаты */
+[data-theme="light"] .message-quote {
+  border-left-color: #1890ff !important;
+}
+
+[data-theme="dark"] .message-quote {
+  border-left-color: #1890ff !important;
+}
+
+[data-theme="dark"] .message-mine .message-quote {
+  border-left-color: #69c0ff !important;
+}
+
+/* Чужие сообщения - ярко-голубоватый фон */
+[data-theme="light"] .message-bubble-other {
+  background: #cce5f5 !important;
+  color: #1a1a1a !important;
+  border: 1px solid #99cce5 !important;
+  border-bottom-left-radius: 4px !important;
+}
+.ticket-info-grid {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .ticket-info-row {
+    display: contents;
+  }
+  .ticket-info-label {
+    font-weight: 500;
+    color: #666;
+    padding: 8px 0;
+  }
+  .ticket-info-value {
+    padding: 8px 0;
+  }
+  .ticket-message {
+    margin-bottom: 12px;
+  }
+  .ticket-message-mine {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .ticket-message-other {
+    display: flex;
+    justify-content: flex-start;
+  }
+  .ticket-message-bubble {
+    max-width: 70%;
+    padding: 10px 14px;
+    border-radius: 16px;
+  }
+  .ticket-message-bubble.mine {
+    background: #1890ff;
+    color: white;
+  }
+  .ticket-message-bubble.other {
+    background: #f5f5f5;
+  }
+  .ticket-message-author {
+    font-size: 12px;
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .ticket-message-role-tag {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    margin-right: 8px;
+  }
+  .ticket-message-role-tag.client {
+    background: #e6f7ff;
+    color: #1890ff;
+  }
+  .ticket-message-role-tag.operator {
+    background: #f6ffed;
+    color: #52c41a;
+  }
+  .ticket-message-text {
+    word-break: break-word;
+  }
+  .ticket-message-time {
+    font-size: 10px;
+    opacity: 0.6;
+    margin-top: 4px;
+    text-align: right;
+  }
+
+/* ============ МЕТРИКИ ДНЯ - ПРИНУДИТЕЛЬНО БЕЛЫЙ ТЕКСТ ============ */
+
+/* Базовые стили для всех карточек метрик */
+
+/* Принудительно белый текст для значений метрик */
+.metric-card .ant-statistic-content,
+.metric-card .ant-statistic-content-value,
+.metric-card .ant-statistic-content-prefix,
+.metric-card .ant-statistic-content-suffix,
+.metric-card .ant-statistic-title {
+  color: #1a1a1a !important;
+}
+
+/* Для светлой темы - переопределяем */
+[data-theme="light"] .metric-card .ant-statistic-content,
+[data-theme="light"] .metric-card .ant-statistic-content-value,
+[data-theme="light"] .metric-card .ant-statistic-content-prefix,
+[data-theme="light"] .metric-card .ant-statistic-content-suffix,
+[data-theme="light"] .metric-card .ant-statistic-title {
+  color: #1a1a1a !important;
+}
+
+/* Для тёмной темы */
+[data-theme="dark"] .metric-card .ant-statistic-content,
+[data-theme="dark"] .metric-card .ant-statistic-content-value,
+[data-theme="dark"] .metric-card .ant-statistic-content-prefix,
+[data-theme="dark"] .metric-card .ant-statistic-content-suffix,
+[data-theme="dark"] .metric-card .ant-statistic-title {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Иконки в карточках метрик - белые */
+.metric-card .anticon,
+.metric-card .ant-statistic-content .anticon {
+  color: #1a1a1a !important;
+}
+
+
+[style*="linear-gradient"] .anticon {
+  color: #ffffff !important;
+}
+[data-theme="light"] .ant-statistic-title {
+  color: #1a1a1a;
+}

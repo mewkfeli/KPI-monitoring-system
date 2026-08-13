@@ -1,8 +1,7 @@
+// frontend/src/pages/Leaderboard.jsx
 import React, { useState, useEffect } from "react";
-
 import {
   Layout,
-  Menu,
   Avatar,
   Typography,
   Button,
@@ -10,7 +9,6 @@ import {
   Table,
   Tag,
   Space,
-  Select,
   Radio,
   Statistic,
   Row,
@@ -19,6 +17,7 @@ import {
   message,
   Empty,
   Tooltip,
+  Select, Divider
 } from "antd";
 import {
   UserOutlined,
@@ -30,77 +29,36 @@ import {
   BarChartOutlined,
   LogoutOutlined,
   MessageOutlined,
-  DashboardOutlined,
-  FormOutlined,
-  GoldOutlined,
   CrownOutlined,
   BookOutlined,
+  InfoCircleOutlined
 } from "@ant-design/icons";
 import { useAuth } from "../contexts/useAuth";
 import { Link, useNavigate } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
-import dayjs from "dayjs";
-import "dayjs/locale/ru";
 import Sidebar from "../components/Sidebar";
 import { KpiTooltip, KpiColumnTitle } from "../components/KpiTooltip";
-const { Header, Sider, Content } = Layout;
+
+const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 const { Option } = Select;
-
-// Цвета для мест
-const rankColors = {
-  1: "gold",
-  2: "silver",
-  3: "#cd7f32",
-};
-
-// Иконки для мест
-const rankIcons = {
-  1: <CrownOutlined style={{ color: "gold" }} />,
-  2: <TrophyOutlined style={{ color: "silver" }} />,
-  3: <TrophyOutlined style={{ color: "#cd7f32" }} />,
-};
 
 const Leaderboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [leaderboard, setLeaderboard] = useState([]);
+  const [groupsLeaderboard, setGroupsLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("week");
+  const [viewType, setViewType] = useState("employees");
   const [groupInfo, setGroupInfo] = useState(null);
- const [kpiTargets, setKpiTargets] = useState({ 
-    csat: 85, 
-    fcr: 75, 
-    contacts_per_hour: 8, 
-    quality_score: 90 
-  });
+  const [departmentGroups, setDepartmentGroups] = useState([]);
 
-  useEffect(() => {
-    fetch('http://localhost:5000/api/kpi/targets')
-      .then(res => res.json())
-      .then(data => setKpiTargets(data))
-      .catch(err => console.error('Ошибка загрузки KPI норм:', err));
-  }, []);
-  // Определяем цвет для роли
-  const getRoleColor = (role) => {
-    switch (role) {
-      case "Руководитель отдела":
-        return "purple";
-      case "Руководитель группы":
-        return "blue";
-      case "Сотрудник":
-        return "green";
-      default:
-        return "default";
-    }
-  };
+  const isDeptLeader = user?.role === 'Руководитель отдела';
 
-  // Получаем информацию о группе
   const fetchGroupInfo = async () => {
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/group/my-group?employee_id=${user?.employee_id}`,
-      );
+      const response = await fetch(`http://localhost:5000/api/group/my-group?employee_id=${user?.employee_id}`);
       if (response.ok) {
         const data = await response.json();
         setGroupInfo(data.groupInfo);
@@ -110,40 +68,69 @@ const Leaderboard = () => {
     }
   };
 
-  // Получаем рейтинг
-  const fetchLeaderboard = async () => {
-    if (!user?.employee_id) return;
-
-    setLoading(true);
+  const fetchDepartmentGroups = async () => {
+    if (!isDeptLeader) return;
     try {
-      // Сначала получаем группу
-      const groupResponse = await fetch(
-        `http://localhost:5000/api/group/my-group?employee_id=${user?.employee_id}`,
-      );
+      const response = await fetch(`http://localhost:5000/api/group/department-groups?employee_id=${user?.employee_id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setDepartmentGroups(data);
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки групп отдела:", error);
+    }
+  };
+
+  const fetchLeaderboard = async () => {
+  if (!user?.employee_id) return;
+  setLoading(true);
+  try {
+    let url;
+    
+    // Для руководителя отдела - используем department эндпоинт
+    if (user?.role === 'Руководитель отдела') {
+      url = `http://localhost:5000/api/group/leaderboard/department?employee_id=${user?.employee_id}&period=${period}&limit=100`;
+    } 
+    // Для руководителя группы и сотрудника - используем обычный эндпоинт
+    else {
+      // Получаем ID группы пользователя
+      const groupResponse = await fetch(`http://localhost:5000/api/group/my-group?employee_id=${user?.employee_id}`);
       const groupData = await groupResponse.json();
       const groupId = groupData.groupInfo?.group_id;
-
+      
       if (!groupId) {
         setLoading(false);
         return;
       }
+      
+      url = `http://localhost:5000/api/group/leaderboard?group_id=${groupId}&period=${period}&limit=50`;
+    }
+    
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      setLeaderboard(data);
+    } else {
+      message.error("Ошибка загрузки рейтинга");
+    }
+  } catch (error) {
+    console.error("Ошибка:", error);
+    message.error("Ошибка загрузки данных");
+  } finally {
+    setLoading(false);
+  }
+};
 
-      // Получаем рейтинг
-      const response = await fetch(
-        `http://localhost:5000/api/group/leaderboard?group_id=${groupId}&period=${period}&limit=50`,
-      );
-
+  const fetchGroupsLeaderboard = async () => {
+    if (!isDeptLeader) return;
+    try {
+      const response = await fetch(`http://localhost:5000/api/group/groups-leaderboard?employee_id=${user?.employee_id}&period=${period}`);
       if (response.ok) {
         const data = await response.json();
-        setLeaderboard(data);
-      } else {
-        message.error("Ошибка загрузки рейтинга");
+        setGroupsLeaderboard(data);
       }
     } catch (error) {
-      console.error("Ошибка:", error);
-      message.error("Ошибка загрузки данных");
-    } finally {
-      setLoading(false);
+      console.error("Ошибка загрузки рейтинга групп:", error);
     }
   };
 
@@ -151,247 +138,181 @@ const Leaderboard = () => {
     if (user?.employee_id) {
       fetchGroupInfo();
       fetchLeaderboard();
+      if (isDeptLeader) {
+        fetchDepartmentGroups();
+        fetchGroupsLeaderboard();
+      }
     }
-  }, [user?.employee_id, period]);
+  }, [user?.employee_id, period, isDeptLeader]);
 
-  // Меню для руководителя
-  const menuItems = [
+  const stats = {
+    totalEmployees: leaderboard.length,
+    avgCsat: leaderboard.length > 0 ? (leaderboard.reduce((sum, e) => sum + (parseFloat(e.csat) || 0), 0) / leaderboard.length).toFixed(1) : 0,
+    avgFcr: leaderboard.length > 0 ? (leaderboard.reduce((sum, e) => sum + (parseFloat(e.fcr) || 0), 0) / leaderboard.length).toFixed(1) : 0,
+    bestEmployee: leaderboard[0],
+    bestGroup: groupsLeaderboard[0],
+  };
+
+const columns = [
+  {
+    title: "Место",
+    key: "rank",
+    width: 80,
+    className: "rank-column",
+    render: (_, record, index) => {
+      const rank = record.rank;
+      if (rank === 1) return (<div className="rank-1"><CrownOutlined /><span>1</span></div>);
+      if (rank === 2) return (<div className="rank-2"><span>2</span></div>);
+      if (rank === 3) return (<div className="rank-3"><span>3</span></div>);
+      return (<div className="rank-other"><span>{rank}</span></div>);
+    }
+  },
+  {
+    title: "Сотрудник",
+    key: "employee",
+    className: "employee-column",
+    render: (_, record) => {
+      const avatarUrl = record.avatar_url ? `http://localhost:5000${record.avatar_url}` : null;
+      return (
+        <div className="employee-info">
+          <Avatar src={avatarUrl} className="employee-avatar" onClick={() => navigate(`/employee/${record.employee_id}`)}>
+            {!avatarUrl && (record.first_name?.[0] || record.last_name?.[0])}
+          </Avatar>
+          <div className="employee-details">
+            <Text className="employee-name" onClick={() => navigate(`/employee/${record.employee_id}`)}>
+              {record.full_name}
+            </Text>
+            {/* 👇 ДОБАВЛЯЕМ НАЗВАНИЕ ГРУППЫ ДЛЯ РУКОВОДИТЕЛЯ ОТДЕЛА */}
+            {user?.role === 'Руководитель отдела' && record.group_name && (
+              <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 2 }}>
+                <TeamOutlined style={{ fontSize: 10, marginRight: 4 }} />
+                {record.group_name}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+  },
     {
-      key: "profile",
-      icon: <UserOutlined />,
-      label: <Link to="/profile">Личный профиль</Link>,
-    },
-        {
-      key: "chat", 
-      icon: <MessageOutlined />,
-      label: <Link to="/chat">Чат группы</Link>,
+      title: <KpiColumnTitle metric="work_days" title="Дней" />,
+      dataIndex: "work_days",
+      key: "work_days",
+      align: "center",
+      className: "stat-cell",
+      render: (days) => <span className="stat-number">{days || 0}</span>
     },
     {
-      key: "group-dashboard",
-      icon: <TeamOutlined />,
-      label: <Link to="/group-leader">Дашборд группы</Link>,
+      title: <KpiColumnTitle metric="csat" title="CSAT" />,
+      dataIndex: "csat",
+      key: "csat",
+      align: "center",
+      className: "stat-cell",
+      render: (value) => {
+        const numValue = parseFloat(value) || 0;
+        return (<span className={`stat-value ${numValue >= 85 ? 'high' : numValue >= 68 ? 'medium' : 'low'}`}>{numValue}%</span>);
+      }
     },
     {
-      key: "leaderboard",
-      icon: <TrophyOutlined />,
-      label: <Link to="/leaderboard">Рейтинг сотрудников</Link>,
+      title: <KpiColumnTitle metric="fcr" title="FCR" />,
+      dataIndex: "fcr",
+      key: "fcr",
+      align: "center",
+      className: "stat-cell",
+      render: (value) => {
+        const numValue = parseFloat(value) || 0;
+        return (<span className={`stat-value ${numValue >= 75 ? 'high' : numValue >= 60 ? 'medium' : 'low'}`}>{numValue}%</span>);
+      }
     },
     {
-            key: "knowledge",
-            icon: <BookOutlined />,
-            label: <Link to="/knowledge">База знаний</Link>,
-          },
+      title: <KpiColumnTitle metric="contacts_per_hour" title="Конт/час" />,
+      dataIndex: "contacts_per_hour",
+      key: "contacts_per_hour",
+      align: "center",
+      className: "stat-cell",
+      render: (value) => {
+        const numValue = parseFloat(value) || 0;
+        return (<span className={`stat-value ${numValue >= 8 ? 'high' : numValue >= 5 ? 'medium' : 'low'}`}>{numValue}</span>);
+      }
+    },
+    {
+      title: <KpiColumnTitle metric="quality_score" title="Качество" />,
+      dataIndex: "avg_quality",
+      key: "avg_quality",
+      align: "center",
+      className: "stat-cell",
+      render: (value) => {
+        const numValue = parseFloat(value) || 0;
+        return (<span className={`stat-value ${numValue >= 90 ? 'high' : numValue >= 70 ? 'medium' : 'low'}`}>{numValue}%</span>);
+      }
+    },
+    {
+      title: "Всего запросов",
+      dataIndex: "total_requests",
+      key: "total_requests",
+      align: "center",
+      className: "stat-cell",
+      render: (value) => <span className="stat-number">{value || 0}</span>
+    },
   ];
 
-  // Колонки для таблицы
-  const columns = [
+  const groupColumns = [
     {
       title: "Место",
       key: "rank",
       width: 80,
       render: (_, record, index) => {
         const rank = record.rank;
-        if (rank === 1) {
-          return (
-            <Tooltip title="Лидер">
-              <Space>
-                <CrownOutlined style={{ color: "gold", fontSize: 20 }} />
-                <Text strong style={{ color: "gold" }}>
-                  1
-                </Text>
-              </Space>
-            </Tooltip>
-          );
-        }
-        if (rank === 2) {
-          return (
-            <Tooltip title="2 место">
-              <Space>
-                <TrophyOutlined style={{ color: "silver", fontSize: 18 }} />
-                <Text strong>2</Text>
-              </Space>
-            </Tooltip>
-          );
-        }
-        if (rank === 3) {
-          return (
-            <Tooltip title="3 место">
-              <Space>
-                <TrophyOutlined style={{ color: "#cd7f32", fontSize: 18 }} />
-                <Text strong>3</Text>
-              </Space>
-            </Tooltip>
-          );
-        }
-        return (
-          <Text type="secondary" strong>
-            {rank}
-          </Text>
-        );
-      },
-      sorter: (a, b) => a.rank - b.rank,
+        if (rank === 1) return (<div className="rank-1"><CrownOutlined /><span>1</span></div>);
+        if (rank === 2) return (<div className="rank-2"><span>2</span></div>);
+        if (rank === 3) return (<div className="rank-3"><span>3</span></div>);
+        return (<div className="rank-other"><span>{rank}</span></div>);
+      }
     },
     {
-  title: "Сотрудник",
-  key: "employee",
-  render: (_, record) => {
-    // Получаем URL аватарки, если она есть
-    const avatarUrl = record.avatar_url ? `http://localhost:5000${record.avatar_url}` : null;
-    
-    return (
-      <Space>
-        <Avatar 
-          src={avatarUrl}
-          style={{ 
-            backgroundColor: !avatarUrl ? getRoleColor(record.role) : "transparent",
-            cursor: 'pointer'
-          }}
-          onClick={() => navigate(`/employee/${record.employee_id}`)}
-        >
-          {!avatarUrl && (record.first_name?.[0] || record.last_name?.[0])}
-        </Avatar>
-        <div>
-          <Text 
-            strong 
-            style={{ cursor: 'pointer', color: '#1890ff' }}
-            onClick={() => navigate(`/employee/${record.employee_id}`)}
-          >
-            {record.full_name}
-          </Text>
-          <br />
-          <Tag color={getRoleColor(record.role)} style={{ fontSize: 10 }}>
-            {record.role}
-          </Tag>
-        </div>
-      </Space>
-    );
-  },
-  sorter: (a, b) => a.last_name.localeCompare(b.last_name),
-},
-        {
-      title: "Рабочих дней",
-      dataIndex: "work_days",
-      key: "work_days",
-      align: "center",
-      width: 100,
-      sorter: (a, b) => a.work_days - b.work_days,
-      render: (days) => <Tag color="blue">{days}</Tag>,
+      title: "Группа",
+      dataIndex: "group_name",
+      key: "group_name",
     },
-{
-  title: <KpiColumnTitle metric="csat" title="CSAT" />,
-  dataIndex: "csat",
-  key: "csat",
-  align: "center",
-  render: (value) => (
-    <KpiTooltip metric="csat">
-      <Tag color={value >= 85 ? "green" : value >= 68 ? "orange" : "red"}>
-        <StarOutlined /> {value}%
-      </Tag>
-    </KpiTooltip>
-  ),
-},
-{
-  title: <KpiColumnTitle metric="fcr" title="FCR" />,
-  dataIndex: "fcr",
-  key: "fcr",
-  align: "center",
-  render: (value) => (
-    <KpiTooltip metric="fcr">
-      <Tag color={value >= 75 ? "green" : value >= 60 ? "orange" : "red"}>
-        <CheckCircleOutlined /> {value}%
-      </Tag>
-    </KpiTooltip>
-  ),
-},
-{
-  title: <KpiColumnTitle metric="contacts_per_hour" title="Контакты/час" />,
-  dataIndex: "contacts_per_hour",
-  key: "contacts_per_hour",
-  align: "center",
-  render: (value) => (
-    <KpiTooltip metric="contacts_per_hour">
-      <Tag color={value >= 8 ? "green" : value >= 5 ? "orange" : "red"}>
-        <ClockCircleOutlined /> {value}
-      </Tag>
-    </KpiTooltip>
-  ),
-},
-{
-  title: <KpiColumnTitle metric="quality_score" title="Качество" />,
-  dataIndex: "avg_quality",
-  key: "avg_quality",
-  align: "center",
-  render: (value) => (
-    <KpiTooltip metric="quality_score">
-      <Tag color={value >= 90 ? "green" : value >= 70 ? "orange" : "red"}>
-        {value}%
-      </Tag>
-    </KpiTooltip>
-  ),
-},
+    {
+      title: "Сотрудников",
+      dataIndex: "employees_count",
+      key: "employees_count",
+      align: "center",
+    },
     {
       title: "Всего запросов",
       dataIndex: "total_requests",
       key: "total_requests",
       align: "center",
-      width: 120,
-      sorter: (a, b) => a.total_requests - b.total_requests,
+    },
+    {
+      title: "Средний CSAT",
+      dataIndex: "avg_csat",
+      key: "avg_csat",
+      align: "center",
+      render: (value) => <span className={`stat-value ${value >= 85 ? 'high' : value >= 68 ? 'medium' : 'low'}`}>{value || 0}%</span>,
+    },
+    {
+      title: "Продуктивность",
+      dataIndex: "avg_productivity",
+      key: "avg_productivity",
+      align: "center",
+      render: (value) => <span className={`stat-value ${value >= 8 ? 'high' : value >= 5 ? 'medium' : 'low'}`}>{value || 0}</span>,
     },
   ];
 
-  // Статистика
-  const stats = {
-    totalEmployees: leaderboard.length,
-    avgCsat:
-      leaderboard.length > 0
-        ? (
-            leaderboard.reduce((sum, e) => {
-              // Приводим к числу, если строка - парсим
-              let csatValue =
-                typeof e.csat === "number" ? e.csat : parseFloat(e.csat);
-              if (isNaN(csatValue)) csatValue = 0;
-              console.log(`Сотрудник ${e.full_name}: CSAT = ${csatValue}`); // Для отладки
-              return sum + csatValue;
-            }, 0) / leaderboard.length
-          ).toFixed(1)
-        : 0,
-    avgFcr:
-      leaderboard.length > 0
-        ? (
-            leaderboard.reduce((sum, e) => {
-              let fcrValue =
-                typeof e.fcr === "number" ? e.fcr : parseFloat(e.fcr);
-              if (isNaN(fcrValue)) fcrValue = 0;
-              console.log(`Сотрудник ${e.full_name}: FCR = ${fcrValue}`); // Для отладки
-              return sum + fcrValue;
-            }, 0) / leaderboard.length
-          ).toFixed(1)
-        : 0,
-    bestEmployee: leaderboard[0],
-  };
   if (loading) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
         <Sidebar />
         <Layout>
-          <Header style={{background: "var(--bg-content)", padding: "0 24px" }}>
-            <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
-              Рейтинг сотрудников
-            </Title>
+          <Header style={{ background: "var(--bg-content)", padding: "0 24px" }}>
+            <Title level={4} style={{ margin: 0, lineHeight: "64px" }}>Рейтинг сотрудников</Title>
           </Header>
-          <Content
-            style={{ margin: "24px", padding: "24px",background: "var(--bg-content)"}}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "50vh",
-              }}
-            >
+          <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)" }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
               <Spin size="large" />
-              <div style={{ marginLeft: 16 }}>Загрузка рейтинга...</div>
             </div>
           </Content>
         </Layout>
@@ -399,154 +320,98 @@ const Leaderboard = () => {
     );
   }
 
+  const currentData = viewType === 'employees' ? leaderboard : groupsLeaderboard;
+  const currentStats = viewType === 'employees' 
+    ? { total: stats.totalEmployees, avg: stats.avgCsat, best: stats.bestEmployee?.last_name + " " + stats.bestEmployee?.first_name  }
+    : { total: groupsLeaderboard.length, avg: groupsLeaderboard[0]?.avg_csat, best: groupsLeaderboard[0]?.group_name };
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sidebar />
-
       <Layout>
-        <Header
-          style={{
-           background: "var(--bg-content)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "0 24px",
-            boxShadow: "0 1px 4px rgba(0,21,41,.08)",
-          }}
-        >
-          <Title level={4} style={{ margin: 0 }}>
-            <Space>
-              <span>Рейтинг сотрудников</span>
-              {groupInfo && (
-                <Tag color="blue" style={{ marginLeft: 8 }}>
-                  {groupInfo.group_name}
-                </Tag>
-              )}
-            </Space>
-          </Title>
+        <Header style={{ background: "var(--bg-content)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px", borderBottom: "1px solid var(--border-color)" }}>
+          <Space>
+            <Title level={4} style={{ margin: 0, color: "var(--text-title)" }}>Рейтинг</Title>
+            {groupInfo && !isDeptLeader && <Tag color="blue" style={{ marginLeft: 8 }}>{groupInfo.group_name}</Tag>}
+          </Space>
           <Space>
             <NotificationBell userId={user?.employee_id} />
-            <Button onClick={logout} icon={<LogoutOutlined />}>
-              Выйти
-            </Button>
+            <Button onClick={logout} icon={<LogoutOutlined />}>Выйти</Button>
           </Space>
         </Header>
 
-        <Content
-          style={{
-            margin: "24px",
-            padding: "24px",
-           background: "var(--bg-content)",
-            borderRadius: "8px",
-            minHeight: "calc(100vh - 112px)",
-          }}
-        >
-          {/* Статистика */}
+        <Content style={{ margin: "24px", padding: "24px", background: "var(--bg-content)", borderRadius: "8px", minHeight: "calc(100vh - 112px)" }}>
+          
+          {/* KPI Cards */}
           <Row gutter={[24, 24]}>
             <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Всего сотрудников"
-                  value={stats.totalEmployees}
-                  prefix={<TeamOutlined />}
-                  valueStyle={{ color: "#1890ff" }}
-                />
-              </Card>
+              <div className="kpi-card">
+                <div className="kpi-card-value">{currentData.length}</div>
+                <div className="kpi-card-label">{viewType === 'employees' ? 'СОТРУДНИКОВ' : 'ГРУПП'}</div>
+              </div>
             </Col>
             <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Средний CSAT"
-                  value={stats.avgCsat}
-                  suffix="%"
-                  prefix={<StarOutlined />}
-                  valueStyle={{
-                    color: stats.avgCsat >= 85 ? "#3f8600" : "#faad14",
-                  }}
-                />
-              </Card>
+              <div className="kpi-card">
+                <div className="kpi-card-value">{currentStats.avg || 0}%</div>
+                <div className="kpi-card-label">СРЕДНИЙ CSAT</div>
+              </div>
             </Col>
             <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Средний FCR"
-                  value={stats.avgFcr}
-                  suffix="%"
-                  prefix={<CheckCircleOutlined />}
-                  valueStyle={{
-                    color: stats.avgFcr >= 75 ? "#3f8600" : "#faad14",
-                  }}
-                />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Лидер"
-                  value={stats.bestEmployee?.full_name || "-"}
-                  prefix={<CrownOutlined style={{ color: "gold" }} />}
-                  valueStyle={{ fontSize: "14px" }}
-                />
-              </Card>
+              <div className="kpi-card leader-card">
+                <div className="leader-card-content">
+                  <CrownOutlined className="leader-crown" />
+                  <div className="leader-name">{currentStats.best || "—"}</div>
+                  <div className="leader-label">ЛИДЕР</div>
+                </div>
+              </div>
             </Col>
           </Row>
 
-          {/* Управление */}
-          <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+          {/* Controls */}
+          <Row style={{ marginTop: 24, marginBottom: 24 }}>
             <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <TrophyOutlined />
-                    <span>Топ сотрудников</span>
-                  </Space>
-                }
-                extra={
-                  <Space>
-                    <Text>Период:</Text>
-                    <Radio.Group
-                      value={period}
-                      onChange={(e) => setPeriod(e.target.value)}
-                      buttonStyle="solid"
-                    >
-                      <Radio.Button value="week">Неделя</Radio.Button>
-                      <Radio.Button value="month">Месяц</Radio.Button>
-                      <Radio.Button value="quarter">Квартал</Radio.Button>
+              <div className="leaderboard-controls">
+                <Text className="period-label">Период:</Text>
+                <Radio.Group value={period} onChange={(e) => setPeriod(e.target.value)} buttonStyle="solid" className="period-radio">
+                  <Radio.Button value="week">Неделя</Radio.Button>
+                  <Radio.Button value="month">Месяц</Radio.Button>
+                  <Radio.Button value="quarter">Квартал</Radio.Button>
+                </Radio.Group>
+                
+                {isDeptLeader && (
+                  <>
+                    <Divider type="vertical" />
+                    <Text className="period-label">Показать:</Text>
+                    <Radio.Group value={viewType} onChange={(e) => setViewType(e.target.value)} buttonStyle="solid">
+                      <Radio.Button value="employees">Сотрудники</Radio.Button>
+                      <Radio.Button value="groups">Группы</Radio.Button>
                     </Radio.Group>
-                    <Button
-                      icon={<BarChartOutlined />}
-                      onClick={fetchLeaderboard}
-                    >
-                      Обновить
-                    </Button>
-                  </Space>
-                }
-              >
-                {leaderboard.length > 0 ? (
-                  <Table
-                    columns={columns}
-                    dataSource={leaderboard}
-                    rowKey="employee_id"
-                    pagination={{ pageSize: 10, showSizeChanger: true }}
-                    bordered
-                    rowClassName={(record) => {
-                      if (record.rank === 1) return "leader-row";
-                      return "";
-                    }}
-                  />
-                ) : (
-                  <Empty description="Нет данных для отображения рейтинга" />
+                  </>
                 )}
-              </Card>
+                
+                <Button icon={<BarChartOutlined />} onClick={() => {
+                  if (viewType === 'employees') fetchLeaderboard();
+                  else fetchGroupsLeaderboard();
+                }} className="refresh-btn">Обновить</Button>
+              </div>
             </Col>
           </Row>
+          
 
-          {/* Стили для подсветки лидера */}
-          <style jsx>{`
-            :global(.leader-row) {
-              background-color: #fffbe6 !important;
-            }
-          `}</style>
+          {/* Leaderboard Table */}
+          {currentData.length > 0 ? (
+            <Table
+              columns={viewType === 'employees' ? columns : groupColumns}
+              dataSource={currentData}
+              rowKey={viewType === 'employees' ? "employee_id" : "group_id"}
+              pagination={{ pageSize:5, showSizeChanger: true }}
+              className="leaderboard-table"
+              rowClassName={(record) => record.rank === 1 ? 'leader-row' : ''}
+              showHeader={true}
+            />
+          ) : (
+            <Empty description="Нет данных для отображения рейтинга" />
+          )}
         </Content>
       </Layout>
     </Layout>
